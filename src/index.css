@@ -2,95 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* RIZQ App Design System - Warm Brown/Beige Palette
+   All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Warm cream/beige background */
+    --background: 40 33% 96%;
+    --foreground: 24 45% 20%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Card styling - slightly warmer than background */
+    --card: 40 40% 98%;
+    --card-foreground: 24 45% 20%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 40% 98%;
+    --popover-foreground: 24 45% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Primary - Rich golden brown */
+    --primary: 28 56% 52%;
+    --primary-foreground: 40 40% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary - Soft sand */
+    --secondary: 36 33% 90%;
+    --secondary-foreground: 24 45% 20%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted - Subtle warm gray */
+    --muted: 36 20% 88%;
+    --muted-foreground: 24 20% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent - Deep mocha/brown */
+    --accent: 24 48% 28%;
+    --accent-foreground: 40 40% 98%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 40 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Success - Warm green */
+    --success: 142 50% 45%;
+    --success-foreground: 40 40% 98%;
 
-    --radius: 0.5rem;
+    /* Borders and inputs */
+    --border: 30 25% 82%;
+    --input: 30 25% 85%;
+    --ring: 28 56% 52%;
 
-    --sidebar-background: 0 0% 98%;
+    --radius: 0.75rem;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Sidebar */
+    --sidebar-background: 24 48% 28%;
+    --sidebar-foreground: 40 40% 98%;
+    --sidebar-primary: 28 56% 52%;
+    --sidebar-primary-foreground: 40 40% 98%;
+    --sidebar-accent: 24 45% 35%;
+    --sidebar-accent-foreground: 40 40% 98%;
+    --sidebar-border: 24 40% 38%;
+    --sidebar-ring: 28 56% 52%;
 
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Custom RIZQ tokens */
+    --xp-bar: 28 56% 52%;
+    --streak-glow: 35 80% 55%;
+    --level-badge: 24 48% 28%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Deep mocha background */
+    --background: 24 35% 12%;
+    --foreground: 40 30% 92%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 24 30% 16%;
+    --card-foreground: 40 30% 92%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 24 30% 16%;
+    --popover-foreground: 40 30% 92%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Primary - Golden accent */
+    --primary: 35 65% 55%;
+    --primary-foreground: 24 35% 12%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    /* Secondary */
+    --secondary: 24 25% 22%;
+    --secondary-foreground: 40 30% 92%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    /* Muted */
+    --muted: 24 20% 20%;
+    --muted-foreground: 30 15% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    /* Accent - Warm highlight */
+    --accent: 35 50% 45%;
+    --accent-foreground: 24 35% 12%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Destructive */
+    --destructive: 0 62% 35%;
+    --destructive-foreground: 40 30% 92%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Success */
+    --success: 142 45% 40%;
+    --success-foreground: 24 35% 12%;
+
+    /* Borders */
+    --border: 24 25% 25%;
+    --input: 24 25% 22%;
+    --ring: 35 65% 55%;
+
+    /* Sidebar */
+    --sidebar-background: 24 30% 10%;
+    --sidebar-foreground: 40 30% 92%;
+    --sidebar-primary: 35 65% 55%;
+    --sidebar-primary-foreground: 24 35% 12%;
+    --sidebar-accent: 24 25% 18%;
+    --sidebar-accent-foreground: 40 30% 92%;
+    --sidebar-border: 24 25% 20%;
+    --sidebar-ring: 35 65% 55%;
+
+    /* Custom RIZQ tokens */
+    --xp-bar: 35 65% 55%;
+    --streak-glow: 35 80% 60%;
+    --level-badge: 35 50% 45%;
   }
 }
 
@@ -100,6 +129,37 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .islamic-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d4a574' fill-opacity='0.08'%3E%3Cpath d='M30 0L30 60M0 30L60 30M0 0L60 60M60 0L0 60'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .text-arabic {
+    font-family: 'Amiri', 'Traditional Arabic', serif;
+    direction: rtl;
+    line-height: 2;
+  }
+
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  .glow-streak {
+    box-shadow: 0 0 25px hsl(var(--streak-glow) / 0.4);
+  }
+}
+
+@layer components {
+  .card-elevated {
+    @apply bg-card rounded-xl border shadow-sm hover:shadow-md transition-shadow;
+  }
+
+  .btn-tap {
+    @apply active:scale-95 transition-transform duration-100;
   }
 }
