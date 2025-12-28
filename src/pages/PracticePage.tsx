@@ -1,36 +1,48 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RotateCcw, Eye, EyeOff, Check, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, RotateCcw, Eye, EyeOff, Loader2, Sparkles, ChevronRight } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
-import { duaLibrary } from "@/data/duaLibrary";
-import { useUserProfile, useDailyActivity, useUserProgress } from "@/hooks/useUserData";
+import { useDuas } from "@/hooks/useDuas";
+import { useDailyActivity, useUserProgress } from "@/hooks/useActivity";
+import { useUserHabits } from "@/hooks/useUserHabits";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { CelebrationOverlay } from "@/components/animations/CelebrationOverlay";
+import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
+import { RippleEffect } from "@/components/animations/RippleEffect";
 
 export default function PracticePage() {
   const { duaId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const { addXp } = useUserProfile();
+
+  // Fetch duas from database
+  const { data: allDuas = [], isLoading } = useDuas();
+
   const { markDuaCompleted: markActivityCompleted } = useDailyActivity();
   const { markDuaCompleted: markProgressCompleted, hasCompletedToday } = useUserProgress();
+  const { markHabitCompleted } = useUserHabits();
 
   const [currentDuaIndex, setCurrentDuaIndex] = useState(0);
   const [tapCount, setTapCount] = useState(0);
   const [showTransliteration, setShowTransliteration] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   // Get filtered duas based on category or specific dua
-  const filteredDuas = duaId
-    ? duaLibrary.filter((d) => d.id === duaId)
-    : searchParams.get("category")
-    ? duaLibrary.filter((d) => d.category === searchParams.get("category"))
-    : duaLibrary;
+  const filteredDuas = useMemo(() => {
+    if (duaId) {
+      return allDuas.filter((d) => d.id === duaId);
+    }
+    const category = searchParams.get("category");
+    if (category) {
+      return allDuas.filter((d) => d.category === category);
+    }
+    return allDuas;
+  }, [allDuas, duaId, searchParams]);
 
   const currentDua = filteredDuas[currentDuaIndex];
   const alreadyCompletedToday = currentDua ? hasCompletedToday(currentDua.id) : false;
@@ -39,13 +51,11 @@ export default function PracticePage() {
     // Reset state when dua changes
     setTapCount(0);
     setIsCompleted(false);
+    setShowCelebration(false);
   }, [currentDuaIndex, duaId]);
 
   const handleTap = useCallback(() => {
     if (!currentDua || isCompleted || alreadyCompletedToday) return;
-
-    setIsAnimating(true);
-    setTimeout(() => setIsAnimating(false), 150);
 
     const newCount = tapCount + 1;
     setTapCount(newCount);
@@ -53,20 +63,17 @@ export default function PracticePage() {
     if (newCount >= currentDua.repetitions) {
       // Dua completed!
       setIsCompleted(true);
-      addXp(currentDua.xpValue);
+      setShowCelebration(true);
       markActivityCompleted(currentDua.id, currentDua.xpValue);
       markProgressCompleted(currentDua.id);
-
-      toast({
-        title: "Dua Completed! ✨",
-        description: `You earned +${currentDua.xpValue} XP`,
-      });
+      markHabitCompleted(currentDua.id);
     }
-  }, [currentDua, tapCount, isCompleted, alreadyCompletedToday, addXp, markActivityCompleted, markProgressCompleted, toast]);
+  }, [currentDua, tapCount, isCompleted, alreadyCompletedToday, markActivityCompleted, markProgressCompleted, markHabitCompleted]);
 
   const handleReset = () => {
     setTapCount(0);
     setIsCompleted(false);
+    setShowCelebration(false);
   };
 
   const handleNext = () => {
@@ -77,15 +84,43 @@ export default function PracticePage() {
     }
   };
 
+  const handleCelebrationDismiss = () => {
+    setShowCelebration(false);
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="relative">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl animate-pulse" />
+          </div>
+          <p className="text-sm text-muted-foreground">Loading dua...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (!currentDua) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-center">
-          <p className="text-muted-foreground">Dua not found</p>
-          <Button variant="link" onClick={() => navigate("/library")}>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center px-8"
+        >
+          <div className="mb-4 text-4xl">📿</div>
+          <p className="text-muted-foreground mb-4">Dua not found</p>
+          <Button variant="outline" onClick={() => navigate("/library")}>
             Go to Library
           </Button>
-        </div>
+        </motion.div>
       </div>
     );
   }
@@ -93,130 +128,260 @@ export default function PracticePage() {
   const progress = Math.min((tapCount / currentDua.repetitions) * 100, 100);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="mx-auto max-w-md px-4 pt-4">
-        {/* Header */}
-        <header className="mb-6 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="text-center">
-            <h1 className="text-lg font-semibold">{currentDua.title}</h1>
-            {filteredDuas.length > 1 && (
-              <p className="text-xs text-muted-foreground">
-                {currentDuaIndex + 1} of {filteredDuas.length}
-              </p>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowTransliteration(!showTransliteration)}
-          >
-            {showTransliteration ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-          </Button>
-        </header>
+    <>
+      <div className="min-h-screen bg-background pb-24">
+        {/* Background pattern */}
+        <div className="fixed inset-0 islamic-pattern opacity-30 pointer-events-none" />
 
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Progress</span>
-            <span className="font-medium">
-              {tapCount} / {currentDua.repetitions}
-            </span>
-          </div>
-          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-secondary">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Dua Card - Tappable Area */}
-        <Card
-          className={cn(
-            "cursor-pointer select-none transition-all duration-150",
-            isAnimating && "scale-[0.98]",
-            (isCompleted || alreadyCompletedToday) && "border-primary/30 bg-primary/5"
-          )}
-          onClick={handleTap}
+        <motion.div
+          className="relative mx-auto max-w-md px-4 pt-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          <CardContent className="p-6 text-center">
-            {/* Arabic Text */}
-            <p className="mb-6 text-3xl leading-loose text-arabic text-foreground">
-              {currentDua.arabic}
-            </p>
-
-            {/* Transliteration */}
-            {showTransliteration && (
-              <p className="mb-4 text-sm italic text-muted-foreground">
-                {currentDua.transliteration}
-              </p>
-            )}
-
-            {/* Translation */}
-            <p className="text-sm text-foreground/80">{currentDua.translation}</p>
-
-            {/* Tap Counter */}
-            <div className="mt-8">
-              {isCompleted || alreadyCompletedToday ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary">
-                    <Check className="h-8 w-8 text-primary-foreground" />
-                  </div>
-                  <span className="text-sm font-medium text-primary">
-                    {alreadyCompletedToday && !isCompleted ? "Completed Today" : "Completed!"}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 border-4 border-primary text-3xl font-bold text-primary transition-transform",
-                      isAnimating && "animate-counter-pop"
-                    )}
-                  >
-                    {tapCount}
-                  </div>
-                  <span className="text-xs text-muted-foreground">Tap anywhere to count</span>
-                </div>
+          {/* Header */}
+          <motion.header
+            className="mb-6 flex items-center justify-between"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="rounded-full hover:bg-secondary"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="text-center flex-1">
+              <h1 className="font-display text-lg font-semibold truncate px-4">
+                {currentDua.title}
+              </h1>
+              {filteredDuas.length > 1 && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {currentDuaIndex + 1} of {filteredDuas.length}
+                </p>
               )}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
-        <div className="mt-6 flex gap-3">
-          {!isCompleted && !alreadyCompletedToday && (
-            <Button variant="outline" className="flex-1 gap-2" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" />
-              Reset
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowTransliteration(!showTransliteration)}
+              className="rounded-full hover:bg-secondary"
+            >
+              {showTransliteration ? (
+                <Eye className="h-5 w-5" />
+              ) : (
+                <EyeOff className="h-5 w-5" />
+              )}
             </Button>
-          )}
-          <Button
-            className="flex-1 gap-2"
-            onClick={handleNext}
-            disabled={!isCompleted && !alreadyCompletedToday && filteredDuas.length === 1}
-          >
-            {currentDuaIndex < filteredDuas.length - 1 ? (
-              <>
-                Next Dua
-                <Sparkles className="h-4 w-4" />
-              </>
-            ) : (
-              "Done"
-            )}
-          </Button>
-        </div>
+          </motion.header>
 
-        {/* XP Reward Badge */}
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          Complete to earn <span className="font-semibold text-primary">+{currentDua.xpValue} XP</span>
-        </div>
+          {/* Progress indicator */}
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, scaleX: 0 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+                Progress
+              </span>
+              <span className="font-mono font-semibold text-primary">
+                {tapCount} / {currentDua.repetitions}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-secondary/70 shadow-inner-glow">
+              <motion.div
+                className="h-full rounded-full gradient-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+          </motion.div>
+
+          {/* Dua Card - Tappable Area */}
+          <RippleEffect
+            className={cn(
+              "rounded-islamic overflow-hidden cursor-pointer select-none",
+              "bg-card border-2 shadow-elevated transition-all duration-200",
+              isCompleted || alreadyCompletedToday
+                ? "border-primary/30"
+                : "border-primary/10 active:scale-[0.99]"
+            )}
+            onClick={handleTap}
+            disabled={isCompleted || alreadyCompletedToday}
+          >
+            {/* Pattern overlay */}
+            <div className="absolute inset-0 islamic-pattern-dense opacity-20 pointer-events-none" />
+
+            {/* Corner ornaments */}
+            <div className="corner-ornament" />
+
+            <motion.div
+              className="relative p-6 text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+            >
+              {/* Arabic Text */}
+              <motion.p
+                className="mb-6 text-arabic text-3xl leading-[2] text-foreground"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
+                {currentDua.arabic}
+              </motion.p>
+
+              {/* Divider */}
+              <div className="islamic-divider mb-4">
+                <span className="text-primary/40">✦</span>
+              </div>
+
+              {/* Transliteration */}
+              <AnimatePresence>
+                {showTransliteration && (
+                  <motion.p
+                    className="mb-4 text-sm italic text-muted-foreground"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {currentDua.transliteration}
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              {/* Translation */}
+              <motion.p
+                className="text-sm text-foreground/80 leading-relaxed"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
+                {currentDua.translation}
+              </motion.p>
+
+              {/* Counter Circle */}
+              <div className="mt-8 flex flex-col items-center gap-4">
+                {isCompleted || alreadyCompletedToday ? (
+                  <motion.div
+                    className="flex flex-col items-center gap-3"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                  >
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full gradient-primary shadow-glow-primary">
+                      <motion.svg
+                        width="36"
+                        height="36"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        className="text-white"
+                      >
+                        <motion.path
+                          d="M5 13l4 4L19 7"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.4, delay: 0.2 }}
+                        />
+                      </motion.svg>
+                    </div>
+                    <span className="text-sm font-semibold text-primary">
+                      {alreadyCompletedToday && !isCompleted
+                        ? "Completed Today"
+                        : "Completed!"}
+                    </span>
+                  </motion.div>
+                ) : (
+                  <>
+                    <AnimatedCounter
+                      value={tapCount}
+                      max={currentDua.repetitions}
+                      size="lg"
+                      showProgress={false}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      Tap anywhere to count
+                    </span>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </RippleEffect>
+
+          {/* Action Buttons */}
+          <motion.div
+            className="mt-6 flex gap-3"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+          >
+            {!isCompleted && !alreadyCompletedToday && (
+              <Button
+                variant="outline"
+                className="flex-1 gap-2 h-12 rounded-btn"
+                onClick={handleReset}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reset
+              </Button>
+            )}
+            <Button
+              className="flex-1 gap-2 h-12 rounded-btn btn-gradient"
+              onClick={handleNext}
+              disabled={
+                !isCompleted && !alreadyCompletedToday && filteredDuas.length === 1
+              }
+            >
+              {currentDuaIndex < filteredDuas.length - 1 ? (
+                <>
+                  Next Dua
+                  <ChevronRight className="h-4 w-4" />
+                </>
+              ) : (
+                "Done"
+              )}
+            </Button>
+          </motion.div>
+
+          {/* XP Reward Badge */}
+          <motion.div
+            className="mt-6 flex justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 text-sm">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-muted-foreground">Complete to earn</span>
+              <span className="font-mono font-bold text-primary">
+                +{currentDua.xpValue} XP
+              </span>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        <BottomNav />
       </div>
 
-      <BottomNav />
-    </div>
+      {/* Celebration Overlay */}
+      <CelebrationOverlay
+        isVisible={showCelebration}
+        title="Masha'Allah!"
+        subtitle="Dua completed"
+        xpEarned={currentDua.xpValue}
+        onDismiss={handleCelebrationDismiss}
+      />
+    </>
   );
 }
