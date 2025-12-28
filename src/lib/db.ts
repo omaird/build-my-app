@@ -49,6 +49,8 @@ export interface Dua {
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' | null;
   est_duration_sec: number | null;
   rizq_benefit: string | null;
+  context: string | null; // Story/background narrative
+  prophetic_context: string | null; // What the Prophet ﷺ said, when recommended, circumstances
   xp_value: number;
   audio_url: string | null;
   created_at: string;

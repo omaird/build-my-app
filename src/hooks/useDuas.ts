@@ -1,9 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { getSql, type DuaWithRelations, type Category, type Collection } from '@/lib/db';
-import type { Dua, DuaCategory } from '@/types/dua';
+import type { Dua, DuaCategory, DuaContext, DuaDifficulty } from '@/types/dua';
 
 // Map database record to frontend Dua format
 function mapDbDuaToFrontend(dbDua: DuaWithRelations): Dua {
+  // Build context object from DB fields
+  const context: DuaContext = {
+    source: dbDua.source || null,
+    bestTime: dbDua.best_time || null,
+    benefits: dbDua.rizq_benefit || null,
+    story: dbDua.context || null,
+    propheticContext: dbDua.prophetic_context || null,
+    difficulty: (dbDua.difficulty as DuaDifficulty) || null,
+    estimatedDuration: dbDua.est_duration_sec || null,
+  };
+
   return {
     id: String(dbDua.id),
     title: dbDua.title_en,
@@ -13,6 +24,7 @@ function mapDbDuaToFrontend(dbDua: DuaWithRelations): Dua {
     category: (dbDua.category_slug || 'morning') as DuaCategory,
     xpValue: dbDua.xp_value,
     repetitions: dbDua.repetitions,
+    context,
   };
 }
 

@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS duas (
     difficulty VARCHAR(50), -- Beginner, Intermediate, Advanced
     est_duration_sec INTEGER,
     rizq_benefit TEXT,
+    prophetic_context TEXT, -- Historical background: when Prophet ﷺ recommended it, hadith quotes, circumstances
     xp_value INTEGER DEFAULT 10,
     audio_url VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

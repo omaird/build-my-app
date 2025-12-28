@@ -17,9 +17,9 @@ ON CONFLICT (slug) DO NOTHING;
 
 -- 1. Ayatul Kursi
 INSERT INTO duas (
-    title_en, title_ar, arabic_text, transliteration, translation_en, 
-    source, repetitions, best_time, difficulty, est_duration_sec, 
-    rizq_benefit, xp_value, collection_id, category_id
+    title_en, title_ar, arabic_text, transliteration, translation_en,
+    source, repetitions, best_time, difficulty, est_duration_sec,
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Ayatul Kursi (Verse of the Throne)',
     'آية الكرسي',
@@ -32,6 +32,7 @@ INSERT INTO duas (
     'Beginner',
     45,
     'Comprehensive protection of wealth and provision',
+    'The Prophet ﷺ said: "Whoever recites Ayatul Kursi after every obligatory prayer, nothing will prevent him from entering Paradise except death." (An-Nasa''i). He ﷺ also told Abu Hurayrah: "When you go to bed, recite Ayatul Kursi, for there will be a guard from Allah protecting you throughout the night, and Satan will not come near you until morning." (Sahih Bukhari). This is the greatest verse in the Quran, containing the most comprehensive description of Allah''s majesty.',
     50,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'morning')
@@ -39,9 +40,9 @@ INSERT INTO duas (
 
 -- 2. Morning Protection Dua
 INSERT INTO duas (
-    title_en, title_ar, arabic_text, transliteration, translation_en, 
-    source, repetitions, best_time, difficulty, est_duration_sec, 
-    rizq_benefit, xp_value, collection_id, category_id
+    title_en, title_ar, arabic_text, transliteration, translation_en,
+    source, repetitions, best_time, difficulty, est_duration_sec,
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Morning Protection Dua (Sabah wa Amsa)',
     'دعاء الصباح والمساء',
@@ -54,6 +55,7 @@ INSERT INTO duas (
     'Beginner',
     30,
     'Asking for the good/provision of the day ahead',
+    'This dua was part of the Prophet''s ﷺ daily morning routine. He would recite it upon waking, establishing a practice of beginning each day by acknowledging Allah''s sovereignty. The Companions reported that he ﷺ was consistent with this remembrance, never missing it. Ibn Umar (may Allah be pleased with him) narrated that he learned this directly from the Prophet ﷺ as essential morning adhkar.',
     30,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'morning')
@@ -61,9 +63,9 @@ INSERT INTO duas (
 
 -- 3. Dua Upon Leaving Home
 INSERT INTO duas (
-    title_en, title_ar, arabic_text, transliteration, translation_en, 
-    source, repetitions, best_time, difficulty, est_duration_sec, 
-    rizq_benefit, xp_value, collection_id, category_id
+    title_en, title_ar, arabic_text, transliteration, translation_en,
+    source, repetitions, best_time, difficulty, est_duration_sec,
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua for Provision Upon Leaving Home',
     'دعاء الخروج من المنزل',
@@ -76,6 +78,7 @@ INSERT INTO duas (
     'Beginner',
     5,
     'Reliance on Allah for sustenance during daily activities',
+    'The Prophet ﷺ taught this dua as protection when leaving one''s home. He ﷺ said: "Whoever says when leaving his house: ''Bismillah, tawakkaltu ''alallah, la hawla wa la quwwata illa billah'' - it will be said to him: You are guided, defended, and protected. The devil will turn away from him." (At-Tirmidhi). Anas ibn Malik reported this was the Prophet''s constant practice before stepping outside.',
     15,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'morning')
@@ -83,9 +86,9 @@ INSERT INTO duas (
 
 -- 4. Sayyidul Istighfar
 INSERT INTO duas (
-    title_en, title_ar, arabic_text, transliteration, translation_en, 
-    source, repetitions, best_time, difficulty, est_duration_sec, 
-    rizq_benefit, xp_value, collection_id, category_id
+    title_en, title_ar, arabic_text, transliteration, translation_en,
+    source, repetitions, best_time, difficulty, est_duration_sec,
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'The Master Dua for Provision (Sayyidul Istighfar)',
     'سيد الاستغفار',
@@ -98,6 +101,7 @@ INSERT INTO duas (
     'Intermediate',
     40,
     'Acknowledging Allah''s blessings opens doors to more provision',
+    'The Prophet ﷺ called this "Sayyidul Istighfar" - the Master of Seeking Forgiveness. Shaddad ibn Aws narrated that the Prophet ﷺ said: "The most superior way of asking for forgiveness is this dua. Whoever says it during the day with firm faith in it and dies on that day before evening, will be among the people of Paradise. And whoever says it during the night with firm faith in it and dies before morning, will be among the people of Paradise." (Sahih Bukhari). The Prophet ﷺ emphasized this dua connects istighfar to provision, as sins can block rizq.',
     40,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'rizq')
@@ -105,9 +109,9 @@ INSERT INTO duas (
 
 -- 5. Dua for Halal Provision
 INSERT INTO duas (
-    title_en, title_ar, arabic_text, transliteration, translation_en, 
-    source, repetitions, best_time, difficulty, est_duration_sec, 
-    rizq_benefit, xp_value, collection_id, category_id
+    title_en, title_ar, arabic_text, transliteration, translation_en,
+    source, repetitions, best_time, difficulty, est_duration_sec,
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua for Halal Provision',
     'دعاء الرزق الحلال',
@@ -120,6 +124,7 @@ INSERT INTO duas (
     'Beginner',
     15,
     'Directly asks for lawful, blessed provision',
+    'Ali ibn Abi Talib (may Allah be pleased with him) reported that a slave who had made a contract for his freedom came to him and said: "I am unable to pay for my freedom, help me." Ali said: "Shall I not teach you words that the Prophet ﷺ taught me? If you had a debt as great as a mountain, Allah would pay it for you." Then he taught him this dua. The Prophet ﷺ specifically connected this supplication to financial relief and independence from depending on others.',
     25,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'rizq')
@@ -129,7 +134,7 @@ INSERT INTO duas (
 INSERT INTO duas (
     title_en, title_ar, arabic_text, transliteration, translation_en,
     source, repetitions, best_time, difficulty, est_duration_sec,
-    rizq_benefit, xp_value, collection_id, category_id
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Evening Protection Dua',
     'دعاء المساء',
@@ -142,6 +147,7 @@ INSERT INTO duas (
     'Beginner',
     30,
     'Protection of nighttime provision and opportunities',
+    'This is the evening counterpart to the morning adhkar. The Prophet ﷺ would recite this consistently after Maghrib prayer. Abu Hurayrah reported that the Prophet ﷺ taught his companions to bookend their days with these supplications - morning and evening - creating a complete cycle of divine protection and seeking good. The change from "yawm" (day) to "laylah" (night) reflects the Prophet''s attention to the unique blessings and challenges of each time period.',
     30,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'evening')
@@ -151,7 +157,7 @@ INSERT INTO duas (
 INSERT INTO duas (
     title_en, title_ar, arabic_text, transliteration, translation_en,
     source, repetitions, best_time, difficulty, est_duration_sec,
-    rizq_benefit, xp_value, collection_id, category_id
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua for Relief from Debt',
     'دعاء التخلص من الدين',
@@ -164,6 +170,7 @@ INSERT INTO duas (
     'Intermediate',
     25,
     'Removes obstacles to provision (debt, laziness, fear)',
+    'Abu Sa''id al-Khudri reported: "The Prophet ﷺ entered the mosque one day and saw a man from the Ansar called Abu Umamah. He asked: ''What is wrong with you that I see you sitting in the mosque when it is not prayer time?'' He replied: ''I am worried about my debts, O Messenger of Allah.'' The Prophet ﷺ said: ''Shall I not teach you words which, if you say them, Allah will remove your worry and settle your debt?'' He then taught him this supplication." (Abu Dawud). The Prophet ﷺ personally prescribed this for debt relief.',
     35,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'rizq')
@@ -173,7 +180,7 @@ INSERT INTO duas (
 INSERT INTO duas (
     title_en, title_ar, arabic_text, transliteration, translation_en,
     source, repetitions, best_time, difficulty, est_duration_sec,
-    rizq_benefit, xp_value, collection_id, category_id
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua for Beneficial Knowledge & Halal Provision',
     'دعاء العلم النافع والرزق الطيب',
@@ -186,6 +193,7 @@ INSERT INTO duas (
     'Beginner',
     15,
     'Directly asks for pure, halal provision',
+    'Umm Salamah (may Allah be pleased with her) reported that the Prophet ﷺ used to say this supplication after the Fajr prayer. He ﷺ specifically combined three essential requests: knowledge that benefits (not just information), provision that is pure and lawful (tayyib), and deeds that are accepted by Allah. This comprehensive dua reflects the Prophet''s teaching that success requires all three elements working together - knowledge guides us, rizq sustains us, and accepted deeds elevate us.',
     30,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'morning')
@@ -195,7 +203,7 @@ INSERT INTO duas (
 INSERT INTO duas (
     title_en, title_ar, arabic_text, transliteration, translation_en,
     source, repetitions, best_time, difficulty, est_duration_sec,
-    rizq_benefit, xp_value, collection_id, category_id
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua for Barakah in Provision',
     'دعاء البركة في الرزق',
@@ -208,6 +216,7 @@ INSERT INTO duas (
     'Beginner',
     5,
     'Requesting blessing/multiplication in existing provision',
+    'The Prophet ﷺ taught that barakah (divine blessing) is what makes provision truly beneficial. He ﷺ said: "When one of you eats, let him mention the name of Allah. If he forgets at the beginning, let him say: ''Bismillahi awwalahu wa akhirahu.''" (Abu Dawud). This short but powerful dua asks for barakah - the multiplying of good and benefit in what we already have. The Prophet ﷺ emphasized that a small amount with barakah is better than abundance without it.',
     15,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'gratitude')
@@ -217,7 +226,7 @@ INSERT INTO duas (
 INSERT INTO duas (
     title_en, title_ar, arabic_text, transliteration, translation_en,
     source, repetitions, best_time, difficulty, est_duration_sec,
-    rizq_benefit, xp_value, collection_id, category_id
+    rizq_benefit, prophetic_context, xp_value, collection_id, category_id
 ) VALUES (
     'Dua of Prophet Yunus (Distress to Relief)',
     'دعاء يونس عليه السلام',
@@ -230,6 +239,7 @@ INSERT INTO duas (
     'Beginner',
     10,
     'Opens doors when all seems closed',
+    'This is the supplication of Prophet Yunus (Jonah) عليه السلام when he was in the belly of the whale - the darkest, most hopeless situation imaginable. The Prophet Muhammad ﷺ said: "The supplication of Dhun-Nun (Yunus) when he was in the belly of the fish: ''La ilaha illa Anta, Subhanaka, inni kuntu minaz-zalimin.'' No Muslim ever makes dua with it for anything except that Allah responds to him." (At-Tirmidhi). This dua combines tawheed (affirming Allah''s oneness), tasbeeh (glorifying Allah), and acknowledgment of one''s shortcomings - a powerful formula that the Prophet ﷺ guaranteed would be answered.',
     25,
     (SELECT id FROM collections WHERE slug = 'core'),
     (SELECT id FROM categories WHERE slug = 'rizq')
