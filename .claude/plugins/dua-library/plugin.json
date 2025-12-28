@@ -1,0 +1,82 @@
+{
+  "name": "dua-library",
+  "version": "1.0.0",
+  "description": "Tools for building and managing the RIZQ App dua library - research, populate, validate, and organize authentic Islamic duas",
+  "author": "RIZQ App Team",
+  "skills": [
+    {
+      "name": "add-dua",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/add-dua.md",
+      "description": "Add a single dua to the database with all required fields (Arabic text, transliteration, translation, source, etc.)"
+    },
+    {
+      "name": "create-journey",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/create-journey.md",
+      "description": "Create a new themed journey (collection of duas) with time-slot assignments"
+    },
+    {
+      "name": "populate-batch",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/populate-batch.md",
+      "description": "Populate multiple duas from the dua library documentation into the database"
+    },
+    {
+      "name": "validate-library",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/validate-library.md",
+      "description": "Validate the dua library for completeness, authenticity, and data quality"
+    },
+    {
+      "name": "library-status",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/library-status.md",
+      "description": "Show current status of the dua library - counts, categories, journeys, and gaps"
+    }
+  ],
+  "commands": [
+    {
+      "name": "dua-add",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/dua-add.md",
+      "description": "Interactive command to add a new dua with guided prompts"
+    },
+    {
+      "name": "journey-create",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/journey-create.md",
+      "description": "Interactive command to create a new journey"
+    },
+    {
+      "name": "library-sync",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-sync.md",
+      "description": "Sync duas from documentation to database"
+    },
+    {
+      "name": "library-report",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-report.md",
+      "description": "Generate a report of the current library status"
+    }
+  ],
+  "agents": [
+    {
+      "name": "dua-researcher",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/dua-researcher.md",
+      "description": "Research and find authentic duas with proper hadith sources, Arabic text, and scholarly verification"
+    },
+    {
+      "name": "dua-populator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/dua-populator.md",
+      "description": "Format and insert duas into the Neon database with proper validation"
+    },
+    {
+      "name": "journey-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/journey-builder.md",
+      "description": "Design and create themed journeys by selecting and organizing duas"
+    },
+    {
+      "name": "content-validator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/content-validator.md",
+      "description": "Validate dua content for authenticity, completeness, and data quality"
+    },
+    {
+      "name": "library-curator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/library-curator.md",
+      "description": "Curate and organize the dua library - manage categories, suggest improvements, identify gaps"
+    }
+  ]
+}

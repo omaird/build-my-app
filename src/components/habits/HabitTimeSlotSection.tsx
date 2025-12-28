@@ -9,6 +9,7 @@ interface HabitTimeSlotSectionProps {
   timeSlot: TimeSlot;
   habits: HabitWithDua[];
   onHabitClick: (habit: HabitWithDua) => void;
+  onHabitRemove?: (habitId: string) => void;
 }
 
 const slotConfig = {
@@ -42,6 +43,7 @@ export function HabitTimeSlotSection({
   timeSlot,
   habits,
   onHabitClick,
+  onHabitRemove,
 }: HabitTimeSlotSectionProps) {
   if (habits.length === 0) return null;
 
@@ -120,6 +122,7 @@ export function HabitTimeSlotSection({
               key={habit.id}
               habit={habit}
               onClick={() => onHabitClick(habit)}
+              onRemove={onHabitRemove}
               index={index}
             />
           ))}

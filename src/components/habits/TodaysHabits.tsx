@@ -7,6 +7,7 @@ import { HabitTimeSlotSection } from "./HabitTimeSlotSection";
 import { HabitPreviewSheet } from "./HabitPreviewSheet";
 import { EmptyHabitsState } from "./EmptyHabitsState";
 import { useUserHabits } from "@/hooks/useUserHabits";
+import { useToast } from "@/hooks/use-toast";
 import type { HabitWithDua } from "@/types/habit";
 
 export function TodaysHabits() {
@@ -17,7 +18,10 @@ export function TodaysHabits() {
     nextUncompletedHabit,
     activeJourney,
     isLoading,
+    removeCustomHabit,
+    todaysHabits,
   } = useUserHabits();
+  const { toast } = useToast();
 
   const [selectedHabit, setSelectedHabit] = useState<HabitWithDua | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -25,6 +29,18 @@ export function TodaysHabits() {
   const handleHabitClick = (habit: HabitWithDua) => {
     setSelectedHabit(habit);
     setSheetOpen(true);
+  };
+
+  const handleHabitRemove = (habitId: string) => {
+    // Find the habit to get its name for the toast
+    const habit = todaysHabits.find((h) => h.id === habitId);
+    removeCustomHabit(habitId);
+    toast({
+      title: "Habit removed",
+      description: habit
+        ? `"${habit.dua.title}" has been removed from your practice.`
+        : "Habit has been removed from your practice.",
+    });
   };
 
   // Loading state
@@ -86,16 +102,19 @@ export function TodaysHabits() {
           timeSlot="morning"
           habits={groupedHabits.morning}
           onHabitClick={handleHabitClick}
+          onHabitRemove={handleHabitRemove}
         />
         <HabitTimeSlotSection
           timeSlot="anytime"
           habits={groupedHabits.anytime}
           onHabitClick={handleHabitClick}
+          onHabitRemove={handleHabitRemove}
         />
         <HabitTimeSlotSection
           timeSlot="evening"
           habits={groupedHabits.evening}
           onHabitClick={handleHabitClick}
+          onHabitRemove={handleHabitRemove}
         />
       </div>
 

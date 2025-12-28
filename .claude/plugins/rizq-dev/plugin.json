@@ -1,0 +1,77 @@
+{
+  "name": "rizq-dev",
+  "version": "1.0.0",
+  "description": "Professional developer toolkit for the RIZQ App - understands the codebase architecture, patterns, and conventions",
+  "author": "RIZQ App Team",
+  "agents": [
+    {
+      "name": "feature-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/feature-builder.md",
+      "description": "Build complete features end-to-end: pages, components, hooks, database, and routes. Use when implementing new functionality."
+    },
+    {
+      "name": "component-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/component-builder.md",
+      "description": "Create React components following the design system - shadcn/ui, Tailwind, Framer Motion animations, Islamic patterns."
+    },
+    {
+      "name": "hook-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/hook-builder.md",
+      "description": "Create custom hooks for data fetching (React Query + Neon), state management, and business logic."
+    },
+    {
+      "name": "database-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/database-architect.md",
+      "description": "Design and implement database schemas, migrations, queries, and data access patterns for Neon PostgreSQL."
+    },
+    {
+      "name": "ui-polish",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/ui-polish.md",
+      "description": "Refine UI/UX with animations, micro-interactions, accessibility, and design system consistency."
+    },
+    {
+      "name": "debugger",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/debugger.md",
+      "description": "Debug issues by tracing through components, hooks, database queries, and auth flows."
+    }
+  ],
+  "skills": [
+    {
+      "name": "design-system",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/design-system.md",
+      "description": "Reference for colors, typography, spacing, animations, and Islamic patterns in the RIZQ design system"
+    },
+    {
+      "name": "component-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/component-patterns.md",
+      "description": "Standard patterns for components: props, variants, animations, composition"
+    },
+    {
+      "name": "data-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/data-patterns.md",
+      "description": "Patterns for React Query hooks, Neon database access, type mappings"
+    },
+    {
+      "name": "auth-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/auth-patterns.md",
+      "description": "Authentication patterns: Better Auth, protected routes, user profiles"
+    }
+  ],
+  "commands": [
+    {
+      "name": "new-feature",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/new-feature.md",
+      "description": "Scaffold a new feature with all necessary files"
+    },
+    {
+      "name": "new-component",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/new-component.md",
+      "description": "Create a new component with proper structure"
+    },
+    {
+      "name": "new-hook",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/new-hook.md",
+      "description": "Create a new custom hook"
+    }
+  ]
+}

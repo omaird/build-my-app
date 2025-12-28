@@ -5,6 +5,7 @@ import { Settings, BookOpen, Compass, Sparkles, CheckCircle2, Loader2 } from "lu
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/BottomNav";
 import { useUserHabits } from "@/hooks/useUserHabits";
+import { useToast } from "@/hooks/use-toast";
 import { HabitTimeSlotSection } from "@/components/habits/HabitTimeSlotSection";
 import { HabitProgressBar } from "@/components/habits/HabitProgressBar";
 import { QuickPracticeSheet } from "@/components/habits/QuickPracticeSheet";
@@ -41,7 +42,10 @@ export default function DailyAdkharPage() {
     activeJourney,
     isLoading,
     nextUncompletedHabit,
+    removeCustomHabit,
+    todaysHabits,
   } = useUserHabits();
+  const { toast } = useToast();
 
   const [selectedHabit, setSelectedHabit] = useState<HabitWithDua | null>(null);
   const [practiceOpen, setPracticeOpen] = useState(false);
@@ -49,6 +53,17 @@ export default function DailyAdkharPage() {
   const handleHabitClick = (habit: HabitWithDua) => {
     setSelectedHabit(habit);
     setPracticeOpen(true);
+  };
+
+  const handleHabitRemove = (habitId: string) => {
+    const habit = todaysHabits.find((h) => h.id === habitId);
+    removeCustomHabit(habitId);
+    toast({
+      title: "Habit removed",
+      description: habit
+        ? `"${habit.dua.title}" has been removed from your practice.`
+        : "Habit has been removed from your practice.",
+    });
   };
 
   const handlePracticeComplete = () => {
@@ -299,16 +314,19 @@ export default function DailyAdkharPage() {
                   timeSlot="morning"
                   habits={groupedHabits.morning}
                   onHabitClick={handleHabitClick}
+                  onHabitRemove={handleHabitRemove}
                 />
                 <HabitTimeSlotSection
                   timeSlot="anytime"
                   habits={groupedHabits.anytime}
                   onHabitClick={handleHabitClick}
+                  onHabitRemove={handleHabitRemove}
                 />
                 <HabitTimeSlotSection
                   timeSlot="evening"
                   habits={groupedHabits.evening}
                   onHabitClick={handleHabitClick}
+                  onHabitRemove={handleHabitRemove}
                 />
               </motion.div>
 
