@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, User, Sparkles } from "lucide-react";
+import { ArrowRight, User, Sparkles, Compass } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { StreakBadge, XpProgressBar, CircularXpProgress } from "@/components/GamificationUI";
 import { WeekCalendar } from "@/components/WeekCalendar";
@@ -67,11 +67,40 @@ export default function HomePage() {
     return "Good evening";
   };
 
-  const getArabicGreeting = () => {
+  const getMotivationalPhrase = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "صباح الخير";
-    if (hour < 17) return "مساء الخير";
-    return "مساء النور";
+    const streak = profile?.streak ?? 0;
+    const isMorning = hour < 12;
+    const isAfternoon = hour >= 12 && hour < 17;
+    const isEvening = hour >= 17;
+
+    // Morning phrases
+    if (isMorning) {
+      if (streak === 0) return "Start fresh today";
+      if (streak === 1) return "Keep the momentum!";
+      if (streak <= 2) return "Building strong habits";
+      if (streak <= 6) return "Morning momentum!";
+      if (streak < 30) return "Consistency is key";
+      return "Morning champion!";
+    }
+
+    // Afternoon phrases
+    if (isAfternoon) {
+      if (streak === 0) return "Make today count";
+      if (streak === 1) return "One day at a time";
+      if (streak <= 2) return "Keep going strong";
+      if (streak <= 6) return "Stay focused";
+      if (streak < 30) return "You're doing great";
+      return "Inspiring dedication!";
+    }
+
+    // Evening phrases
+    if (streak === 0) return "Tomorrow is a new day";
+    if (streak === 1) return "Great start today";
+    if (streak <= 2) return "Keep the rhythm going";
+    if (streak <= 6) return "Another day, another step";
+    if (streak < 30) return "Another great day!";
+    return "Epic consistency!";
   };
 
   return (
@@ -83,7 +112,7 @@ export default function HomePage() {
       <div className="fixed top-0 left-0 right-0 h-32 gradient-fade-down pointer-events-none z-10" />
 
       <motion.div
-        className="relative mx-auto max-w-md px-4 pt-8"
+        className="relative z-20 mx-auto max-w-md px-4 pt-8"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -111,8 +140,8 @@ export default function HomePage() {
               <h1 className="font-display text-2xl font-bold text-foreground">
                 {displayName}
               </h1>
-              <p className="text-arabic text-xs text-primary/80 mt-0.5">
-                {getArabicGreeting()}
+              <p className="text-sm text-primary/70 mt-0.5">
+                {getMotivationalPhrase()}
               </p>
             </div>
           </div>
@@ -209,9 +238,20 @@ export default function HomePage() {
           <HabitsSummaryCard />
         </motion.div>
 
-        {/* Explore Library CTA */}
-        <motion.div variants={itemVariants}>
-          <Link to="/library">
+        {/* Explore CTAs */}
+        <motion.div className="flex gap-3" variants={itemVariants}>
+          <Link to="/journeys" className="flex-1">
+            <motion.div
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Button className="w-full gap-2 h-12 rounded-btn btn-gradient" size="lg">
+                <Compass className="h-4 w-4" />
+                <span className="font-display font-semibold">Browse Journeys</span>
+              </Button>
+            </motion.div>
+          </Link>
+          <Link to="/library" className="flex-1">
             <motion.div
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}

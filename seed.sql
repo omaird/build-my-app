@@ -251,11 +251,20 @@ INSERT INTO duas (
 
 -- Insert Journeys
 INSERT INTO journeys (name, slug, description, emoji, estimated_minutes, daily_xp, is_premium, is_featured, sort_order) VALUES
-('Rizq Seeker', 'rizq-seeker', 'Increase your provision and blessings through powerful duas for wealth and abundance.', '🌙', 15, 270, FALSE, TRUE, 1),
-('Morning Warrior', 'morning-warrior', 'Start every day with purpose through essential morning adhkar and protection.', '🌅', 12, 250, FALSE, TRUE, 2),
-('Debt Freedom', 'debt-freedom', 'Find relief from debt and financial stress through targeted supplications.', '💳', 10, 125, FALSE, TRUE, 3),
-('Evening Peace', 'evening-peace', 'End each day in gratitude and protection with evening remembrance.', '🌙', 10, 195, FALSE, FALSE, 4),
-('Gratitude Builder', 'gratitude-builder', 'Cultivate a thankful heart and abundance mindset.', '🙏', 10, 155, FALSE, FALSE, 5)
+('Rizq Seeker', 'rizq-seeker', 'Increase your provision and blessings through powerful duas for wealth and abundance.', '/images/icons/The Rizq Seeker.png', 15, 270, FALSE, TRUE, 1),
+('Morning Warrior', 'morning-warrior', 'Start every day with purpose through essential morning adhkar and protection.', '/images/icons/Morning Warrior.png', 12, 250, FALSE, TRUE, 2),
+('Debt Freedom', 'debt-freedom', 'Find relief from debt and financial stress through targeted supplications.', '/images/icons/default-journey.png', 10, 125, FALSE, TRUE, 3),
+('Evening Peace', 'evening-peace', 'End each day in gratitude and protection with evening remembrance.', '/images/icons/Evening Peace.png', 10, 195, FALSE, FALSE, 4),
+('Gratitude Builder', 'gratitude-builder', 'Cultivate a thankful heart and abundance mindset.', '/images/icons/Gratitude Builder.png', 10, 155, FALSE, FALSE, 5),
+('Tahajjud Night Warrior', 'tahajjud-night-warrior', 'Embrace the blessed night prayers and strengthen your connection with Allah.', '/images/icons/Tahajjud Night Warrior.png', 8, 180, FALSE, TRUE, 6),
+('Salawat on Prophet', 'salawat-on-prophet', 'Send blessings upon the Prophet Muhammad ﷺ and earn immense rewards.', '/images/icons/Salawat on Prophet.png', 5, 120, FALSE, FALSE, 7),
+('Salah Companion', 'salah-companion', 'Perfect your prayer with essential duas before, during, and after Salah.', '/images/icons/Salah Companion.png', 10, 200, FALSE, TRUE, 8),
+('Quran Reflection', 'quran-reflection', 'Deepen your connection with the Quran through daily reflection and study.', '/images/icons/Quran Reflection.png', 15, 220, FALSE, FALSE, 9),
+('New Muslim Starter', 'new-muslim-starter', 'Essential duas and practices for those beginning their Islamic journey.', '/images/icons/New Muslim Starter.png', 8, 150, FALSE, TRUE, 10),
+('Morning Adhkar', 'morning-adhkar', 'Comprehensive morning remembrance to start your day with barakah.', '/images/icons/Morning Adhkar.png', 12, 230, FALSE, FALSE, 11),
+('Job Seeker', 'job-seeker', 'Powerful supplications for finding halal employment and career success.', '/images/icons/Job Seeker.png', 10, 160, FALSE, FALSE, 12),
+('Istighfar Habit', 'istighfar-habit', 'Build a consistent practice of seeking forgiveness and purifying your heart.', '/images/icons/Istighfar Habit.png', 7, 140, FALSE, FALSE, 13),
+('Family Provider', 'family-provider', 'Duas for those striving to provide for their families and loved ones.', '/images/icons/Family provider.png', 10, 175, FALSE, FALSE, 14)
 ON CONFLICT (slug) DO NOTHING;
 
 -- =============================================================================

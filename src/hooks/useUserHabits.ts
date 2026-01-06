@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useDuas } from "./useDuas";
-import { useJourneyWithDuas } from "./useJourneys";
+import { useJourneysWithDuas } from "./useJourneys";
 import type {
   UserHabitsStorage,
   UserHabit,
@@ -15,18 +15,41 @@ const HABITS_KEY = "rizq_user_habits";
 const getToday = () => new Date().toISOString().split("T")[0];
 
 const defaultStorage: UserHabitsStorage = {
-  activeJourneyId: null,
+  activeJourneyIds: [],
   customHabits: [],
   habitCompletions: [],
   lastUpdated: new Date().toISOString(),
 };
+
+// Migration helper: convert old single activeJourneyId to new activeJourneyIds array
+function migrateStorage(stored: unknown): UserHabitsStorage {
+  const data = stored as Record<string, unknown>;
+
+  // If already has activeJourneyIds array, return as-is
+  if (Array.isArray(data.activeJourneyIds)) {
+    return data as unknown as UserHabitsStorage;
+  }
+
+  // Migrate from old activeJourneyId (string | null) to activeJourneyIds (string[])
+  const oldId = data.activeJourneyId as string | null | undefined;
+  const activeJourneyIds = oldId ? [oldId] : [];
+
+  return {
+    activeJourneyIds,
+    customHabits: (data.customHabits as UserHabit[]) || [],
+    habitCompletions:
+      (data.habitCompletions as UserHabitsStorage["habitCompletions"]) || [],
+    lastUpdated: (data.lastUpdated as string) || new Date().toISOString(),
+  };
+}
 
 export function useUserHabits() {
   const [storage, setStorage] = useState<UserHabitsStorage>(() => {
     const stored = localStorage.getItem(HABITS_KEY);
     if (stored) {
       try {
-        return JSON.parse(stored) as UserHabitsStorage;
+        const parsed = JSON.parse(stored);
+        return migrateStorage(parsed);
       } catch {
         return defaultStorage;
       }
@@ -37,12 +60,13 @@ export function useUserHabits() {
   // Fetch all duas for enrichment
   const { data: allDuas = [], isLoading: duasLoading } = useDuas();
 
-  // Fetch active journey if set
-  const journeyId = storage.activeJourneyId
-    ? parseInt(storage.activeJourneyId, 10)
-    : null;
-  const { data: activeJourney, isLoading: journeyLoading } =
-    useJourneyWithDuas(journeyId);
+  // Fetch all active journeys
+  const journeyIds = useMemo(
+    () => storage.activeJourneyIds.map((id) => parseInt(id, 10)),
+    [storage.activeJourneyIds]
+  );
+  const { data: activeJourneys = [], isLoading: journeysLoading } =
+    useJourneysWithDuas(journeyIds);
 
   // Persist to localStorage
   useEffect(() => {
@@ -100,14 +124,50 @@ export function useUserHabits() {
     });
   }, []);
 
-  // Set active journey
-  const setActiveJourney = useCallback((journeyId: string | null) => {
+  // Add a journey to active journeys
+  const addJourney = useCallback((journeyId: string) => {
+    setStorage((prev) => {
+      if (prev.activeJourneyIds.includes(journeyId)) {
+        return prev; // Already active
+      }
+      return {
+        ...prev,
+        activeJourneyIds: [...prev.activeJourneyIds, journeyId],
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  }, []);
+
+  // Remove a journey from active journeys
+  const removeJourney = useCallback((journeyId: string) => {
     setStorage((prev) => ({
       ...prev,
-      activeJourneyId: journeyId,
+      activeJourneyIds: prev.activeJourneyIds.filter((id) => id !== journeyId),
       lastUpdated: new Date().toISOString(),
     }));
   }, []);
+
+  // Toggle a journey (add if not active, remove if active)
+  const toggleJourney = useCallback((journeyId: string) => {
+    setStorage((prev) => {
+      const isActive = prev.activeJourneyIds.includes(journeyId);
+      return {
+        ...prev,
+        activeJourneyIds: isActive
+          ? prev.activeJourneyIds.filter((id) => id !== journeyId)
+          : [...prev.activeJourneyIds, journeyId],
+        lastUpdated: new Date().toISOString(),
+      };
+    });
+  }, []);
+
+  // Check if a journey is active
+  const isJourneyActive = useCallback(
+    (journeyId: string): boolean => {
+      return storage.activeJourneyIds.includes(journeyId);
+    },
+    [storage.activeJourneyIds]
+  );
 
   // Add custom habit
   const addCustomHabit = useCallback(
@@ -148,48 +208,59 @@ export function useUserHabits() {
     setStorage(defaultStorage);
   }, []);
 
-  // Compute today's habits (journey + custom) with dua details
+  // Compute today's habits: merge duas from all active journeys + custom habits
   const todaysHabits = useMemo((): HabitWithDua[] => {
     const habits: HabitWithDua[] = [];
     const duaMap = new Map(allDuas.map((d) => [d.id, d]));
     const completedToday = getTodayCompletions();
+    const addedDuaIds = new Set<string>();
 
-    // Add journey habits if active
-    if (activeJourney) {
-      activeJourney.duas.forEach((jd) => {
-        const dua = duaMap.get(String(jd.duaId));
-        if (dua) {
-          habits.push({
-            id: `journey-${activeJourney.id}-${jd.duaId}`,
-            duaId: dua.id,
-            timeSlot: jd.timeSlot,
-            sortOrder: jd.sortOrder,
-            addedAt: "",
-            source: "journey",
-            dua,
-            isCompletedToday: completedToday.includes(dua.id),
-          });
+    // Add habits from all active journeys (deduplicate by duaId)
+    for (const journey of activeJourneys) {
+      for (const jd of journey.duas) {
+        const duaIdStr = String(jd.duaId);
+        if (addedDuaIds.has(duaIdStr)) continue; // Skip duplicate duas
+
+        const dua = duaMap.get(duaIdStr);
+        if (!dua) {
+          console.warn(
+            `Dua ${jd.duaId} from journey "${journey.name}" not found in allDuas. ` +
+            `This may indicate a data inconsistency.`
+          );
+          continue;
         }
-      });
+        
+        habits.push({
+          id: `journey-${journey.id}-${jd.duaId}`,
+          duaId: dua.id,
+          timeSlot: jd.timeSlot,
+          sortOrder: jd.sortOrder,
+          addedAt: "",
+          source: "journey",
+          dua,
+          isCompletedToday: completedToday.includes(dua.id),
+        });
+        addedDuaIds.add(duaIdStr);
+      }
     }
 
-    // Add custom habits (avoiding duplicates from journey)
-    const journeyDuaIds = new Set(habits.map((h) => h.duaId));
-    storage.customHabits.forEach((habit) => {
-      if (!journeyDuaIds.has(habit.duaId)) {
-        const dua = duaMap.get(habit.duaId);
-        if (dua) {
-          habits.push({
-            ...habit,
-            dua,
-            isCompletedToday: completedToday.includes(dua.id),
-          });
-        }
+    // Add custom habits (avoiding duplicates from journeys)
+    for (const habit of storage.customHabits) {
+      if (addedDuaIds.has(habit.duaId)) continue;
+
+      const dua = duaMap.get(habit.duaId);
+      if (dua) {
+        habits.push({
+          ...habit,
+          dua,
+          isCompletedToday: completedToday.includes(dua.id),
+        });
+        addedDuaIds.add(habit.duaId);
       }
-    });
+    }
 
     return habits;
-  }, [activeJourney, storage.customHabits, allDuas, getTodayCompletions]);
+  }, [activeJourneys, storage.customHabits, allDuas, getTodayCompletions]);
 
   // Group habits by time slot
   const groupedHabits = useMemo((): GroupedHabits => {
@@ -226,8 +297,8 @@ export function useUserHabits() {
 
   // Check if user has any habits configured
   const hasHabits = useMemo(() => {
-    return storage.activeJourneyId !== null || storage.customHabits.length > 0;
-  }, [storage.activeJourneyId, storage.customHabits.length]);
+    return storage.activeJourneyIds.length > 0 || storage.customHabits.length > 0;
+  }, [storage.activeJourneyIds.length, storage.customHabits.length]);
 
   // Get next uncompleted habit (for "Continue Practice" button)
   const nextUncompletedHabit = useMemo((): HabitWithDua | null => {
@@ -245,12 +316,13 @@ export function useUserHabits() {
   }, [todaysHabits]);
 
   // Loading state
-  const isLoading = duasLoading || journeyLoading;
+  const isLoading = duasLoading || journeysLoading;
 
   return {
     // State
     storage,
-    activeJourney,
+    activeJourneys,
+    activeJourneyIds: storage.activeJourneyIds,
     todaysHabits,
     groupedHabits,
     progress,
@@ -259,7 +331,10 @@ export function useUserHabits() {
     isLoading,
 
     // Actions
-    setActiveJourney,
+    addJourney,
+    removeJourney,
+    toggleJourney,
+    isJourneyActive,
     addCustomHabit,
     removeCustomHabit,
     markHabitCompleted,

@@ -9,6 +9,7 @@ export interface Journey {
   name: string;
   slug: string;
   description: string | null;
+  /** Emoji character or path to icon image (e.g., '/images/icons/name.png') */
   emoji: string;
   estimatedMinutes: number;
   dailyXp: number;
@@ -64,7 +65,7 @@ export interface HabitCompletion {
 
 // User habits localStorage schema
 export interface UserHabitsStorage {
-  activeJourneyId: string | null;
+  activeJourneyIds: string[];
   customHabits: UserHabit[];
   habitCompletions: HabitCompletion[];
   lastUpdated: string;

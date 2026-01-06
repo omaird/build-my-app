@@ -184,3 +184,96 @@ export function useJourneyBySlugWithDuas(slug: string | null) {
     enabled: slug !== null,
   });
 }
+
+// Fetch multiple journeys by ID array with their duas (for multi-journey support)
+export function useJourneysWithDuas(journeyIds: number[]) {
+  // Sort and create stable query key
+  const sortedIds = [...journeyIds].sort((a, b) => a - b);
+  const queryKey = ["journeys", "multiple", sortedIds];
+  
+  return useQuery({
+    queryKey,
+    queryFn: async (): Promise<JourneyWithDuas[]> => {
+      if (!journeyIds.length) return [];
+
+      const sql = getSql();
+
+      // Fetch all journeys in one query
+      const journeysResult = await sql`
+        SELECT
+          id, name, slug, description, emoji,
+          estimated_minutes, daily_xp, is_premium, is_featured, sort_order
+        FROM journeys
+        WHERE id = ANY(${journeyIds}::int[])
+        ORDER BY sort_order ASC, name ASC
+      `;
+
+      if (!journeysResult.length) return [];
+
+      // Fetch all duas for all journeys in one query
+      const duasResult = await sql`
+        SELECT
+          jd.journey_id,
+          jd.dua_id,
+          jd.time_slot,
+          jd.sort_order,
+          d.title_en,
+          d.xp_value,
+          d.repetitions,
+          c.slug as category_slug
+        FROM journey_duas jd
+        JOIN duas d ON jd.dua_id = d.id
+        LEFT JOIN categories c ON d.category_id = c.id
+        WHERE jd.journey_id = ANY(${journeyIds}::int[])
+        ORDER BY jd.sort_order ASC
+      `;
+
+      // Group duas by journey ID
+      const duasByJourney = new Map<number, JourneyDua[]>();
+      for (const row of duasResult as (DbJourneyDua & { journey_id: number })[]) {
+        const journeyDuas = duasByJourney.get(row.journey_id) || [];
+        journeyDuas.push(mapDbJourneyDuaToFrontend(row));
+        duasByJourney.set(row.journey_id, journeyDuas);
+      }
+
+      // Combine journeys with their duas
+      return (journeysResult as DbJourney[]).map((journey) => ({
+        ...mapDbJourneyToFrontend(journey),
+        duas: duasByJourney.get(journey.id) || [],
+      }));
+    },
+    enabled: journeyIds.length > 0,
+  });
+}
+
+// Get merged duas from multiple journeys (deduplicated by duaId)
+export function useMergedJourneyDuas(journeyIds: number[]) {
+  const { data: journeys, ...rest } = useJourneysWithDuas(journeyIds);
+
+  const mergedDuas = journeys
+    ? (() => {
+        const duaMap = new Map<number, JourneyDua>();
+        // Process in order - first journey's dua takes precedence
+        for (const journey of journeys) {
+          for (const dua of journey.duas) {
+            if (!duaMap.has(dua.duaId)) {
+              duaMap.set(dua.duaId, dua);
+            }
+          }
+        }
+        // Return sorted by time slot and sort order
+        return Array.from(duaMap.values()).sort((a, b) => {
+          const slotOrder = { morning: 0, anytime: 1, evening: 2 };
+          const slotDiff = slotOrder[a.timeSlot] - slotOrder[b.timeSlot];
+          if (slotDiff !== 0) return slotDiff;
+          return a.sortOrder - b.sortOrder;
+        });
+      })()
+    : [];
+
+  return {
+    data: mergedDuas,
+    journeys,
+    ...rest,
+  };
+}

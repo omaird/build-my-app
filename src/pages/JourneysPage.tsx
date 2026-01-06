@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Compass, Loader2 } from "lucide-react";
@@ -31,14 +30,13 @@ const itemVariants = {
 export default function JourneysPage() {
   const navigate = useNavigate();
   const { data: journeys = [], isLoading } = useJourneys();
-  const { storage, setActiveJourney } = useUserHabits();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { storage } = useUserHabits();
 
-  const activeJourneyId = storage.activeJourneyId
-    ? parseInt(storage.activeJourneyId, 10)
-    : null;
+  const activeJourneyIds: number[] = storage.activeJourneyIds.map((id) =>
+    parseInt(id, 10)
+  );
 
-  const handleJourneySelect = async (journey: Journey) => {
+  const handleJourneySelect = (journey: Journey) => {
     // Navigate to journey detail page
     navigate(`/journeys/${journey.slug}`);
   };
@@ -109,7 +107,7 @@ export default function JourneysPage() {
         <motion.div variants={itemVariants}>
           <JourneyList
             journeys={journeys}
-            activeJourneyId={activeJourneyId}
+            activeJourneyIds={activeJourneyIds}
             onJourneySelect={handleJourneySelect}
           />
         </motion.div>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Sun, Clock, Moon, Check, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sun, Clock, Moon, Check, Plus, Sparkles } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useUserHabits } from "@/hooks/useUserHabits";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import type { Dua } from "@/types/dua";
+import type { Dua, DuaCategory } from "@/types/dua";
 import type { TimeSlot } from "@/types/habit";
 
 interface AddToAdkharSheetProps {
@@ -19,6 +19,22 @@ interface AddToAdkharSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Map DuaCategory to recommended TimeSlot
+const getRecommendedTimeSlot = (category: DuaCategory): TimeSlot => {
+  switch (category) {
+    case "morning":
+      return "morning";
+    case "evening":
+      return "evening";
+    case "rizq":
+      return "morning";
+    case "gratitude":
+      return "evening";
+    default:
+      return "anytime";
+  }
+};
 
 const timeSlotOptions: {
   value: TimeSlot;
@@ -61,9 +77,17 @@ export function AddToAdkharSheet({
 }: AddToAdkharSheetProps) {
   const { toast } = useToast();
   const { addCustomHabit, todaysHabits } = useUserHabits();
-  const [selectedSlot, setSelectedSlot] = useState<TimeSlot>("anytime");
+  const recommendedSlot = dua ? getRecommendedTimeSlot(dua.category) : "anytime";
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot>(recommendedSlot);
 
   const isAlreadyAdded = todaysHabits.some((h) => h.duaId === dua?.id);
+
+  // Update selected slot when dua changes
+  useEffect(() => {
+    if (dua) {
+      setSelectedSlot(getRecommendedTimeSlot(dua.category));
+    }
+  }, [dua]);
 
   const handleAdd = () => {
     if (dua && !isAlreadyAdded) {
@@ -122,19 +146,31 @@ export function AddToAdkharSheet({
             <div className="grid grid-cols-3 gap-2">
               {timeSlotOptions.map((slot) => {
                 const isSelected = selectedSlot === slot.value;
+                const isRecommended = dua && getRecommendedTimeSlot(dua.category) === slot.value;
                 return (
                   <button
                     key={slot.value}
                     onClick={() => setSelectedSlot(slot.value)}
                     className={cn(
-                      "flex flex-col items-center gap-2 rounded-xl p-4",
+                      "relative flex flex-col items-center gap-2 rounded-xl p-4",
                       "border-2 transition-all duration-200",
                       "hover:scale-[1.02] active:scale-[0.98]",
                       isSelected
                         ? "border-primary bg-primary/5"
+                        : isRecommended
+                        ? "border-blue-400 bg-blue-50 dark:bg-blue-950/30"
                         : "border-transparent bg-muted/50 hover:bg-muted"
                     )}
                   >
+                    {/* Recommended Badge */}
+                    {isRecommended && (
+                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-blue-500 px-2 py-0.5 shadow-md">
+                        <Sparkles className="h-3 w-3 text-white" />
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                          Recommended
+                        </span>
+                      </div>
+                    )}
                     <div
                       className={cn(
                         "flex h-10 w-10 items-center justify-center rounded-full",

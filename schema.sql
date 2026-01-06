@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS journeys (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
-    emoji VARCHAR(10) DEFAULT '📿',
+    emoji VARCHAR(255) DEFAULT '📿', -- Can be emoji or path to icon: /images/icons/name.png
     estimated_minutes INTEGER DEFAULT 15,
     daily_xp INTEGER DEFAULT 100,
     is_premium BOOLEAN DEFAULT FALSE,
@@ -72,3 +72,46 @@ CREATE INDEX idx_journey_duas_journey_id ON journey_duas(journey_id);
 CREATE INDEX idx_journey_duas_dua_id ON journey_duas(dua_id);
 CREATE INDEX idx_journeys_slug ON journeys(slug);
 CREATE INDEX idx_journeys_featured ON journeys(is_featured);
+
+-- Create User Profiles Table (extends neon_auth.user with app-specific data)
+CREATE TABLE IF NOT EXISTS user_profiles (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL UNIQUE, -- References neon_auth.user(id)
+    display_name VARCHAR(255),
+    streak INTEGER DEFAULT 0,
+    total_xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    last_active_date DATE,
+    is_admin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create User Activity Table (daily tracking)
+CREATE TABLE IF NOT EXISTS user_activity (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    date DATE NOT NULL,
+    duas_completed INTEGER[] DEFAULT '{}',
+    xp_earned INTEGER DEFAULT 0,
+    UNIQUE(user_id, date)
+);
+
+-- Create User Progress Table (per-dua tracking)
+CREATE TABLE IF NOT EXISTS user_progress (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    dua_id INTEGER REFERENCES duas(id) ON DELETE CASCADE,
+    completed_count INTEGER DEFAULT 0,
+    last_completed DATE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, dua_id)
+);
+
+-- Create Indexes for User Tables
+CREATE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
+CREATE INDEX idx_user_profiles_is_admin ON user_profiles(is_admin) WHERE is_admin = TRUE;
+CREATE INDEX idx_user_activity_user_id ON user_activity(user_id);
+CREATE INDEX idx_user_activity_date ON user_activity(date);
+CREATE INDEX idx_user_progress_user_id ON user_progress(user_id);
+CREATE INDEX idx_user_progress_dua_id ON user_progress(dua_id);

@@ -73,7 +73,15 @@ export function JourneyCard({ journey, isActive, onClick, index = 0 }: JourneyCa
                   <div className="absolute -top-0.5 -right-0.5 h-2 w-2 border-t border-r border-primary/30 rounded-tr" />
                   <div className="absolute -bottom-0.5 -left-0.5 h-2 w-2 border-b border-l border-primary/30 rounded-bl" />
 
-                  <span className="text-2xl">{emoji}</span>
+                  {emoji.startsWith('/images/') ? (
+                    <img 
+                      src={emoji} 
+                      alt={name} 
+                      className="w-full h-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <span className="text-2xl">{emoji}</span>
+                  )}
 
                   {/* Active glow */}
                   {isActive && (

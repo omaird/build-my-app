@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Moon, Sun, RotateCcw, LogOut, Mail, User, Link2, Unlink, Loader2, Check, Settings, Sparkles, Flame, Trophy } from "lucide-react";
+import { Moon, Sun, RotateCcw, LogOut, Mail, User, Link2, Unlink, Loader2, Check, Settings, Sparkles, Flame, Trophy, Shield, ChevronRight } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { useAuth } from "@/contexts/AuthContext";
 import { listAccounts, linkGoogleAccount, unlinkGoogleAccount } from "@/lib/auth-client";
@@ -57,7 +57,7 @@ const itemVariants = {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { user, profile, updateProfile, signOut } = useAuth();
+  const { user, profile, isAdmin, updateProfile, signOut } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState(profile?.displayName || user?.name || "");
   const [isDarkMode, setIsDarkMode] = useState(() =>
@@ -324,6 +324,32 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Admin Panel Section - Only visible to admins */}
+        {isAdmin && (
+          <motion.div variants={itemVariants}>
+            <Card className="mb-4 overflow-hidden shadow-soft border-primary/10">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-display">
+                  <Shield className="h-4 w-4 text-primary" />
+                  Admin Panel
+                </CardTitle>
+                <CardDescription>Manage duas, journeys, categories, and users</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <motion.div whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={() => navigate("/admin")}
+                    className="w-full gap-2 h-11 rounded-btn"
+                  >
+                    Open Admin Panel
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Connected Accounts Section */}
         <motion.div variants={itemVariants}>

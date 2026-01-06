@@ -12,6 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { CelebrationOverlay } from "@/components/animations/CelebrationOverlay";
 import { AnimatedCounter } from "@/components/animations/AnimatedCounter";
 import { RippleEffect } from "@/components/animations/RippleEffect";
+import { PracticeContextTabs } from "@/components/dua/PracticeContextTabs";
+import { DuaContextView } from "@/components/dua/DuaContextView";
+import { hasContext } from "@/types/dua";
 
 export default function PracticePage() {
   const { duaId } = useParams();
@@ -31,6 +34,7 @@ export default function PracticePage() {
   const [showTransliteration, setShowTransliteration] = useState(true);
   const [isCompleted, setIsCompleted] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [activeTab, setActiveTab] = useState<'practice' | 'context'>('practice');
 
   // Get filtered duas based on category or specific dua
   const filteredDuas = useMemo(() => {
@@ -52,6 +56,7 @@ export default function PracticePage() {
     setTapCount(0);
     setIsCompleted(false);
     setShowCelebration(false);
+    setActiveTab('practice');
   }, [currentDuaIndex, duaId]);
 
   const handleTap = useCallback(() => {
@@ -126,6 +131,7 @@ export default function PracticePage() {
   }
 
   const progress = Math.min((tapCount / currentDua.repetitions) * 100, 100);
+  const duaHasContext = hasContext(currentDua);
 
   return (
     <>
@@ -178,7 +184,31 @@ export default function PracticePage() {
             </Button>
           </motion.header>
 
-          {/* Progress indicator */}
+          {/* Practice/Context Tabs */}
+          <motion.div
+            className="mb-6"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <PracticeContextTabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              hasContext={duaHasContext}
+            />
+          </motion.div>
+
+          {/* Tab Content */}
+          <AnimatePresence mode="wait">
+            {activeTab === 'practice' ? (
+              <motion.div
+                key="practice"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                transition={{ duration: 0.2 }}
+              >
+                {/* Progress indicator */}
           <motion.div
             className="mb-6"
             initial={{ opacity: 0, scaleX: 0 }}
@@ -355,20 +385,33 @@ export default function PracticePage() {
           </motion.div>
 
           {/* XP Reward Badge */}
-          <motion.div
-            className="mt-6 flex justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 text-sm">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span className="text-muted-foreground">Complete to earn</span>
-              <span className="font-mono font-bold text-primary">
-                +{currentDua.xpValue} XP
-              </span>
-            </div>
-          </motion.div>
+                <motion.div
+                  className="mt-6 flex justify-center"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.7 }}
+                >
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 text-sm">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span className="text-muted-foreground">Complete to earn</span>
+                    <span className="font-mono font-bold text-primary">
+                      +{currentDua.xpValue} XP
+                    </span>
+                  </div>
+                </motion.div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="context"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DuaContextView context={currentDua.context} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         <BottomNav />

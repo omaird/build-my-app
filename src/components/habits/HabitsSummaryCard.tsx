@@ -3,11 +3,12 @@ import { Check, ChevronRight, Compass, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useUserHabits } from "@/hooks/useUserHabits";
+import { JourneyIcon } from "@/components/journeys/JourneyIcon";
 import { cn } from "@/lib/utils";
 
 export function HabitsSummaryCard() {
   const navigate = useNavigate();
-  const { progress, hasHabits, activeJourney } = useUserHabits();
+  const { progress, hasHabits, activeJourneys } = useUserHabits();
 
   const allCompleted =
     progress.completed === progress.total && progress.total > 0;
@@ -74,9 +75,11 @@ export function HabitsSummaryCard() {
             <div>
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-foreground">Daily Adkhar</p>
-                {activeJourney && (
-                  <span className="text-xs text-muted-foreground">
-                    {activeJourney.emoji}
+                {activeJourneys.length > 0 && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    {activeJourneys.map((j) => (
+                      <JourneyIcon key={j.id} emoji={j.emoji} name={j.name} size="sm" />
+                    ))}
                   </span>
                 )}
               </div>

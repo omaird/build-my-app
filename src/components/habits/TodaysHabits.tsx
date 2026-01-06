@@ -8,6 +8,7 @@ import { HabitPreviewSheet } from "./HabitPreviewSheet";
 import { EmptyHabitsState } from "./EmptyHabitsState";
 import { useUserHabits } from "@/hooks/useUserHabits";
 import { useToast } from "@/hooks/use-toast";
+import { JourneyIcon } from "@/components/journeys/JourneyIcon";
 import type { HabitWithDua } from "@/types/habit";
 
 export function TodaysHabits() {
@@ -16,7 +17,7 @@ export function TodaysHabits() {
     groupedHabits,
     progress,
     nextUncompletedHabit,
-    activeJourney,
+    activeJourneys,
     isLoading,
     removeCustomHabit,
     todaysHabits,
@@ -69,9 +70,21 @@ export function TodaysHabits() {
           <h2 className="text-lg font-semibold text-foreground">
             Today's Habits
           </h2>
-          {activeJourney && (
-            <p className="text-xs text-muted-foreground">
-              {activeJourney.emoji} {activeJourney.name}
+          {activeJourneys.length > 0 && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              {activeJourneys.length === 1 ? (
+                <>
+                  <JourneyIcon emoji={activeJourneys[0].emoji} name={activeJourneys[0].name} size="sm" />
+                  <span>{activeJourneys[0].name}</span>
+                </>
+              ) : (
+                <>
+                  {activeJourneys.map((j) => (
+                    <JourneyIcon key={j.id} emoji={j.emoji} name={j.name} size="sm" />
+                  ))}
+                  <span>{activeJourneys.length} journeys</span>
+                </>
+              )}
             </p>
           )}
         </div>

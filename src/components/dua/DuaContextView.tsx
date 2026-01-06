@@ -55,7 +55,7 @@ function ContextItem({ icon, label, value, colorClass, index }: ContextItemProps
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
             {label}
           </p>
-          <p className="text-sm text-foreground leading-relaxed">{value}</p>
+          <p className="text-lg text-foreground leading-relaxed">{value}</p>
         </div>
       </div>
     </motion.div>

@@ -11,18 +11,15 @@ export default function JourneyDetailPage() {
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const { data: journey, isLoading } = useJourneyBySlugWithDuas(slug || null);
-  const { storage, setActiveJourney } = useUserHabits();
+  const { storage, addJourney, removeJourney } = useUserHabits();
 
-  const activeJourneyId = storage.activeJourneyId
-    ? parseInt(storage.activeJourneyId, 10)
-    : null;
-
-  const isActive = journey?.id === activeJourneyId;
+  const activeJourneyIds = storage.activeJourneyIds.map((id) => parseInt(id, 10));
+  const isActive = journey ? activeJourneyIds.includes(journey.id) : false;
 
   const handleActivate = () => {
     if (journey) {
-      setActiveJourney(String(journey.id));
-      toast.success(`Started ${journey.name} journey!`, {
+      addJourney(String(journey.id));
+      toast.success(`Added ${journey.name} journey!`, {
         description: "Your daily habits have been updated.",
       });
       navigate("/");
@@ -30,11 +27,13 @@ export default function JourneyDetailPage() {
   };
 
   const handleDeactivate = () => {
-    setActiveJourney(null);
-    toast.info("Journey removed", {
-      description: "Your daily habits have been cleared.",
-    });
-    navigate("/");
+    if (journey) {
+      removeJourney(String(journey.id));
+      toast.info("Journey removed", {
+        description: "This journey has been removed from your habits.",
+      });
+      navigate("/");
+    }
   };
 
   if (isLoading) {
@@ -138,6 +137,7 @@ export default function JourneyDetailPage() {
         <JourneyPreview
           journey={journey}
           isActive={isActive}
+          activeCount={activeJourneyIds.length}
           onActivate={handleActivate}
           onDeactivate={handleDeactivate}
         />

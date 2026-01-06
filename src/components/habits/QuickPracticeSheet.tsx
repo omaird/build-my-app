@@ -15,6 +15,9 @@ import { cn } from "@/lib/utils";
 import { RippleEffect } from "@/components/animations/RippleEffect";
 import { CelebrationParticles } from "@/components/animations/CelebrationParticles";
 import { AnimatedCheckmark } from "@/components/animations/AnimatedCheckmark";
+import { PracticeContextTabs } from "@/components/dua/PracticeContextTabs";
+import { DuaContextView } from "@/components/dua/DuaContextView";
+import { hasContext } from "@/types/dua";
 import type { HabitWithDua } from "@/types/habit";
 
 interface QuickPracticeSheetProps {
@@ -43,6 +46,7 @@ export function QuickPracticeSheet({
   const [isCompleted, setIsCompleted] = useState(false);
   const [showTransliteration, setShowTransliteration] = useState(true);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [activeTab, setActiveTab] = useState<'practice' | 'context'>('practice');
 
   // Reset state when habit changes or sheet opens
   useEffect(() => {
@@ -50,6 +54,7 @@ export function QuickPracticeSheet({
       setTapCount(0);
       setIsCompleted(false);
       setShowCelebration(false);
+      setActiveTab('practice');
     }
   }, [habit?.id, open]);
 
@@ -109,6 +114,7 @@ export function QuickPracticeSheet({
   const progress = Math.min((tapCount / dua.repetitions) * 100, 100);
   const isAlreadyCompleted = habit.isCompletedToday;
   const showCompleted = isCompleted || isAlreadyCompleted;
+  const duaHasContext = hasContext(dua);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -189,11 +195,29 @@ export function QuickPracticeSheet({
                 transition={{ duration: 0.3 }}
               />
             </div>
+
+            {/* Practice/Context Tabs */}
+            <div className="mt-4">
+              <PracticeContextTabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                hasContext={duaHasContext}
+              />
+            </div>
           </SheetHeader>
 
           {/* Scrollable content */}
           <div className="flex-1 overflow-y-auto px-1">
-            {/* Tappable Arabic Text Area */}
+            <AnimatePresence mode="wait">
+              {activeTab === 'practice' ? (
+                <motion.div
+                  key="practice"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {/* Tappable Arabic Text Area */}
             <RippleEffect
               className={cn(
                 "rounded-islamic overflow-hidden cursor-pointer select-none",
@@ -227,7 +251,7 @@ export function QuickPracticeSheet({
             <AnimatePresence>
               {showTransliteration && dua.transliteration && (
                 <motion.p
-                  className="mt-4 text-center text-sm italic text-muted-foreground"
+                  className="mt-4 text-center text-lg italic text-muted-foreground"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
@@ -345,18 +369,32 @@ export function QuickPracticeSheet({
               </motion.p>
 
               {/* XP badge */}
-              {!showCompleted && (
+                    {!showCompleted && (
+                      <motion.div
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gold-soft/20 border border-gold-soft/30 px-3 py-1.5 text-sm font-medium text-primary"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: 0.5 }}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        +{dua.xpValue} XP
+                      </motion.div>
+                    )}
+                  </RippleEffect>
+                </motion.div>
+              ) : (
                 <motion.div
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gold-soft/20 border border-gold-soft/30 px-3 py-1.5 text-sm font-medium text-primary"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.5 }}
+                  key="context"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="py-4"
                 >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  +{dua.xpValue} XP
+                  <DuaContextView context={dua.context} />
                 </motion.div>
               )}
-            </RippleEffect>
+            </AnimatePresence>
           </div>
 
           {/* Action buttons */}

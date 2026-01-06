@@ -10,6 +10,7 @@ import { HabitTimeSlotSection } from "@/components/habits/HabitTimeSlotSection";
 import { HabitProgressBar } from "@/components/habits/HabitProgressBar";
 import { QuickPracticeSheet } from "@/components/habits/QuickPracticeSheet";
 import { CelebrationParticles } from "@/components/animations";
+import { JourneyIcon } from "@/components/journeys/JourneyIcon";
 import type { HabitWithDua } from "@/types/habit";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +40,7 @@ export default function DailyAdkharPage() {
     hasHabits,
     groupedHabits,
     progress,
-    activeJourney,
+    activeJourneys,
     isLoading,
     nextUncompletedHabit,
     removeCustomHabit,
@@ -117,15 +118,28 @@ export default function DailyAdkharPage() {
             <h1 className="font-display text-2xl font-bold text-foreground">
               Daily Adkhar
             </h1>
-            {activeJourney && (
+            {activeJourneys.length > 0 && (
               <motion.div
                 className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.3 }}
               >
-                <span className="text-base">{activeJourney.emoji}</span>
-                <span>{activeJourney.name}</span>
+                {activeJourneys.length === 1 ? (
+                  <>
+                    <JourneyIcon emoji={activeJourneys[0].emoji} name={activeJourneys[0].name} size="md" />
+                    <span>{activeJourneys[0].name}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1">
+                      {activeJourneys.map((j) => (
+                        <JourneyIcon key={j.id} emoji={j.emoji} name={j.name} size="md" />
+                      ))}
+                    </span>
+                    <span>{activeJourneys.length} journeys active</span>
+                  </>
+                )}
               </motion.div>
             )}
           </div>

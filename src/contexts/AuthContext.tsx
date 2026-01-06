@@ -11,6 +11,7 @@ export interface UserProfile {
   totalXp: number;
   level: number;
   lastActiveDate: string | null;
+  isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +28,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<UserProfile, "displayName">>) => Promise<void>;
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id, user_id as "userId", display_name as "displayName",
           streak, total_xp as "totalXp", level,
           last_active_date as "lastActiveDate",
+          is_admin as "isAdmin",
           created_at as "createdAt", updated_at as "updatedAt"
         FROM user_profiles
         WHERE user_id = ${userId}::uuid
@@ -92,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setProfile(p);
       } else {
-        // Create new profile
+        // Create new profile (is_admin defaults to FALSE)
         const newProfiles = await sql`
           INSERT INTO user_profiles (user_id, display_name, streak, total_xp, level)
           VALUES (${userId}::uuid, ${userName || "Traveler"}, 0, 0, 1)
@@ -100,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id, user_id as "userId", display_name as "displayName",
             streak, total_xp as "totalXp", level,
             last_active_date as "lastActiveDate",
+            is_admin as "isAdmin",
             created_at as "createdAt", updated_at as "updatedAt"
         `;
         setProfile(newProfiles[0] as UserProfile);
@@ -133,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id, user_id as "userId", display_name as "displayName",
           streak, total_xp as "totalXp", level,
           last_active_date as "lastActiveDate",
+          is_admin as "isAdmin",
           created_at as "createdAt", updated_at as "updatedAt"
       `;
       if (result.length > 0) {
@@ -169,6 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id, user_id as "userId", display_name as "displayName",
           streak, total_xp as "totalXp", level,
           last_active_date as "lastActiveDate",
+          is_admin as "isAdmin",
           created_at as "createdAt", updated_at as "updatedAt"
       `;
       if (result.length > 0) {
@@ -246,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     isLoading: isPending || isLoadingProfile,
     isAuthenticated: !!user,
+    isAdmin: profile?.isAdmin ?? false,
     signOut: handleSignOut,
     refreshProfile,
     updateProfile,

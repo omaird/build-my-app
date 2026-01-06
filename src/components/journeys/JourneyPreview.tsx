@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Sun, Clock, Moon, Sparkles, Check, Play, X } from "lucide-react";
+import { Sun, Clock, Moon, Sparkles, Check, Plus, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import type { JourneyWithDuas, TimeSlot } from "@/types/habit";
 interface JourneyPreviewProps {
   journey: JourneyWithDuas;
   isActive: boolean;
+  activeCount?: number; // Number of currently active journeys
   onActivate: () => void;
   onDeactivate: () => void;
 }
@@ -57,6 +58,7 @@ const itemVariants = {
 export function JourneyPreview({
   journey,
   isActive,
+  activeCount = 0,
   onActivate,
   onDeactivate,
 }: JourneyPreviewProps) {
@@ -99,12 +101,20 @@ export function JourneyPreview({
           />
 
           {/* Emoji frame */}
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/30 border-2 border-primary/20 shadow-elevated">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-secondary to-secondary/30 border-2 border-primary/20 shadow-elevated overflow-hidden">
             {/* Corner ornaments */}
-            <div className="absolute -top-1 -right-1 h-3 w-3 border-t-2 border-r-2 border-primary/40 rounded-tr-lg" />
-            <div className="absolute -bottom-1 -left-1 h-3 w-3 border-b-2 border-l-2 border-primary/40 rounded-bl-lg" />
+            <div className="absolute -top-1 -right-1 h-3 w-3 border-t-2 border-r-2 border-primary/40 rounded-tr-lg z-10" />
+            <div className="absolute -bottom-1 -left-1 h-3 w-3 border-b-2 border-l-2 border-primary/40 rounded-bl-lg z-10" />
 
-            <span className="text-4xl">{journey.emoji}</span>
+            {journey.emoji.startsWith('/images/') ? (
+              <img 
+                src={journey.emoji} 
+                alt={journey.name} 
+                className="w-full h-full object-cover rounded-full"
+              />
+            ) : (
+              <span className="text-4xl">{journey.emoji}</span>
+            )}
           </div>
         </motion.div>
 
@@ -217,7 +227,11 @@ export function JourneyPreview({
               <div className="flex h-6 w-6 items-center justify-center rounded-full gradient-primary shadow-sm">
                 <Check className="h-3.5 w-3.5 text-primary-foreground" />
               </div>
-              <span className="font-medium text-primary">Currently active</span>
+              <span className="font-medium text-primary">
+                {activeCount > 1 
+                  ? `Active (1 of ${activeCount} journeys)` 
+                  : "Currently active"}
+              </span>
             </motion.div>
 
             <motion.div whileTap={{ scale: 0.98 }}>
@@ -228,7 +242,7 @@ export function JourneyPreview({
                 onClick={onDeactivate}
               >
                 <X className="h-4 w-4" />
-                Remove from Daily Habits
+                Remove Journey
               </Button>
             </motion.div>
           </div>
@@ -239,8 +253,8 @@ export function JourneyPreview({
               size="lg"
               onClick={onActivate}
             >
-              <Play className="h-4 w-4" />
-              Start This Journey
+              <Plus className="h-4 w-4" />
+              {activeCount > 0 ? "Add to My Journeys" : "Start This Journey"}
             </Button>
           </motion.div>
         )}
