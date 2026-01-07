@@ -1,0 +1,212 @@
+{
+  "name": "rizq-ios",
+  "version": "1.1.0",
+  "description": "Native iOS development toolkit for RIZQ App - React to SwiftUI translation, TCA architecture, XcodeGen project generation, testing infrastructure, and App Store deployment",
+  "author": "RIZQ App Team",
+  "agents": [
+    {
+      "name": "ios-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/ios-architect.md",
+      "description": "Design iOS app architecture using The Composable Architecture (TCA). Use for project setup, module structure, navigation, and dependency injection."
+    },
+    {
+      "name": "component-translator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/component-translator.md",
+      "description": "Translate React/TypeScript components to SwiftUI views. Handles props to bindings, hooks to observable state, and Tailwind to SwiftUI modifiers."
+    },
+    {
+      "name": "view-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/view-builder.md",
+      "description": "Build native SwiftUI views following RIZQ design system - warm Islamic aesthetic, Arabic text rendering, custom modifiers, accessibility."
+    },
+    {
+      "name": "feature-builder",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/feature-builder.md",
+      "description": "Create TCA Feature modules with Reducer, Action, State, and Effect. Handles async operations, dependencies, and testing scaffolds."
+    },
+    {
+      "name": "networking-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/networking-architect.md",
+      "description": "Design networking layer for Neon PostgreSQL API access. URLSession with async/await, Codable models, error handling, caching."
+    },
+    {
+      "name": "auth-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/auth-architect.md",
+      "description": "Implement OAuth authentication with Better Auth/Neon Auth using ASWebAuthenticationSession, Keychain storage, and session management."
+    },
+    {
+      "name": "animation-translator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/animation-translator.md",
+      "description": "Convert Framer Motion animations to SwiftUI - staggered lists, spring physics, gesture animations, celebration particles."
+    },
+    {
+      "name": "persistence-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/persistence-architect.md",
+      "description": "Design local data persistence using SwiftData for structured data, UserDefaults for preferences, and migration strategies."
+    },
+    {
+      "name": "native-integrator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/native-integrator.md",
+      "description": "Integrate iOS native features: haptic feedback, WidgetKit, ShareSheet, App Intents (Siri), push notifications."
+    },
+    {
+      "name": "ci-cd-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/ci-cd-architect.md",
+      "description": "Configure fastlane for CI/CD, code signing with match, TestFlight distribution, and App Store submission."
+    },
+    {
+      "name": "debugger",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/debugger.md",
+      "description": "Debug iOS issues: Instruments profiling, memory leaks, SwiftUI preview problems, TCA action tracing."
+    },
+    {
+      "name": "testflight-preparer",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/testflight-preparer.md",
+      "description": "Prepare iOS builds for TestFlight - validate requirements, icons, Info.plist, privacy manifests, export compliance."
+    },
+    {
+      "name": "testflight-submitter",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/testflight-submitter.md",
+      "description": "Build, archive, and upload iOS apps to TestFlight using fastlane or xcodebuild."
+    },
+    {
+      "name": "testflight-manager",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/testflight-manager.md",
+      "description": "Manage TestFlight testers, groups, build distribution, feedback collection, and build lifecycle."
+    },
+    {
+      "name": "test-architect",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/test-architect.md",
+      "description": "Design and implement iOS test infrastructure using TCA TestStore for unit tests and swift-snapshot-testing for visual regression tests."
+    }
+  ],
+  "skills": [
+    {
+      "name": "swiftui-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/swiftui-patterns.md",
+      "description": "SwiftUI patterns equivalent to React: view composition, state management, environment, property wrappers"
+    },
+    {
+      "name": "tca-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/tca-patterns.md",
+      "description": "The Composable Architecture patterns: Reducer, Effect, Dependency, Store composition, testing"
+    },
+    {
+      "name": "design-system-ios",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/design-system-ios.md",
+      "description": "RIZQ design system translated to SwiftUI: Color extensions, Typography, Spacing, Shadows, ViewModifiers"
+    },
+    {
+      "name": "animation-mapping",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/animation-mapping.md",
+      "description": "Framer Motion to SwiftUI animation translation guide with code examples"
+    },
+    {
+      "name": "networking-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/networking-patterns.md",
+      "description": "URLSession async/await patterns, Neon API integration, Codable, error handling"
+    },
+    {
+      "name": "auth-patterns-ios",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/auth-patterns-ios.md",
+      "description": "OAuth flow with ASWebAuthenticationSession, Keychain storage, token refresh patterns"
+    },
+    {
+      "name": "persistence-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/persistence-patterns.md",
+      "description": "SwiftData models, UserDefaults wrappers, @AppStorage, migration strategies"
+    },
+    {
+      "name": "native-apis",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/native-apis.md",
+      "description": "iOS native API patterns: UIFeedbackGenerator, WidgetKit, ShareSheet, App Intents"
+    },
+    {
+      "name": "fastlane-guide",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/fastlane-guide.md",
+      "description": "fastlane lanes, match for code signing, deliver for App Store, pilot for TestFlight"
+    },
+    {
+      "name": "testflight-guide",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/testflight-guide.md",
+      "description": "Complete TestFlight guide: requirements, preparation, submission, tester management, Beta App Review, troubleshooting"
+    },
+    {
+      "name": "xcodegen-guide",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/xcodegen-guide.md",
+      "description": "XcodeGen project.yml schema, target configuration, SPM dependencies, schemes, and CI/CD integration"
+    },
+    {
+      "name": "testing-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/testing-patterns.md",
+      "description": "iOS testing patterns with TCA TestStore, swift-snapshot-testing, mock factories, and CI configuration"
+    }
+  ],
+  "commands": [
+    {
+      "name": "init-project",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/init-project.md",
+      "description": "Initialize new iOS project using XcodeGen with TCA, SwiftUI, SwiftData, and complete RIZQ design system"
+    },
+    {
+      "name": "translate-component",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/translate-component.md",
+      "description": "Translate a React component to SwiftUI view"
+    },
+    {
+      "name": "translate-page",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/translate-page.md",
+      "description": "Translate entire React page to SwiftUI screen with TCA Feature"
+    },
+    {
+      "name": "generate-feature",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/generate-feature.md",
+      "description": "Generate new TCA Feature module from scratch"
+    },
+    {
+      "name": "generate-view",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/generate-view.md",
+      "description": "Generate new SwiftUI view following design system"
+    },
+    {
+      "name": "sync-design-tokens",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/sync-design-tokens.md",
+      "description": "Synchronize design tokens from Tailwind config to Swift"
+    },
+    {
+      "name": "setup-fastlane",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/setup-fastlane.md",
+      "description": "Initialize fastlane with match, deliver, and pilot"
+    },
+    {
+      "name": "build-archive",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/build-archive.md",
+      "description": "Build and archive app for distribution"
+    },
+    {
+      "name": "prepare-testflight",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/prepare-testflight.md",
+      "description": "Validate iOS project readiness for TestFlight - check icons, Info.plist, privacy, signing"
+    },
+    {
+      "name": "submit-testflight",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/submit-testflight.md",
+      "description": "Build, archive, and upload to TestFlight with optional distribution"
+    },
+    {
+      "name": "generate-tests",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/generate-tests.md",
+      "description": "Generate unit tests and snapshot tests for an iOS feature"
+    },
+    {
+      "name": "run-tests",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/run-tests.md",
+      "description": "Execute iOS tests with optional coverage reporting"
+    },
+    {
+      "name": "setup-snapshots",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/setup-snapshots.md",
+      "description": "Configure snapshot testing infrastructure with swift-snapshot-testing"
+    }
+  ]
+}

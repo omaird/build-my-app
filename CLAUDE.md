@@ -7,11 +7,14 @@ This document contains conventions and patterns that Claude should follow when w
 RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. Users practice authentic duas, build daily routines through "Journeys," earn XP, level up, and track streaks. The app features a warm, luxury Islamic aesthetic with smooth animations.
 
 ### Core Features
+- **Landing Page**: Public marketing page with feature showcase for unauthenticated users
 - **Dua Practice**: Practice duas with Arabic text, transliteration, translation, and repetition counter
 - **Journeys**: Pre-built themed dua collections (e.g., "Morning Adhkar", "Rizq Path") users subscribe to
 - **Daily Adkhar**: Habit system with morning/anytime/evening time slots
+- **Quick Practice**: Bottom sheet for rapid dua practice without leaving the current page
 - **Gamification**: XP, levels, streaks, and celebratory animations
 - **Authentication**: Social login (Google, GitHub) via Better Auth + Neon Auth
+- **Admin Panel**: Full CRUD management for duas, journeys, categories, collections, and users
 
 ## Tech Stack
 
@@ -32,11 +35,24 @@ RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. U
 src/
 ├── components/
 │   ├── ui/              # shadcn/ui primitives (don't modify)
-│   ├── animations/      # Celebration, ripple, checkmark, counter animations
+│   ├── admin/           # Admin panel components (layout, forms, dialogs)
+│   ├── animations/      # Celebration, ripple, checkmark, counter, sparkles
 │   ├── dua/             # Dua-specific components (DuaContextView, PracticeContextTabs)
-│   ├── habits/          # Habit feature (TodaysHabits, HabitsSummaryCard, AddToAdkharSheet)
-│   └── journeys/        # Journey feature (JourneyList, JourneyCard, JourneyPreview)
-├── pages/               # Route page components
+│   ├── habits/          # Habit feature (TodaysHabits, HabitsSummaryCard, QuickPracticeSheet)
+│   ├── illustrations/   # Custom SVG illustrations (DawnIllustration)
+│   ├── journeys/        # Journey feature (JourneyList, JourneyCard, JourneyPreview)
+│   ├── AdminRoute.tsx       # Admin-only route protection
+│   ├── ProtectedRoute.tsx   # Auth-required route protection
+│   └── WelcomeModal.tsx     # New user onboarding modal
+├── pages/
+│   ├── admin/               # Admin panel pages
+│   │   ├── AdminDashboardPage.tsx    # Admin overview with stats
+│   │   ├── DuasManagerPage.tsx       # CRUD for duas
+│   │   ├── JourneysManagerPage.tsx   # CRUD for journeys
+│   │   ├── CategoriesManagerPage.tsx # CRUD for categories
+│   │   ├── CollectionsManagerPage.tsx # CRUD for collections
+│   │   └── UsersManagerPage.tsx      # User management
+│   ├── LandingPage.tsx      # Public marketing/welcome page
 │   ├── HomePage.tsx         # Dashboard with stats, streak, habits summary
 │   ├── LibraryPage.tsx      # Browse all duas
 │   ├── DailyAdkharPage.tsx  # Today's habits by time slot
@@ -47,6 +63,12 @@ src/
 │   ├── SignInPage.tsx       # Social + email login
 │   └── SignUpPage.tsx       # Registration
 ├── hooks/
+│   ├── admin/               # Admin-specific hooks
+│   │   ├── useAdminDuas.ts      # CRUD operations for duas
+│   │   ├── useAdminJourneys.ts  # CRUD operations for journeys
+│   │   ├── useAdminCategories.ts # CRUD operations for categories
+│   │   ├── useAdminCollections.ts # CRUD operations for collections
+│   │   └── useAdminUsers.ts     # User management operations
 │   ├── useDuas.ts           # Fetch duas from DB
 │   ├── useJourneys.ts       # Fetch journeys and journey duas
 │   ├── useUserHabits.ts     # Habit state (localStorage + journeys)
@@ -59,6 +81,7 @@ src/
 │   ├── auth-client.ts       # Better Auth client + social helpers
 │   └── utils.ts             # cn() utility
 ├── types/
+│   ├── admin.ts             # Admin CRUD types (AdminDua, AdminJourney, etc.)
 │   ├── dua.ts               # Dua, DuaContext, DuaCategory types
 │   └── habit.ts             # Journey, UserHabit, TimeSlot types
 ├── data/
@@ -287,6 +310,7 @@ const itemVariants = {
 | `AnimatedCheckmark` | Completion checkmark with draw animation |
 | `AnimatedCounter` | Number counting animation |
 | `NumberPop` | XP pop animation |
+| `Sparkles` | Decorative sparkle effects |
 
 ### Gamification Components
 
@@ -298,6 +322,28 @@ const itemVariants = {
 | `CircularXpProgress` | Circular SVG progress ring |
 | `XpEarnedBadge` | "+X XP" animated badge |
 
+### Habit Components
+
+| Component | Purpose |
+|-----------|---------|
+| `TodaysHabits` | List of habits for current day |
+| `HabitItem` | Single habit row with completion toggle |
+| `HabitsSummaryCard` | Dashboard summary of habit progress |
+| `HabitTimeSlotSection` | Grouped habits by morning/anytime/evening |
+| `HabitProgressBar` | Visual progress indicator |
+| `QuickPracticeSheet` | Bottom sheet for practicing dua without navigation |
+| `AddToAdkharSheet` | Sheet to add a dua to daily habits |
+| `EmptyHabitsState` | Empty state when no habits configured |
+
+### Journey Components
+
+| Component | Purpose |
+|-----------|---------|
+| `JourneyList` | Grid of available journeys |
+| `JourneyCard` | Single journey card with subscribe action |
+| `JourneyPreview` | Detailed journey preview with dua list |
+| `JourneyIcon` | Emoji-based journey icon |
+
 ## Key Files Reference
 
 | Purpose | File |
@@ -308,6 +354,9 @@ const itemVariants = {
 | Auth Context | `src/contexts/AuthContext.tsx` |
 | Dua Types | `src/types/dua.ts` |
 | Habit Types | `src/types/habit.ts` |
+| Admin Types | `src/types/admin.ts` |
+| Admin Hooks Index | `src/hooks/admin/index.ts` |
+| Admin Components Index | `src/components/admin/index.ts` |
 | Design Tokens | `tailwind.config.ts` |
 | CSS Variables | `src/index.css` |
 
@@ -323,6 +372,7 @@ const itemVariants = {
 ### Protected Routes
 
 ```typescript
+// Standard protected route (requires authentication)
 <Route
   path="/my-page"
   element={
@@ -331,6 +381,32 @@ const itemVariants = {
     </ProtectedRoute>
   }
 />
+
+// Admin protected route (requires admin role)
+<Route
+  path="/admin/*"
+  element={
+    <AdminRoute>
+      <AdminLayout />
+    </AdminRoute>
+  }
+>
+  <Route index element={<AdminDashboardPage />} />
+  <Route path="duas" element={<DuasManagerPage />} />
+</Route>
+```
+
+### Conditional Root Route
+
+The root route (`/`) renders different content based on auth state:
+```typescript
+function RootRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (isAuthenticated) return <HomePage />;
+  return <LandingPage />;
+}
 ```
 
 ### Arabic Text
@@ -374,6 +450,85 @@ localStorage-based with React Query integration:
 - `rizq_user_profile` - Profile (legacy, now in DB)
 - `rizq_welcome_shown` - Welcome modal flag
 - `lastUsedProvider` - Last OAuth provider used
+
+## Admin Panel
+
+### Admin Architecture
+
+The admin panel uses a nested route structure with `AdminLayout` providing sidebar navigation:
+
+```typescript
+// Admin routes are protected by AdminRoute (checks admin role)
+<AdminRoute>
+  <AdminLayout>    {/* Sidebar + header */}
+    <Outlet />     {/* Child routes render here */}
+  </AdminLayout>
+</AdminRoute>
+```
+
+### Admin Components
+
+| Component | Purpose |
+|-----------|---------|
+| `AdminLayout` | Main layout with sidebar navigation |
+| `AdminHeader` | Top header with user info |
+| `AdminSidebar` | Navigation sidebar with route links |
+| `DuaFormDialog` | Create/edit dua form |
+| `JourneyFormDialog` | Create/edit journey form |
+| `ConfirmDialog` | Delete confirmation dialog |
+| `SearchInput` | Reusable search input |
+| `StatusBadges` | Premium/featured status badges |
+| `TableSkeleton` | Loading skeleton for tables |
+
+### Admin Hook Pattern
+
+Admin hooks follow a consistent pattern with CRUD operations and optimistic updates:
+
+```typescript
+export function useAdminDuas() {
+  const queryClient = useQueryClient();
+
+  // List query
+  const duasQuery = useQuery({
+    queryKey: ['admin', 'duas'],
+    queryFn: fetchDuas,
+  });
+
+  // Create mutation with cache invalidation
+  const createMutation = useMutation({
+    mutationFn: createDua,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'duas'] });
+      toast.success('Dua created');
+    },
+  });
+
+  // Update/Delete mutations follow same pattern
+  return { duasQuery, createMutation, updateMutation, deleteMutation };
+}
+```
+
+### Admin Types
+
+Admin types are defined in `src/types/admin.ts` with both DB row types (snake_case) and frontend types (camelCase):
+
+```typescript
+// Database row type
+interface AdminDuaRow {
+  id: number;
+  title_en: string;
+  category_id: number | null;
+  // ... snake_case columns
+}
+
+// Frontend type
+interface AdminDua {
+  id: number;
+  titleEn: string;
+  categoryId: number | null;
+  // ... camelCase properties
+}
+```
 
 ## XP & Level System
 

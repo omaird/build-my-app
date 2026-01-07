@@ -1,0 +1,44 @@
+# Xcode
+*.xcodeproj/
+!*.xcodeproj/xcshareddata/
+*.xcuserdata
+*.xcscmblueprint
+build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Ruby
+.bundle/
+vendor/bundle
+
+# Misc
+.DS_Store
+*.swp
+*~
+*.orig
+
+# Environment
+.env
+.env.local
+
+# Secrets
+*.p12
+*.mobileprovision
+*.cer
+AuthKey_*.p8
