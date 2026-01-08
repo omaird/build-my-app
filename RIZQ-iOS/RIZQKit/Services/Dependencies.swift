@@ -1,46 +1,69 @@
 import Foundation
+import FirebaseCore
 
 // MARK: - App Configuration
+
+/// Firebase-specific configuration
+public struct FirebaseConfiguration: Sendable {
+  public let projectId: String
+  public let useEmulator: Bool
+  public let emulatorHost: String
+  public let authEmulatorPort: Int
+  public let firestoreEmulatorPort: Int
+
+  public init(
+    projectId: String,
+    useEmulator: Bool = false,
+    emulatorHost: String = "localhost",
+    authEmulatorPort: Int = 9099,
+    firestoreEmulatorPort: Int = 8080
+  ) {
+    self.projectId = projectId
+    self.useEmulator = useEmulator
+    self.emulatorHost = emulatorHost
+    self.authEmulatorPort = authEmulatorPort
+    self.firestoreEmulatorPort = firestoreEmulatorPort
+  }
+}
 
 /// Combined configuration for all services
 public struct AppConfiguration: Sendable {
   public let api: APIConfiguration
-  public let auth: AuthConfiguration
+  public let firebase: FirebaseConfiguration
 
-  public init(api: APIConfiguration, auth: AuthConfiguration) {
-    self.api = api
-    self.auth = auth
-  }
-
-  /// Initialize with individual configuration values
+  /// Initialize with Firebase configuration
   public init(
+    firebase: FirebaseConfiguration,
     neonHost: String,
     neonApiKey: String,
-    projectId: String,
-    authURL: String,
-    callbackScheme: String = "rizq"
+    projectId: String
   ) {
+    self.firebase = firebase
     self.api = APIConfiguration(neonHost: neonHost, neonApiKey: neonApiKey, projectId: projectId)
-    self.auth = AuthConfiguration(authURLString: authURL, callbackScheme: callbackScheme)
+  }
+
+  /// Initialize with Firebase configuration using environment variables
+  public init(firebase: FirebaseConfiguration) {
+    self.firebase = firebase
+    // Try to get API config from environment
+    if let apiConfig = APIConfiguration.fromEnvironment() {
+      self.api = apiConfig
+    } else {
+      // Placeholder - Firebase doesn't need Neon API for user data
+      self.api = APIConfiguration(neonHost: "", neonApiKey: "", projectId: "")
+    }
   }
 
   /// Create configuration from environment or Info.plist
   public static func fromEnvironment() -> AppConfiguration? {
-    guard let apiConfig = APIConfiguration.fromEnvironment(),
-          let authURL = ProcessInfo.processInfo.environment["AUTH_URL"]
-            ?? Bundle.main.object(forInfoDictionaryKey: "AuthURL") as? String
-    else {
+    // Firebase auto-configures from GoogleService-Info.plist
+    guard Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil else {
       return nil
     }
 
-    let callbackScheme = ProcessInfo.processInfo.environment["AUTH_CALLBACK_SCHEME"]
-      ?? Bundle.main.object(forInfoDictionaryKey: "AuthCallbackScheme") as? String
-      ?? "rizq"
-
-    return AppConfiguration(
-      api: apiConfig,
-      auth: AuthConfiguration(authURLString: authURL, callbackScheme: callbackScheme)
-    )
+    let useEmulator = ProcessInfo.processInfo.environment["USE_FIREBASE_EMULATOR"] == "true"
+    let projectId = ProcessInfo.processInfo.environment["FIREBASE_PROJECT_ID"] ?? "rizq-app-c6468"
+    return AppConfiguration(firebase: FirebaseConfiguration(projectId: projectId, useEmulator: useEmulator))
   }
 }
 
@@ -72,9 +95,20 @@ public final class ServiceContainer: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     self._appConfiguration = configuration
-    self._neonService = NeonService(configuration: configuration.api)
-    self._authService = AuthService(configuration: configuration.auth)
-    self._adminService = AdminService(configuration: configuration.api)
+
+    // Firebase is configured via GoogleService-Info.plist
+    // FirebaseApp.configure() should be called in RIZQApp.init()
+
+    // Set up Firebase Auth service
+    self._authService = FirebaseAuthService()
+
+    // Set up Neon service with Firestore adapter for user data
+    if !configuration.api.neonHost.isEmpty {
+      let firestoreService = FirestoreService()
+      let neonService = NeonService(configuration: configuration.api)
+      self._neonService = FirebaseNeonService(neonService: neonService, firestoreService: firestoreService)
+      self._adminService = AdminService(configuration: configuration.api)
+    }
   }
 
   public func configureForPreview(authenticated: Bool = false) {

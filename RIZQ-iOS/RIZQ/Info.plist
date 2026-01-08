@@ -50,6 +50,14 @@
         <string>rizq</string>
       </array>
     </dict>
+    <dict>
+      <key>CFBundleTypeRole</key>
+      <string>Editor</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>com.googleusercontent.apps.989470707680-0591rq9b8b9cmtbn98r0f783c483v4sn</string>
+      </array>
+    </dict>
   </array>
   <key>UIAppFonts</key>
   <array>
