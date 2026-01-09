@@ -1,7 +1,7 @@
 {
   "name": "rizq-ios",
-  "version": "1.1.0",
-  "description": "Native iOS development toolkit for RIZQ App - React to SwiftUI translation, TCA architecture, XcodeGen project generation, testing infrastructure, and App Store deployment",
+  "version": "1.2.0",
+  "description": "Native iOS development toolkit for RIZQ App - React to SwiftUI translation, TCA architecture, Firebase integration, XcodeGen project generation, testing infrastructure, and App Store deployment",
   "author": "RIZQ App Team",
   "agents": [
     {
@@ -32,7 +32,7 @@
     {
       "name": "auth-architect",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/auth-architect.md",
-      "description": "Implement OAuth authentication with Better Auth/Neon Auth using ASWebAuthenticationSession, Keychain storage, and session management."
+      "description": "Implement authentication with Firebase Auth (recommended) or Better Auth/Neon Auth. Handles OAuth providers, Keychain storage, and session management."
     },
     {
       "name": "animation-translator",
@@ -78,6 +78,11 @@
       "name": "test-architect",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/test-architect.md",
       "description": "Design and implement iOS test infrastructure using TCA TestStore for unit tests and swift-snapshot-testing for visual regression tests."
+    },
+    {
+      "name": "firebase-integrator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/firebase-integrator.md",
+      "description": "Integrate Firebase services (Auth, Firestore) into iOS apps. Use for Firebase setup, authentication flows, Firestore data modeling, and security rules."
     }
   ],
   "skills": [
@@ -109,7 +114,7 @@
     {
       "name": "auth-patterns-ios",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/auth-patterns-ios.md",
-      "description": "OAuth flow with ASWebAuthenticationSession, Keychain storage, token refresh patterns"
+      "description": "Authentication patterns for iOS: Firebase Auth (recommended), OAuth flow, Keychain storage, token refresh"
     },
     {
       "name": "persistence-patterns",
@@ -140,6 +145,11 @@
       "name": "testing-patterns",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/testing-patterns.md",
       "description": "iOS testing patterns with TCA TestStore, swift-snapshot-testing, mock factories, and CI configuration"
+    },
+    {
+      "name": "firestore-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/firestore-patterns.md",
+      "description": "Firestore data modeling, query patterns, transactions, real-time listeners, and security rules for iOS apps"
     }
   ],
   "commands": [
@@ -207,6 +217,11 @@
       "name": "setup-snapshots",
       "path": "${CLAUDE_PLUGIN_ROOT}/commands/setup-snapshots.md",
       "description": "Configure snapshot testing infrastructure with swift-snapshot-testing"
+    },
+    {
+      "name": "setup-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/setup-firebase.md",
+      "description": "Configure Firebase Auth and Firestore for the iOS app, verify setup, and optionally configure emulator"
     }
   ]
 }

@@ -7,110 +7,92 @@ struct AuthView: View {
 
   var body: some View {
     ScrollView {
-      VStack(spacing: 32) {
-        // Logo and Welcome
+      VStack(spacing: 24) {
+        // Bismillah at top
+        bismillahSection
+
+        // Illustration and Welcome
         headerSection
-
-        // Social Sign In Buttons
-        socialSignInSection
-
-        // Divider
-        dividerSection
 
         // Email Sign In Form
         emailFormSection
 
+        // Divider
+        dividerSection
+
+        // Social Sign In Buttons
+        socialSignInSection
+
         // Toggle Auth Mode
         toggleModeSection
       }
-      .padding(24)
+      .padding(.horizontal, 24)
+      .padding(.bottom, 24)
     }
+    .scrollDismissesKeyboard(.interactively)
     .rizqPageBackground()
+  }
+
+  // MARK: - Bismillah Section
+  private var bismillahSection: some View {
+    Text("بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ")
+      .font(.rizqArabic(.title2))
+      .foregroundStyle(Color.rizqPrimary)
+      .padding(.top, 20)
   }
 
   // MARK: - Header Section
   private var headerSection: some View {
-    VStack(spacing: 16) {
-      // App Icon/Logo
-      ZStack {
-        Circle()
-          .fill(LinearGradient.rizqPrimaryGradient)
-          .frame(width: 80, height: 80)
+    VStack(spacing: 20) {
+      // Meditation Illustration
+      Image("meditation")
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .frame(maxWidth: 280, maxHeight: 220)
+        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
 
-        Image(systemName: "hands.sparkles.fill")
-          .font(.system(size: 36))
-          .foregroundStyle(.white)
+      // Welcome Text
+      VStack(spacing: 8) {
+        Text(store.isSignUp ? "Join RIZQ" : "Welcome to RIZQ")
+          .font(.rizqDisplayBold(.title))
+          .foregroundStyle(Color.rizqText)
+
+        Text(store.isSignUp
+          ? "Create your account to start your journey"
+          : "Sign in to continue your dua practice journey")
+          .font(.rizqSans(.subheadline))
+          .foregroundStyle(Color.rizqTextSecondary)
+          .multilineTextAlignment(.center)
       }
-      .shadowGlowPrimary()
-
-      Text("RIZQ")
-        .font(.rizqDisplayBold(.largeTitle))
-        .foregroundStyle(Color.rizqText)
-
-      Text(store.isSignUp ? "Create your account" : "Welcome back")
-        .font(.rizqSans(.headline))
-        .foregroundStyle(Color.rizqTextSecondary)
     }
-    .padding(.top, 40)
   }
 
   // MARK: - Social Sign In Section
   private var socialSignInSection: some View {
     VStack(spacing: 12) {
-      // Apple Button (primary option for iOS)
-      Button {
-        store.send(.signInWithApple)
-      } label: {
-        HStack {
-          Image(systemName: "apple.logo")
-            .font(.title2)
-          Text("Continue with Apple")
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(.black)
-        .foregroundStyle(.white)
-        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
-      }
-      .buttonStyle(.plain)
-
       // Google Button
-      Button {
-        store.send(.signInWithGoogle)
-      } label: {
-        HStack {
-          Image(systemName: "g.circle.fill")
-            .font(.title2)
-          Text("Continue with Google")
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(Color.rizqCard)
-        .foregroundStyle(Color.rizqText)
-        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
-        .overlay {
-          RoundedRectangle(cornerRadius: RIZQRadius.btn)
-            .stroke(Color.rizqBorder, lineWidth: 1)
-        }
-      }
-      .buttonStyle(.plain)
+      googleSignInButton
+    }
+  }
 
-      // GitHub Button
-      Button {
-        store.send(.signInWithGitHub)
-      } label: {
-        HStack {
-          Image(systemName: "chevron.left.forwardslash.chevron.right")
-            .font(.title2)
-          Text("Continue with GitHub")
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 14)
-        .background(Color.mochaDeep)
-        .foregroundStyle(.white)
-        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+  private var googleSignInButton: some View {
+    Button {
+      store.send(.signInWithGoogle)
+    } label: {
+      HStack {
+        Image(systemName: "g.circle.fill")
+          .font(.title2)
+        Text("Continue with Google")
       }
-      .buttonStyle(.plain)
+      .frame(maxWidth: .infinity)
+      .padding(.vertical, 14)
+      .foregroundStyle(Color.rizqText)
+    }
+    .background(Color.rizqCard)
+    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+    .overlay {
+      RoundedRectangle(cornerRadius: RIZQRadius.btn)
+        .stroke(Color.rizqBorder, lineWidth: 1)
     }
   }
 
@@ -140,18 +122,24 @@ struct AuthView: View {
           .font(.rizqSans(.subheadline))
           .foregroundStyle(Color.rizqTextSecondary)
 
-        TextField("your@email.com", text: $store.email)
-          .font(.rizqSans(.body))
-          .textContentType(.emailAddress)
-          .keyboardType(.emailAddress)
-          .autocapitalization(.none)
-          .padding()
-          .background(Color.rizqCard)
-          .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.md))
-          .overlay {
-            RoundedRectangle(cornerRadius: RIZQRadius.md)
-              .stroke(Color.rizqBorder, lineWidth: 1)
-          }
+        HStack(spacing: 12) {
+          Image(systemName: "envelope")
+            .font(.system(size: 18))
+            .foregroundStyle(Color.rizqMuted)
+
+          TextField("you@example.com", text: $store.email)
+            .font(.rizqSans(.body))
+            .textContentType(.emailAddress)
+            .keyboardType(.emailAddress)
+            .autocapitalization(.none)
+        }
+        .padding()
+        .background(Color.rizqCard)
+        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+        .overlay {
+          RoundedRectangle(cornerRadius: RIZQRadius.btn)
+            .stroke(Color.rizqBorder, lineWidth: 1)
+        }
       }
 
       // Password Field
@@ -160,16 +148,22 @@ struct AuthView: View {
           .font(.rizqSans(.subheadline))
           .foregroundStyle(Color.rizqTextSecondary)
 
-        SecureField("Enter password", text: $store.password)
-          .font(.rizqSans(.body))
-          .textContentType(store.isSignUp ? .newPassword : .password)
-          .padding()
-          .background(Color.rizqCard)
-          .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.md))
-          .overlay {
-            RoundedRectangle(cornerRadius: RIZQRadius.md)
-              .stroke(Color.rizqBorder, lineWidth: 1)
-          }
+        HStack(spacing: 12) {
+          Image(systemName: "lock")
+            .font(.system(size: 18))
+            .foregroundStyle(Color.rizqMuted)
+
+          SecureField("Enter your password", text: $store.password)
+            .font(.rizqSans(.body))
+            .textContentType(store.isSignUp ? .newPassword : .password)
+        }
+        .padding()
+        .background(Color.rizqCard)
+        .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+        .overlay {
+          RoundedRectangle(cornerRadius: RIZQRadius.btn)
+            .stroke(Color.rizqBorder, lineWidth: 1)
+        }
       }
 
       // Error Message
@@ -193,8 +187,8 @@ struct AuthView: View {
           }
         }
         .frame(maxWidth: .infinity)
-        .rizqPrimaryButton()
       }
+      .rizqPrimaryButton()
       .disabled(store.isLoading)
     }
   }
@@ -213,7 +207,6 @@ struct AuthView: View {
       }
       .font(.rizqSans(.subheadline))
     }
-    .buttonStyle(.plain)
   }
 }
 

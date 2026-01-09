@@ -22,7 +22,7 @@ struct AdminDuasView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          store.send(.addDuaTapped)
+          store.send(.createDuaTapped)
         } label: {
           Image(systemName: "plus.circle.fill")
             .font(.title2)
@@ -95,9 +95,9 @@ private struct DuaAdminRow: View {
             .foregroundStyle(Color.rizqPrimary)
 
           if let time = dua.bestTime {
-            Label(time.rawValue, systemImage: time.icon)
+            Label(time, systemImage: bestTimeIcon(for: time))
               .font(.rizqSans(.caption2))
-              .foregroundStyle(time.color)
+              .foregroundStyle(bestTimeColor(for: time))
           }
         }
       }
@@ -113,6 +113,30 @@ private struct DuaAdminRow: View {
       }
     }
     .padding(.vertical, 8)
+  }
+
+  // MARK: - Best Time Helpers
+
+  private func bestTimeIcon(for time: String) -> String {
+    let lowercased = time.lowercased()
+    if lowercased.contains("morning") || lowercased.contains("fajr") {
+      return "sun.max.fill"
+    } else if lowercased.contains("evening") || lowercased.contains("maghrib") || lowercased.contains("sleep") {
+      return "moon.fill"
+    } else {
+      return "clock.fill"
+    }
+  }
+
+  private func bestTimeColor(for time: String) -> Color {
+    let lowercased = time.lowercased()
+    if lowercased.contains("morning") || lowercased.contains("fajr") {
+      return .badgeMorning
+    } else if lowercased.contains("evening") || lowercased.contains("maghrib") || lowercased.contains("sleep") {
+      return .badgeEvening
+    } else {
+      return .badgeRizq
+    }
   }
 }
 
@@ -160,14 +184,14 @@ private struct DuaFormSheet: View {
           ))
         }
       }
-      .navigationTitle(store.editingDua == nil ? "New Dua" : "Edit Dua")
+      .navigationTitle(store.editingDuaId == nil ? "New Dua" : "Edit Dua")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { store.send(.cancelForm) }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") { store.send(.saveDua) }
+          Button("Save") { store.send(.submitForm) }
             .disabled(!store.formInput.isValid)
         }
       }

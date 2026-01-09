@@ -52,6 +52,23 @@ public struct Journey: Codable, Identifiable, Equatable, Sendable {
     // This will be populated from the relationship
     0
   }
+
+  // MARK: - Image Support
+
+  /// Returns true if the emoji field contains an image path instead of an actual emoji
+  public var hasImageAsset: Bool {
+    emoji.hasPrefix("/images/")
+  }
+
+  /// Returns the asset catalog name for this journey's illustration
+  /// Uses the journey slug to map to bundled images
+  public var imageAssetName: String {
+    // Use slug directly - assets are named by slug (e.g., "rizq-seeker")
+    slug
+  }
+
+  /// Fallback asset name if the journey's image is not found
+  public static let defaultImageAsset = "default-journey"
 }
 
 // MARK: - Journey Dua (Join Table)

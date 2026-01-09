@@ -75,20 +75,20 @@ struct DuaCardView: View {
     .clipShape(Capsule())
   }
 
-  /// Derive category display from bestTime
+  /// Derive category display from bestTime string
   private var categoryDisplay: CategoryDisplay {
-    guard let bestTime = dua.bestTime else {
+    guard let bestTime = dua.bestTime?.lowercased() else {
       // Default to "Anytime" if no bestTime
-      return CategoryDisplay(slug: .rizq, name: "Anytime", icon: "clock.fill")
+      return CategoryDisplay.display(for: nil)
     }
 
-    switch bestTime {
-    case .morning:
+    // Match bestTime string to category
+    if bestTime.contains("morning") || bestTime.contains("fajr") {
       return CategoryDisplay.display(for: .morning)
-    case .evening:
+    } else if bestTime.contains("evening") || bestTime.contains("maghrib") || bestTime.contains("sleep") {
       return CategoryDisplay.display(for: .evening)
-    case .anytime:
-      return CategoryDisplay(slug: .rizq, name: "Anytime", icon: "clock.fill")
+    } else {
+      return CategoryDisplay.display(for: nil)
     }
   }
 
@@ -125,7 +125,7 @@ struct DuaCardView: View {
 
   // MARK: - Difficulty Badge
   private var difficultyBadge: some View {
-    Text(dua.difficulty.rawValue)
+    Text(dua.difficulty?.rawValue ?? "Beginner")
       .font(.rizqSans(.caption2))
       .foregroundStyle(difficultyTextColor)
       .padding(.horizontal, RIZQSpacing.sm)
@@ -157,23 +157,22 @@ struct DuaCardView: View {
 
   // MARK: - Category Color
   private var categoryColor: Color {
-    guard let bestTime = dua.bestTime else {
+    guard let bestTime = dua.bestTime?.lowercased() else {
       return .badgeRizq // Default color
     }
 
-    switch bestTime {
-    case .morning:
+    if bestTime.contains("morning") || bestTime.contains("fajr") {
       return .badgeMorning
-    case .evening:
+    } else if bestTime.contains("evening") || bestTime.contains("maghrib") || bestTime.contains("sleep") {
       return .badgeEvening
-    case .anytime:
+    } else {
       return .badgeRizq
     }
   }
 
   // MARK: - Difficulty Colors
   private var difficultyTextColor: Color {
-    switch dua.difficulty {
+    switch dua.difficulty ?? .beginner {
     case .beginner:
       return Color(hex: "15803D") // Green-700
     case .intermediate:
@@ -184,7 +183,7 @@ struct DuaCardView: View {
   }
 
   private var difficultyBackgroundColor: Color {
-    switch dua.difficulty {
+    switch dua.difficulty ?? .beginner {
     case .beginner:
       return Color(hex: "DCFCE7") // Green-100
     case .intermediate:

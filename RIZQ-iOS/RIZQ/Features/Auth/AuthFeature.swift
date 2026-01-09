@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import RIZQKit
+import UIKit
 
 @Reducer
 struct AuthFeature {
@@ -21,9 +22,8 @@ struct AuthFeature {
     case signInWithEmail
     case signInWithGoogle
     case signInWithApple
-    case signInWithGitHub
     case checkExistingSession
-    case authResponse(Result<AuthResponse, AuthError>)
+    case authResponse(Result<AuthResponse, RIZQAuthError>)
     case authSuccess(AuthUser)
     case authFailure(String)
     case clearError
@@ -74,7 +74,7 @@ struct AuthFeature {
               response = try await authClient.signIn(email, password)
             }
             await send(.authResponse(.success(response)))
-          } catch let error as AuthError {
+          } catch let error as RIZQAuthError {
             await send(.authResponse(.failure(error)))
           } catch {
             await send(.authResponse(.failure(.unknown(error.localizedDescription))))
@@ -88,7 +88,7 @@ struct AuthFeature {
           do {
             let response = try await authClient.signInWithOAuth(.google)
             await send(.authResponse(.success(response)))
-          } catch let error as AuthError {
+          } catch let error as RIZQAuthError {
             await send(.authResponse(.failure(error)))
           } catch {
             await send(.authResponse(.failure(.unknown(error.localizedDescription))))
@@ -102,21 +102,7 @@ struct AuthFeature {
           do {
             let response = try await authClient.signInWithOAuth(.apple)
             await send(.authResponse(.success(response)))
-          } catch let error as AuthError {
-            await send(.authResponse(.failure(error)))
-          } catch {
-            await send(.authResponse(.failure(.unknown(error.localizedDescription))))
-          }
-        }
-
-      case .signInWithGitHub:
-        state.isLoading = true
-        state.errorMessage = nil
-        return .run { send in
-          do {
-            let response = try await authClient.signInWithOAuth(.github)
-            await send(.authResponse(.success(response)))
-          } catch let error as AuthError {
+          } catch let error as RIZQAuthError {
             await send(.authResponse(.failure(error)))
           } catch {
             await send(.authResponse(.failure(.unknown(error.localizedDescription))))
@@ -173,7 +159,14 @@ extension AuthClient: DependencyKey {
     },
     signInWithOAuth: { provider in
       let service = ServiceContainer.shared.authService
-      return try await service.signInWithOAuth(provider: provider, presentingWindow: nil)
+      // Get the key window from the active scene for OAuth presentation
+      let presentingWindow = await MainActor.run {
+        UIApplication.shared.connectedScenes
+          .compactMap { $0 as? UIWindowScene }
+          .flatMap { $0.windows }
+          .first { $0.isKeyWindow }
+      }
+      return try await service.signInWithOAuth(provider: provider, presentingWindow: presentingWindow)
     },
     signOut: {
       let service = ServiceContainer.shared.authService

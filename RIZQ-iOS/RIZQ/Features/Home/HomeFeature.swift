@@ -6,11 +6,17 @@ import RIZQKit
 struct HomeFeature {
   @ObservableState
   struct State: Equatable {
+    // User ID for fetching data (set by parent feature)
+    var userId: String?
+
     // User profile data
     var displayName: String = ""
     var streak: Int = 0
     var totalXp: Int = 0
     var level: Int = 1
+
+    // Today's activity
+    var todayActivity: UserActivity?
 
     // Today's habits progress
     var todaysProgress: TodayProgress = TodayProgress(completed: 0, total: 0, xpEarned: 0)
@@ -20,6 +26,7 @@ struct HomeFeature {
     var isLoading: Bool = false
     var isStreakAnimating: Bool = false
     var showWelcomeSheet: Bool = false
+    var loadError: String?
 
     // Computed properties
     var greeting: String {
@@ -46,7 +53,10 @@ struct HomeFeature {
   enum Action: Equatable {
     case onAppear
     case refreshData
-    case profileLoaded(displayName: String, streak: Int, xp: Int, level: Int)
+    case setUserId(String?)
+    case profileLoaded(UserProfile)
+    case profileLoadFailed(String)
+    case activityLoaded(UserActivity?)
     case habitsProgressLoaded(TodayProgress)
     case todaysHabitsLoaded([UserHabit])
     case streakIncremented
@@ -58,43 +68,97 @@ struct HomeFeature {
   }
 
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.neonClient) var neonClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
       case .onAppear:
+        guard let userId = state.userId else {
+          // No user ID yet, wait for it to be set
+          return .none
+        }
         state.isLoading = true
-        // Demo data - in production, fetch from UserService
-        return .run { send in
-          // Simulate loading delay
-          try await clock.sleep(for: .milliseconds(500))
-          await send(.profileLoaded(displayName: "Friend", streak: 7, xp: 450, level: 3))
-          await send(.habitsProgressLoaded(TodayProgress(completed: 3, total: 5, xpEarned: 45)))
+        state.loadError = nil
+
+        return .run { [userId] send in
+          // Fetch user profile from Firestore via NeonClient
+          do {
+            if let profile = try await neonClient.fetchUserProfile(userId) {
+              await send(.profileLoaded(profile))
+            } else {
+              // Create a new profile if none exists
+              let newProfile = try await neonClient.createUserProfile(userId, nil)
+              await send(.profileLoaded(newProfile))
+            }
+
+            // Fetch today's activity
+            let activity = try await neonClient.fetchUserActivity(userId, Date())
+            await send(.activityLoaded(activity))
+          } catch {
+            await send(.profileLoadFailed(error.localizedDescription))
+          }
         }
 
       case .refreshData:
+        guard let userId = state.userId else { return .none }
         state.isLoading = true
-        return .run { send in
-          try await clock.sleep(for: .milliseconds(300))
-          await send(.profileLoaded(displayName: "Friend", streak: 7, xp: 450, level: 3))
-          await send(.habitsProgressLoaded(TodayProgress(completed: 3, total: 5, xpEarned: 45)))
+        state.loadError = nil
+
+        return .run { [userId] send in
+          do {
+            if let profile = try await neonClient.fetchUserProfile(userId) {
+              await send(.profileLoaded(profile))
+            }
+            let activity = try await neonClient.fetchUserActivity(userId, Date())
+            await send(.activityLoaded(activity))
+          } catch {
+            await send(.profileLoadFailed(error.localizedDescription))
+          }
         }
 
-      case .profileLoaded(let displayName, let streak, let xp, let level):
+      case .setUserId(let userId):
+        state.userId = userId
+        // Trigger data load if userId is set
+        if userId != nil {
+          return .send(.onAppear)
+        }
+        return .none
+
+      case .profileLoaded(let profile):
         let previousStreak = state.streak
         state.isLoading = false
-        state.displayName = displayName
-        state.streak = streak
-        state.totalXp = xp
-        state.level = level
+        state.loadError = nil
+        state.displayName = profile.displayName ?? "Friend"
+        state.streak = profile.streak
+        state.totalXp = profile.totalXp
+        state.level = profile.level
 
         // Trigger streak animation if streak increased
-        if previousStreak > 0 && streak > previousStreak {
+        if previousStreak > 0 && profile.streak > previousStreak {
           state.isStreakAnimating = true
           return .run { send in
             try await clock.sleep(for: .seconds(2))
             await send(.streakAnimationCompleted)
           }
+        }
+        return .none
+
+      case .profileLoadFailed(let error):
+        state.isLoading = false
+        state.loadError = error
+        return .none
+
+      case .activityLoaded(let activity):
+        state.todayActivity = activity
+        if let activity = activity {
+          // Update today's progress based on activity
+          let duasCount = activity.duasCompleted.count
+          state.todaysProgress = TodayProgress(
+            completed: duasCount,
+            total: max(duasCount, state.todaysHabits.count),
+            xpEarned: activity.xpEarned
+          )
         }
         return .none
 
@@ -104,6 +168,13 @@ struct HomeFeature {
 
       case .todaysHabitsLoaded(let habits):
         state.todaysHabits = habits
+        // Update progress total
+        let completed = state.todayActivity?.duasCompleted.count ?? state.todaysProgress.completed
+        state.todaysProgress = TodayProgress(
+          completed: completed,
+          total: habits.count,
+          xpEarned: state.todaysProgress.xpEarned
+        )
         return .none
 
       case .streakIncremented:

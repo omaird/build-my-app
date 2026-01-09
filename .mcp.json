@@ -8,6 +8,17 @@
         "@playwright/mcp@latest"
       ],
       "env": {}
+    },
+    "firebase": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@gannonh/firebase-mcp@latest"
+      ],
+      "env": {
+        "SERVICE_ACCOUNT_KEY_PATH": "/Users/omairdawood/Projects/RIZQ App/firebase-service-account.json"
+      }
     }
   }
 }

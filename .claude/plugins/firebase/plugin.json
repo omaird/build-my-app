@@ -1,0 +1,52 @@
+{
+  "name": "firebase",
+  "version": "1.0.0",
+  "description": "Firebase development tools for iOS apps - authentication, Firestore, configuration, and debugging",
+  "author": "RIZQ App Team",
+  "skills": [
+    {
+      "name": "firebase-auth-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/firebase-auth-patterns.md",
+      "description": "Firebase Authentication patterns for iOS - email/password, Google Sign-In, Apple Sign-In, session management"
+    },
+    {
+      "name": "firebase-config",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/firebase-config.md",
+      "description": "Firebase project configuration best practices - GoogleService-Info.plist, URL schemes, entitlements"
+    },
+    {
+      "name": "firestore-patterns",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/firestore-patterns.md",
+      "description": "Firestore database patterns - queries, real-time listeners, offline persistence, security rules"
+    }
+  ],
+  "commands": [
+    {
+      "name": "firebase-init",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/firebase-init.md",
+      "description": "Initialize Firebase in an iOS project - add SDK, configure plist, set up entitlements"
+    },
+    {
+      "name": "firebase-status",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/firebase-status.md",
+      "description": "Check Firebase configuration status and diagnose common issues"
+    }
+  ],
+  "agents": [
+    {
+      "name": "firebase-setup",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/firebase-setup.md",
+      "description": "Guide Firebase Console setup, download config files, configure Xcode project settings"
+    },
+    {
+      "name": "firebase-auth-integrator",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/firebase-auth-integrator.md",
+      "description": "Implement Firebase Authentication flows - email/password, OAuth providers, token management"
+    },
+    {
+      "name": "firebase-debugger",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/firebase-debugger.md",
+      "description": "Debug Firebase issues - auth errors, token problems, configuration issues, emulator setup"
+    }
+  ]
+}

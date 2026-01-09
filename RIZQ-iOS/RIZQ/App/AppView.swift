@@ -40,10 +40,17 @@ struct AppView: View {
             .tag(AppFeature.Tab.settings)
         }
         .tint(.rizqPrimary)
+        // Admin Panel Full Screen Cover
+        .fullScreenCover(
+          item: $store.scope(state: \.admin, action: \.admin)
+        ) { adminStore in
+          AdminTabView(store: adminStore)
+        }
       } else {
         AuthView(store: store.scope(state: \.auth, action: \.auth))
       }
     }
+    .preferredColorScheme(store.settings.isDarkMode ? .dark : .light)
     .onAppear {
       store.send(.onAppear)
     }

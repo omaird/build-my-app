@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Content collections - publicly readable (no auth required)
+    // Write access restricted to Admin SDK only
+
+    match /duas/{duaId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /journeys/{journeyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /journey_duas/{journeyDuaId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // User profiles - users can read/write their own profile
+    // Supports both /users/{userId} and /user_profiles/{userId} paths
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /user_profiles/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // User activity - users can read/write their own activity
+    // Supports /users/{userId}/activity and /user_activity/{userId}/dates paths
+    match /users/{userId}/activity/{activityId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /user_activity/{userId}/dates/{dateId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // User progress - users can read/write their own progress
+    // Supports /users/{userId}/progress and /user_progress/{userId}/duas paths
+    match /users/{userId}/progress/{progressId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    match /user_progress/{userId}/duas/{duaId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}

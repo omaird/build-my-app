@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "duas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "categoryId", "order": "ASCENDING" },
+        { "fieldPath": "id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "journeys",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isFeatured", "order": "ASCENDING" },
+        { "fieldPath": "sortOrder", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "journey_duas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "journeyId", "order": "ASCENDING" },
+        { "fieldPath": "sortOrder", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

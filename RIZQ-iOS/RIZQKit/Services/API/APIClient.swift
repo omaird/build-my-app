@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let apiLogger = Logger(subsystem: "com.rizq.app", category: "APIClient")
 
 // MARK: - API Error
 
@@ -43,16 +46,18 @@ public struct APIConfiguration: Sendable {
   public let neonHost: String
   public let neonApiKey: String
   public let projectId: String
+  public let databaseUrl: String
 
   /// The HTTP endpoint for Neon SQL API
   public var sqlEndpoint: String {
     "https://\(neonHost)/sql"
   }
 
-  public init(neonHost: String, neonApiKey: String, projectId: String) {
+  public init(neonHost: String, neonApiKey: String, projectId: String, databaseUrl: String = "") {
     self.neonHost = neonHost
     self.neonApiKey = neonApiKey
     self.projectId = projectId
+    self.databaseUrl = databaseUrl
   }
 
   /// Create configuration from environment or Info.plist
@@ -66,7 +71,18 @@ public struct APIConfiguration: Sendable {
     else {
       return nil
     }
-    return APIConfiguration(neonHost: host, neonApiKey: apiKey, projectId: projectId)
+
+    // Database URL is required for Neon HTTP SQL API
+    let databaseUrl = ProcessInfo.processInfo.environment["NEON_DATABASE_URL"]
+            ?? Bundle.main.object(forInfoDictionaryKey: "NeonDatabaseUrl") as? String
+            ?? ""
+
+    return APIConfiguration(
+      neonHost: host,
+      neonApiKey: apiKey,
+      projectId: projectId,
+      databaseUrl: databaseUrl
+    )
   }
 }
 
@@ -117,11 +133,22 @@ public enum SQLValue: Encodable, Sendable {
 /// Response from Neon HTTP SQL API
 struct NeonSQLResponse: Decodable {
   let fields: [NeonField]
-  let rows: [[NeonValue]]
+  let rows: [NeonRow]  // Rows are objects, not arrays
+  let rowAsArray: Bool?
 
   struct NeonField: Decodable {
     let name: String
     let dataTypeID: Int
+  }
+}
+
+/// A row from Neon can be either an object (dictionary) or array depending on rowAsArray setting
+struct NeonRow: Decodable {
+  let values: [String: NeonValue]
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    values = try container.decode([String: NeonValue].self)
   }
 }
 
@@ -243,11 +270,16 @@ public actor APIClient: APIClientProtocol {
       throw APIError.invalidURL
     }
 
+    // Validate database URL is configured
+    guard !configuration.databaseUrl.isEmpty else {
+      throw APIError.serverError("Neon database URL is not configured. Please set NEON_DATABASE_URL environment variable or NeonDatabaseUrl in Info.plist.")
+    }
+
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(configuration.neonApiKey)", forHTTPHeaderField: "Authorization")
-    request.setValue("Neon/\(configuration.projectId)", forHTTPHeaderField: "Neon-Connection-String")
+    // Neon HTTP SQL API authenticates via the connection string, not Bearer token
+    request.setValue(configuration.databaseUrl, forHTTPHeaderField: "Neon-Connection-String")
 
     let requestBody = NeonSQLRequest(query: query, params: params)
     request.httpBody = try JSONEncoder().encode(requestBody)
@@ -274,8 +306,34 @@ public actor APIClient: APIClientProtocol {
     }
 
     // Parse Neon response format
-    let neonResponse = try decoder.decode(NeonSQLResponse.self, from: data)
-    return mapNeonResponse(neonResponse)
+    // Log raw response for debugging
+    let rawResponse = String(data: data, encoding: .utf8) ?? "Unable to decode response"
+    apiLogger.debug("Raw response length: \(rawResponse.count, privacy: .public) chars")
+
+    do {
+      let neonResponse = try decoder.decode(NeonSQLResponse.self, from: data)
+      apiLogger.info("Decoded \(neonResponse.rows.count, privacy: .public) rows with \(neonResponse.fields.count, privacy: .public) fields")
+      return mapNeonResponse(neonResponse)
+    } catch let decodingError as DecodingError {
+      // Get detailed decoding error info
+      switch decodingError {
+      case .typeMismatch(let type, let context):
+        apiLogger.error("Type mismatch: expected \(String(describing: type), privacy: .public) at \(context.codingPath.map { $0.stringValue }.joined(separator: "."), privacy: .public)")
+      case .valueNotFound(let type, let context):
+        apiLogger.error("Value not found: \(String(describing: type), privacy: .public) at \(context.codingPath.map { $0.stringValue }.joined(separator: "."), privacy: .public)")
+      case .keyNotFound(let key, let context):
+        apiLogger.error("Key not found: \(key.stringValue, privacy: .public) at \(context.codingPath.map { $0.stringValue }.joined(separator: "."), privacy: .public)")
+      case .dataCorrupted(let context):
+        apiLogger.error("Data corrupted at \(context.codingPath.map { $0.stringValue }.joined(separator: "."), privacy: .public): \(context.debugDescription, privacy: .public)")
+      @unknown default:
+        apiLogger.error("Unknown decoding error: \(decodingError.localizedDescription, privacy: .public)")
+      }
+      apiLogger.error("Raw response (first 1000 chars): \(String(rawResponse.prefix(1000)), privacy: .public)")
+      throw APIError.decodingError(decodingError)
+    } catch {
+      apiLogger.error("Unexpected error: \(error.localizedDescription, privacy: .public)")
+      throw APIError.decodingError(error)
+    }
   }
 
   /// Execute an UPDATE/INSERT/DELETE and return affected row count
@@ -289,9 +347,8 @@ public actor APIClient: APIClientProtocol {
   private func mapNeonResponse(_ response: NeonSQLResponse) -> [[String: Any]] {
     response.rows.map { row in
       var dict: [String: Any] = [:]
-      for (index, field) in response.fields.enumerated() {
-        let value = row[index]
-        dict[field.name] = neonValueToAny(value)
+      for (fieldName, value) in row.values {
+        dict[fieldName] = neonValueToAny(value)
       }
       return dict
     }

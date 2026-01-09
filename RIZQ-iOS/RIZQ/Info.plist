@@ -40,6 +40,14 @@
   </array>
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>
+  <key>NeonHost</key>
+  <string>ep-green-fire-af4a3sg5-pooler.c-2.us-west-2.aws.neon.tech</string>
+  <key>NeonApiKey</key>
+  <string>napi_2m9gx9eitpwd0l9czvr1fy66e02tckof56gp146poj5t6itagz6wozvbcln3sm1o</string>
+  <key>NeonProjectId</key>
+  <string>ep-green-fire-af4a3sg5</string>
+  <key>NeonDatabaseUrl</key>
+  <string>postgresql://neondb_owner:npg_xSNUHB6wyQW5@ep-green-fire-af4a3sg5-pooler.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require</string>
   <key>CFBundleURLTypes</key>
   <array>
     <dict>

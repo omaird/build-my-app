@@ -1,0 +1,17 @@
+# Sensitive files - never commit these
+report.xml
+Preview.html
+screenshots
+test_output
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.p12
+api_key.json
+AuthKey_*.p8
+
+# Build artifacts
+build/
+*.ipa
+*.dSYM.zip
+*.app.dSYM

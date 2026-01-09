@@ -1,0 +1,82 @@
+{
+  "name": "dua-library-firebase",
+  "version": "1.0.0",
+  "description": "Tools for building and managing the RIZQ iOS dua library via Firebase Firestore - research, populate, validate, and organize authentic Islamic duas",
+  "author": "RIZQ App Team",
+  "skills": [
+    {
+      "name": "add-dua-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/add-dua.md",
+      "description": "Add a single dua to Firebase Firestore with all required fields (Arabic text, transliteration, translation, source, etc.)"
+    },
+    {
+      "name": "create-journey-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/create-journey.md",
+      "description": "Create a new themed journey (collection of duas) in Firebase with time-slot assignments"
+    },
+    {
+      "name": "populate-batch-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/populate-batch.md",
+      "description": "Populate multiple duas from the dua library documentation into Firebase Firestore"
+    },
+    {
+      "name": "validate-library-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/validate-library.md",
+      "description": "Validate the dua library in Firebase for completeness, authenticity, and data quality"
+    },
+    {
+      "name": "library-status-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/library-status.md",
+      "description": "Show current status of the Firebase dua library - counts, categories, journeys, and gaps"
+    }
+  ],
+  "commands": [
+    {
+      "name": "dua-add-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/dua-add.md",
+      "description": "Interactive command to add a new dua to Firebase Firestore with guided prompts"
+    },
+    {
+      "name": "journey-create-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/journey-create.md",
+      "description": "Interactive command to create a new journey in Firebase"
+    },
+    {
+      "name": "library-sync-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-sync.md",
+      "description": "Sync duas from documentation to Firebase Firestore"
+    },
+    {
+      "name": "library-report-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-report.md",
+      "description": "Generate a report of the current Firebase library status"
+    }
+  ],
+  "agents": [
+    {
+      "name": "dua-researcher-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/dua-researcher.md",
+      "description": "Research and find authentic duas with proper hadith sources, Arabic text, and scholarly verification"
+    },
+    {
+      "name": "dua-populator-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/dua-populator.md",
+      "description": "Format and insert duas into Firebase Firestore with proper validation"
+    },
+    {
+      "name": "journey-builder-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/journey-builder.md",
+      "description": "Design and create themed journeys by selecting and organizing duas in Firebase"
+    },
+    {
+      "name": "content-validator-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/content-validator.md",
+      "description": "Validate dua content in Firebase for authenticity, completeness, and data quality"
+    },
+    {
+      "name": "library-curator-firebase",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/library-curator.md",
+      "description": "Curate and organize the Firebase dua library - manage categories, suggest improvements, identify gaps"
+    }
+  ]
+}

@@ -5,41 +5,24 @@ import RIZQKit
 struct LibraryView: View {
   @Bindable var store: StoreOf<LibraryFeature>
 
-  // Adaptive grid columns - 2 on iPhone, more on iPad
-  private let columns = [
-    GridItem(.flexible(), spacing: RIZQSpacing.lg),
-    GridItem(.flexible(), spacing: RIZQSpacing.lg),
-  ]
-
   var body: some View {
     NavigationStack {
       ScrollView {
-        VStack(spacing: RIZQSpacing.xl) {
-          // Header
+        VStack(spacing: RIZQSpacing.lg) {
+          // Header (matches React design)
           headerSection
 
           // Search Bar
-          SearchBarView(searchText: $store.searchText)
+          searchBar
 
-          // Category Filters
-          CategoryFilterView(
-            categories: store.categories,
-            selectedCategory: store.selectedCategory,
-            onCategorySelected: { category in
-              store.send(.categorySelected(category))
-            }
-          )
+          // Category Filter Pills (matches React emojis)
+          categoryPills
 
-          // Active Filter Indicator
-          if let selectedCategory = store.selectedCategory {
-            activeFilterIndicator(for: selectedCategory)
-          }
-
-          // Duas Grid
-          duasGrid
+          // Dua List (vertical, not grid - matches React)
+          duaList
         }
         .padding(.horizontal, RIZQSpacing.lg)
-        .padding(.bottom, RIZQSpacing.huge) // Nav bar clearance
+        .padding(.bottom, RIZQSpacing.huge)
       }
       .rizqPageBackground()
       .navigationBarHidden(true)
@@ -56,75 +39,108 @@ struct LibraryView: View {
     }
   }
 
-  // MARK: - Header Section
+  // MARK: - Header (matches React BookOpen icon + title)
   private var headerSection: some View {
-    VStack(alignment: .leading, spacing: RIZQSpacing.xs) {
-      Text("Library")
-        .font(.rizqDisplayBold(.largeTitle))
-        .foregroundStyle(Color.rizqText)
+    VStack(alignment: .leading, spacing: RIZQSpacing.sm) {
+      HStack(spacing: RIZQSpacing.sm) {
+        Image(systemName: "book.fill")
+          .font(.system(size: 28))
+          .foregroundStyle(Color.rizqPrimary)
 
-      Text("Explore our collection of authentic duas")
-        .font(.rizqSans(.body))
+        Text("Dua Library")
+          .font(.rizqDisplayBold(.largeTitle))
+          .foregroundStyle(Color.rizqText)
+      }
+
+      Text(store.isLoading ? "Loading..." : "\(store.allDuas.count) duas to practice")
+        .font(.rizqSans(.subheadline))
         .foregroundStyle(Color.rizqTextSecondary)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.top, RIZQSpacing.lg)
   }
 
-  // MARK: - Active Filter Indicator
-  private func activeFilterIndicator(for categorySlug: CategorySlug) -> some View {
-    let category = CategoryDisplay.display(for: categorySlug)
+  // MARK: - Search Bar
+  private var searchBar: some View {
+    HStack(spacing: RIZQSpacing.sm) {
+      Image(systemName: "magnifyingglass")
+        .foregroundStyle(Color.rizqMuted)
 
-    return HStack(spacing: RIZQSpacing.sm) {
-      Text("Showing \(store.filteredDuas.count) duas in \(category.name)")
-        .font(.rizqSans(.subheadline))
-        .foregroundStyle(Color.rizqTextSecondary)
-
-      Spacer()
-
-      Button {
-        store.send(.categorySelected(nil))
-      } label: {
-        Image(systemName: "xmark.circle.fill")
-          .font(.system(size: 16))
-          .foregroundStyle(Color.rizqPrimary)
-      }
-      .buttonStyle(.plain)
+      TextField("Search duas...", text: $store.searchText)
+        .font(.rizqSans(.body))
     }
-    .padding(.horizontal, RIZQSpacing.md)
-    .padding(.vertical, RIZQSpacing.sm)
-    .background(Color.rizqPrimary.opacity(0.1))
-    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.sm))
+    .padding(RIZQSpacing.md)
+    .background(Color.rizqCard)
+    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+    .overlay(
+      RoundedRectangle(cornerRadius: RIZQRadius.btn)
+        .stroke(Color.rizqBorder, lineWidth: 1)
+    )
   }
 
-  // MARK: - Duas Grid
-  private var duasGrid: some View {
+  // MARK: - Category Pills (matches React emojis)
+  private var categoryPills: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: RIZQSpacing.sm) {
+        ForEach(store.categories) { category in
+          categoryPill(category)
+        }
+      }
+      .padding(.horizontal, 1) // Prevent clipping
+    }
+  }
+
+  private func categoryPill(_ category: CategoryDisplay) -> some View {
+    let isSelected = store.selectedCategory == category.slug
+
+    return Button {
+      store.send(.categorySelected(category.slug))
+    } label: {
+      HStack(spacing: RIZQSpacing.xs) {
+        Text(category.emoji)
+          .font(.system(size: 16))
+        Text(category.name)
+          .font(.rizqSansMedium(.subheadline))
+      }
+      .padding(.horizontal, RIZQSpacing.md)
+      .padding(.vertical, RIZQSpacing.sm)
+      .background(isSelected ? Color.rizqPrimary : Color.rizqCard)
+      .foregroundStyle(isSelected ? .white : Color.rizqText)
+      .clipShape(Capsule())
+      .overlay(
+        Capsule()
+          .stroke(isSelected ? Color.clear : Color.rizqBorder, lineWidth: 1)
+      )
+    }
+    .buttonStyle(.plain)
+  }
+
+  // MARK: - Dua List (vertical layout, matches React)
+  private var duaList: some View {
     Group {
       if store.isLoading {
         loadingState
+      } else if let error = store.errorMessage {
+        errorState(error)
       } else if store.filteredDuas.isEmpty {
         emptyState
       } else {
-        LazyVGrid(columns: columns, spacing: RIZQSpacing.lg) {
+        LazyVStack(spacing: RIZQSpacing.md) {
           ForEach(store.filteredDuas) { dua in
-            DuaCardView(
+            DuaListCardView(
               dua: dua,
-              onTap: {
-                store.send(.duaTapped(dua))
-              },
-              onAddToAdkhar: {
-                store.send(.addToAdkharTapped(dua))
-              }
+              isActive: store.activeHabitDuaIds.contains(dua.id),
+              onTap: { store.send(.duaTapped(dua)) },
+              onAddToAdkhar: { store.send(.addToAdkharTapped(dua)) }
             )
           }
         }
 
-        // Total count
-        Text("\(store.filteredDuas.count) of \(store.duas.count) duas")
+        // Results count
+        Text("\(store.filteredDuas.count) duas")
           .font(.rizqSans(.footnote))
           .foregroundStyle(Color.rizqMuted)
-          .frame(maxWidth: .infinity)
-          .padding(.top, RIZQSpacing.md)
+          .padding(.top, RIZQSpacing.sm)
       }
     }
   }
@@ -144,6 +160,36 @@ struct LibraryView: View {
     .padding(.vertical, RIZQSpacing.huge)
   }
 
+  // MARK: - Error State
+  private func errorState(_ message: String) -> some View {
+    VStack(spacing: RIZQSpacing.lg) {
+      Image(systemName: "exclamationmark.triangle")
+        .font(.system(size: 48))
+        .foregroundStyle(Color.red.opacity(0.7))
+
+      Text("Unable to load duas")
+        .font(.rizqSansSemiBold(.headline))
+        .foregroundStyle(Color.rizqText)
+
+      Text(message)
+        .font(.rizqSans(.subheadline))
+        .foregroundStyle(Color.rizqMuted)
+        .multilineTextAlignment(.center)
+
+      Button {
+        store.send(.retryTapped)
+      } label: {
+        HStack(spacing: RIZQSpacing.sm) {
+          Image(systemName: "arrow.clockwise")
+          Text("Retry")
+        }
+        .rizqPrimaryButton()
+      }
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, RIZQSpacing.huge)
+  }
+
   // MARK: - Empty State
   private var emptyState: some View {
     VStack(spacing: RIZQSpacing.lg) {
@@ -153,7 +199,7 @@ struct LibraryView: View {
 
       Text("No duas found")
         .font(.rizqSansSemiBold(.headline))
-        .foregroundStyle(Color.rizqTextSecondary)
+        .foregroundStyle(Color.rizqText)
 
       Text("Try adjusting your search or filters")
         .font(.rizqSans(.subheadline))
@@ -165,6 +211,7 @@ struct LibraryView: View {
 }
 
 // MARK: - Add to Adkhar Sheet View
+
 struct AddToAdkharSheetView: View {
   let store: StoreOf<AddToAdkharSheetFeature>
 
@@ -199,6 +246,15 @@ struct AddToAdkharSheetView: View {
         }
         .padding(.horizontal, RIZQSpacing.lg)
 
+        // Error Message
+        if let errorMessage = store.errorMessage {
+          Text(errorMessage)
+            .font(.rizqSans(.caption))
+            .foregroundStyle(.red)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, RIZQSpacing.lg)
+        }
+
         Spacer()
 
         // Action Buttons
@@ -206,10 +262,18 @@ struct AddToAdkharSheetView: View {
           Button {
             store.send(.confirmTapped)
           } label: {
-            Text("Add to Daily Adkhar")
-              .frame(maxWidth: .infinity)
-              .rizqPrimaryButton()
+            HStack(spacing: RIZQSpacing.sm) {
+              if store.isSaving {
+                ProgressView()
+                  .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                  .scaleEffect(0.8)
+              }
+              Text(store.isSaving ? "Adding..." : "Add to Daily Adkhar")
+            }
+            .frame(maxWidth: .infinity)
+            .rizqPrimaryButton()
           }
+          .disabled(store.isSaving)
 
           Button {
             store.send(.cancelTapped)
@@ -218,6 +282,7 @@ struct AddToAdkharSheetView: View {
               .font(.rizqSansMedium(.headline))
               .foregroundStyle(Color.rizqTextSecondary)
           }
+          .disabled(store.isSaving)
         }
         .padding(.horizontal, RIZQSpacing.lg)
         .padding(.bottom, RIZQSpacing.xl)
@@ -252,13 +317,18 @@ struct AddToAdkharSheetView: View {
       )
     }
     .buttonStyle(.plain)
+    .disabled(store.isSaving)
   }
 }
 
 // MARK: - Preview
+
 #Preview {
   LibraryView(
-    store: Store(initialState: LibraryFeature.State(duas: Dua.demoData)) {
+    store: Store(initialState: LibraryFeature.State(
+      duas: Dua.demoData,
+      allDuas: Dua.demoData
+    )) {
       LibraryFeature()
     }
   )

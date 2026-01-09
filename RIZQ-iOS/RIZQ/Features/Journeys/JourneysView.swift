@@ -95,16 +95,14 @@ struct JourneysView: View {
     VStack(alignment: .leading, spacing: RIZQSpacing.md) {
       sectionHeader(title: "Featured Journeys", showStar: true)
 
-      ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: RIZQSpacing.md) {
-          ForEach(store.availableFeaturedJourneys) { journey in
-            FeaturedJourneyCardView(
-              journey: journey,
-              isSubscribed: store.subscribedJourneyIds.contains(journey.id)
-            ) {
-              store.send(.journeyTapped(journey))
-            }
-          }
+      // Vertical full-width cards (matching React app design)
+      ForEach(store.availableFeaturedJourneys) { journey in
+        JourneyCardView(
+          journey: journey,
+          isSubscribed: store.subscribedJourneyIds.contains(journey.id),
+          isFeatured: true
+        ) {
+          store.send(.journeyTapped(journey))
         }
       }
     }
@@ -116,18 +114,14 @@ struct JourneysView: View {
     VStack(alignment: .leading, spacing: RIZQSpacing.md) {
       sectionHeader(title: "All Journeys")
 
-      LazyVGrid(
-        columns: [GridItem(.flexible()), GridItem(.flexible())],
-        spacing: RIZQSpacing.md
-      ) {
-        ForEach(store.availableJourneys) { journey in
-          JourneyCardView(
-            journey: journey,
-            isSubscribed: store.subscribedJourneyIds.contains(journey.id),
-            isFeatured: false
-          ) {
-            store.send(.journeyTapped(journey))
-          }
+      // Vertical full-width cards (matching React app design)
+      ForEach(store.availableJourneys) { journey in
+        JourneyCardView(
+          journey: journey,
+          isSubscribed: store.subscribedJourneyIds.contains(journey.id),
+          isFeatured: false
+        ) {
+          store.send(.journeyTapped(journey))
         }
       }
     }

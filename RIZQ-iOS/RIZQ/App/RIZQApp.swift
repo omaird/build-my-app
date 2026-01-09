@@ -4,19 +4,21 @@ import RIZQKit
 import FirebaseCore
 import FirebaseAuth
 import FirebaseFirestore
+import GoogleSignIn
+import os.log
 
-@main
-struct RIZQApp: App {
-  @MainActor
-  static let store = Store(initialState: AppFeature.State()) {
-    AppFeature()
-  }
+private let logger = Logger(subsystem: "com.rizq.app", category: "Config")
 
-  init() {
-    // Initialize Firebase (must be called before any Firebase services)
+// MARK: - App Delegate for Firebase + Google Sign-In
+final class AppDelegate: NSObject, UIApplicationDelegate {
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    // Firebase is configured here instead of in RIZQApp.init()
     FirebaseApp.configure()
 
-    // Check if using emulator for local development
+    // Configure emulator for local development (must happen after FirebaseApp.configure)
     #if DEBUG
     let useEmulator = ProcessInfo.processInfo.environment["USE_FIREBASE_EMULATOR"] == "true"
     if useEmulator {
@@ -25,8 +27,46 @@ struct RIZQApp: App {
       settings.host = "localhost:8080"
       settings.isSSLEnabled = false
       Firestore.firestore().settings = settings
+      logger.info("Firebase emulators configured")
     }
     #endif
+
+    return true
+  }
+
+  func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    // Handle Google Sign-In callback URLs
+    return GIDSignIn.sharedInstance.handle(url)
+  }
+}
+
+@main
+struct RIZQApp: App {
+  // Bridge SwiftUI with UIApplicationDelegate for Firebase/Google Sign-In
+  @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+
+  @MainActor
+  static let store = Store(initialState: AppFeature.State()) {
+    AppFeature()
+  }
+
+  init() {
+    // Note: Firebase is configured in AppDelegate.didFinishLaunchingWithOptions
+    // Emulator configuration is also handled there (must happen after FirebaseApp.configure)
+
+    // Debug: Check Info.plist values
+    let neonHost = Bundle.main.object(forInfoDictionaryKey: "NeonHost") as? String
+    let neonApiKey = Bundle.main.object(forInfoDictionaryKey: "NeonApiKey") as? String
+    let neonProjectId = Bundle.main.object(forInfoDictionaryKey: "NeonProjectId") as? String
+    let neonDbUrl = Bundle.main.object(forInfoDictionaryKey: "NeonDatabaseUrl") as? String
+    logger.info("NeonHost: \(neonHost ?? "nil", privacy: .public)")
+    logger.info("NeonApiKey: \(neonApiKey != nil ? "SET" : "NIL", privacy: .public)")
+    logger.info("NeonProjectId: \(neonProjectId ?? "nil", privacy: .public)")
+    logger.info("NeonDatabaseUrl: \(neonDbUrl ?? "nil", privacy: .public)")
 
     // Configure ServiceContainer with Firebase
     let firebaseConfig = FirebaseConfiguration(
@@ -34,7 +74,13 @@ struct RIZQApp: App {
       useEmulator: false
     )
     let configuration = AppConfiguration(firebase: firebaseConfig)
+
+    // Debug: Check if API config was loaded
+    logger.info("API neonHost: \(configuration.api.neonHost, privacy: .public)")
+    logger.info("API databaseUrl empty: \(configuration.api.databaseUrl.isEmpty, privacy: .public)")
+
     ServiceContainer.shared.configure(with: configuration)
+    logger.info("ServiceContainer configured: \(ServiceContainer.shared.isConfigured, privacy: .public)")
   }
 
   var body: some Scene {

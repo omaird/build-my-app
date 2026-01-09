@@ -30,17 +30,8 @@ struct DuaContextView: View {
       items.append(ContextItem(
         icon: "clock.fill",
         label: "Best Time to Recite",
-        value: bestTime.displayName,
+        value: bestTime,
         color: Color(hex: "2563EB") // Blue
-      ))
-    }
-
-    if let context = dua.context {
-      items.append(ContextItem(
-        icon: "scroll.fill",
-        label: "Story & Background",
-        value: context,
-        color: Color(hex: "7C3AED") // Purple
       ))
     }
 
@@ -82,19 +73,21 @@ struct DuaContextView: View {
 
   @ViewBuilder
   private var difficultyBadge: some View {
-    let hasDifficulty = true // dua.difficulty is always present
+    let hasDifficulty = dua.difficulty != nil
     let hasDuration = dua.estDurationSec != nil
 
     if hasDifficulty || hasDuration {
       HStack(spacing: RIZQSpacing.md) {
         // Difficulty
-        HStack(spacing: RIZQSpacing.xs) {
-          Image(systemName: "graduationcap.fill")
-            .font(.system(size: 12))
-          Text(dua.difficulty.rawValue)
-            .font(.rizqSans(.caption))
+        if let difficulty = dua.difficulty {
+          HStack(spacing: RIZQSpacing.xs) {
+            Image(systemName: "graduationcap.fill")
+              .font(.system(size: 12))
+            Text(difficulty.rawValue)
+              .font(.rizqSans(.caption))
+          }
+          .foregroundStyle(Color.rizqTextSecondary)
         }
-        .foregroundStyle(Color.rizqTextSecondary)
 
         if hasDuration {
           Text("|")

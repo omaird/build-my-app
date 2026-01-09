@@ -17,7 +17,7 @@ struct SettingsFeature {
     var isSavingDisplayName: Bool = false
 
     // Preferences
-    var isDarkMode: Bool = false
+    var isDarkMode: Bool = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
     var notificationsEnabled: Bool = true
 
     // Loading States
@@ -51,7 +51,7 @@ struct SettingsFeature {
     }
 
     var availableProviders: [AuthProvider] {
-      [.google, .apple, .github]
+      [.google]
     }
 
     var canUnlinkAccount: Bool {
@@ -110,6 +110,9 @@ struct SettingsFeature {
     case cancelSignOut
     case signedOut
 
+    // Admin
+    case adminPanelTapped
+
     // Messages
     case clearError
     case clearSuccess
@@ -130,6 +133,8 @@ struct SettingsFeature {
       case .onAppear:
         state.isLoading = true
         state.isLoadingAccounts = true
+        // Load persisted dark mode preference
+        state.isDarkMode = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
         // TODO: Load user data from AuthService
         // For now, simulate loading with demo data
         return .run { send in
@@ -137,8 +142,8 @@ struct SettingsFeature {
 
           let demoUser = AuthUser(
             id: "demo-user-001",
-            email: "demo@rizqapp.com",
-            name: "Demo User",
+            email: "omairdawood@gmail.com",
+            name: "Omar Dawood",
             image: nil,
             emailVerified: true
           )
@@ -147,10 +152,11 @@ struct SettingsFeature {
           let demoProfile = UserProfile(
             id: "profile-001",
             userId: "demo-user-001",
-            displayName: "Demo User",
+            displayName: "Omar Dawood",
             streak: 5,
             totalXp: 350,
-            level: 2
+            level: 2,
+            isAdmin: true  // Enable admin access for testing
           )
           await send(.profileLoaded(demoProfile))
 
@@ -247,7 +253,7 @@ struct SettingsFeature {
 
       case .darkModeToggled(let isOn):
         state.isDarkMode = isOn
-        // TODO: Persist preference using UserDefaults or AppStorage
+        UserDefaults.standard.set(isOn, forKey: "rizq_dark_mode")
         return .none
 
       case .notificationsToggled(let isOn):
@@ -386,6 +392,12 @@ struct SettingsFeature {
 
       case .signedOut:
         // Parent reducer should handle navigation to auth screen
+        return .none
+
+      // MARK: - Admin
+
+      case .adminPanelTapped:
+        // Parent reducer (AppFeature) will handle showing the admin panel
         return .none
 
       // MARK: - Messages

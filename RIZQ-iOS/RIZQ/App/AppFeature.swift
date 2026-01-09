@@ -14,6 +14,9 @@ struct AppFeature {
     var journeys = JourneysFeature.State()
     var settings = SettingsFeature.State()
     var auth = AuthFeature.State()
+
+    // Admin Panel Presentation
+    @Presents var admin: AdminFeature.State?
   }
 
   enum Tab: String, CaseIterable, Identifiable {
@@ -56,6 +59,10 @@ struct AppFeature {
     case settings(SettingsFeature.Action)
     case auth(AuthFeature.Action)
     case authStateChanged(Bool)
+    case userIdUpdated(String?)
+
+    // Admin Panel
+    case admin(PresentationAction<AdminFeature.Action>)
   }
 
   var body: some ReducerOf<Self> {
@@ -63,7 +70,7 @@ struct AppFeature {
       switch action {
       case .onAppear:
         // Check authentication state on app launch
-        return .none
+        return .send(.auth(.checkExistingSession))
 
       case .tabSelected(let tab):
         state.selectedTab = tab
@@ -72,6 +79,10 @@ struct AppFeature {
       case .authStateChanged(let isAuthenticated):
         state.isAuthenticated = isAuthenticated
         return .none
+
+      case .userIdUpdated(let userId):
+        // Pass user ID to child features that need it
+        return .send(.home(.setUserId(userId)))
 
       // Handle navigation from Home
       case .home(.navigateToAdkhar):
@@ -86,6 +97,30 @@ struct AppFeature {
         // Navigate to Adkhar with specific time slot filter
         state.selectedTab = .adkhar
         // TODO: Pass timeSlot to AdkharFeature
+        return .none
+
+      // Handle auth state changes
+      case .auth(.authSuccess(let user)):
+        state.isAuthenticated = true
+        // Pass user ID to features that need it
+        return .send(.userIdUpdated(user.id))
+
+      case .settings(.signedOut):
+        state.isAuthenticated = false
+        state.auth = AuthFeature.State()  // Reset auth state
+        return .none
+
+      // MARK: - Admin Panel
+
+      case .settings(.adminPanelTapped):
+        state.admin = AdminFeature.State()
+        return .none
+
+      case .admin(.presented(.closeAdmin)):
+        state.admin = nil
+        return .none
+
+      case .admin:
         return .none
 
       case .home, .library, .adkhar, .journeys, .settings, .auth:
@@ -115,6 +150,10 @@ struct AppFeature {
 
     Scope(state: \.auth, action: \.auth) {
       AuthFeature()
+    }
+
+    .ifLet(\.$admin, action: \.admin) {
+      AdminFeature()
     }
   }
 }

@@ -23,10 +23,6 @@ export const signInWithGoogle = () => {
   return signIn.social({ provider: "google", callbackURL: "/" });
 };
 
-export const signInWithGitHub = () => {
-  localStorage.setItem("lastUsedProvider", "github");
-  return signIn.social({ provider: "github", callbackURL: "/" });
-};
 
 // Track email sign-in as well
 export const signInWithEmail = async (email: string, password: string) => {
@@ -41,11 +37,9 @@ export const getLastUsedProvider = (): string | null => {
 
 // Link social account helpers
 export const linkGoogleAccount = () => linkSocial({ provider: "google", callbackURL: "/settings" });
-export const linkGitHubAccount = () => linkSocial({ provider: "github", callbackURL: "/settings" });
 
 // Unlink account helper
 export const unlinkGoogleAccount = () => unlinkAccount({ providerId: "google" });
-export const unlinkGitHubAccount = () => unlinkAccount({ providerId: "github" });
 
 // Helper to decode JWT payload (base64url to JSON)
 const decodeJwtPayload = (token: string): Record<string, unknown> | null => {

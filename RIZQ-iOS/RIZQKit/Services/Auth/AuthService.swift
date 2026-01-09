@@ -47,11 +47,13 @@ public actor AuthService: AuthServiceProtocol {
   // MARK: - Email Sign In
 
   public func signInWithEmail(email: String, password: String) async throws -> AuthResponse {
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/sign-in/email")
+    let url = configuration.baseURL.appendingPathComponent("/sign-in/email")
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+    request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
     let body = SignInRequest(email: email, password: password)
     request.httpBody = try JSONEncoder().encode(body)
@@ -62,20 +64,37 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.networkError("Invalid response")
     }
 
+    print("[AuthService] Sign in response status: \(httpResponse.statusCode)")
+
     switch httpResponse.statusCode {
-    case 200:
-      let authResponse = try decodeAuthResponse(from: data)
-      try saveAuthState(authResponse)
-      return authResponse
+    case 200, 201:
+      do {
+        let authResponse = try decodeAuthResponse(from: data)
+        try saveAuthState(authResponse)
+        return authResponse
+      } catch {
+        // Log the raw response for debugging
+        let rawResponse = String(data: data, encoding: .utf8) ?? "Unable to decode"
+        print("[AuthService] Failed to decode response: \(error)")
+        print("[AuthService] Raw response: \(rawResponse)")
+        throw error
+      }
 
     case 401:
       throw AuthError.invalidCredentials
+
+    case 403:
+      // Parse error message from response
+      let errorMessage = String(data: data, encoding: .utf8) ?? "Access forbidden"
+      print("[AuthService] Sign in 403 error: \(errorMessage)")
+      throw AuthError.networkError(errorMessage)
 
     case 404:
       throw AuthError.userNotFound
 
     default:
       let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+      print("[AuthService] Sign in error (\(httpResponse.statusCode)): \(errorMessage)")
       throw AuthError.networkError(errorMessage)
     }
   }
@@ -83,11 +102,13 @@ public actor AuthService: AuthServiceProtocol {
   // MARK: - Email Sign Up
 
   public func signUpWithEmail(email: String, password: String, name: String?) async throws -> AuthResponse {
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/sign-up/email")
+    let url = configuration.baseURL.appendingPathComponent("/sign-up/email")
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+    request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
     let body = SignUpRequest(email: email, password: password, name: name)
     request.httpBody = try JSONEncoder().encode(body)
@@ -97,6 +118,8 @@ public actor AuthService: AuthServiceProtocol {
     guard let httpResponse = response as? HTTPURLResponse else {
       throw AuthError.networkError("Invalid response")
     }
+
+    print("[AuthService] Sign up response status: \(httpResponse.statusCode)")
 
     switch httpResponse.statusCode {
     case 200, 201:
@@ -109,6 +132,7 @@ public actor AuthService: AuthServiceProtocol {
 
     default:
       let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+      print("[AuthService] Sign up error: \(errorMessage)")
       throw AuthError.networkError(errorMessage)
     }
   }
@@ -124,7 +148,7 @@ public actor AuthService: AuthServiceProtocol {
     let callbackScheme = configuration.callbackScheme
     let callbackURL = "\(callbackScheme)://auth/callback"
 
-    var components = URLComponents(url: configuration.baseURL.appendingPathComponent("/api/auth/sign-in/social"), resolvingAgainstBaseURL: false)!
+    var components = URLComponents(url: configuration.baseURL.appendingPathComponent("/sign-in/social"), resolvingAgainstBaseURL: false)!
     components.queryItems = [
       URLQueryItem(name: "provider", value: provider.rawValue),
       URLQueryItem(name: "callbackURL", value: callbackURL)
@@ -148,8 +172,26 @@ public actor AuthService: AuthServiceProtocol {
   }
 
   private func performOAuthFlow(url: URL, callbackScheme: String, presentingWindow: ASPresentationAnchor?) async throws -> URL {
-    try await withCheckedThrowingContinuation { continuation in
+    // Use a class to track whether we've already resumed (must be reference type for capture)
+    final class ResumeState: @unchecked Sendable {
+      var hasResumed = false
+      let lock = NSLock()
+
+      func tryResume() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if hasResumed { return false }
+        hasResumed = true
+        return true
+      }
+    }
+
+    return try await withCheckedThrowingContinuation { continuation in
+      let state = ResumeState()
+
       let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackScheme) { callbackURL, error in
+        guard state.tryResume() else { return }
+
         if let error = error as? ASWebAuthenticationSessionError {
           if error.code == .canceledLogin {
             continuation.resume(throwing: AuthError.oauthCancelled)
@@ -171,13 +213,14 @@ public actor AuthService: AuthServiceProtocol {
       session.prefersEphemeralWebBrowserSession = false
 
       if !session.start() {
+        guard state.tryResume() else { return }
         continuation.resume(throwing: AuthError.oauthFailed("Failed to start OAuth session"))
       }
     }
   }
 
   private func exchangeToken(_ token: String) async throws -> AuthResponse {
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/get-session")
+    let url = configuration.baseURL.appendingPathComponent("/get-session")
 
     var request = URLRequest(url: url)
     request.httpMethod = "GET"
@@ -199,7 +242,7 @@ public actor AuthService: AuthServiceProtocol {
   public func signOut() async throws {
     // Call server to invalidate session
     if let token = keychain.getSessionToken() {
-      let url = configuration.baseURL.appendingPathComponent("/api/auth/sign-out")
+      let url = configuration.baseURL.appendingPathComponent("/sign-out")
       var request = URLRequest(url: url)
       request.httpMethod = "POST"
       request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -217,7 +260,7 @@ public actor AuthService: AuthServiceProtocol {
   public func getSession() async throws -> AuthSession? {
     guard let token = keychain.getSessionToken() else { return nil }
 
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/get-session")
+    let url = configuration.baseURL.appendingPathComponent("/get-session")
     var request = URLRequest(url: url)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
@@ -239,7 +282,7 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.sessionExpired
     }
 
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/refresh")
+    let url = configuration.baseURL.appendingPathComponent("/session")
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -261,7 +304,7 @@ public actor AuthService: AuthServiceProtocol {
   public func getCurrentUser() async throws -> AuthUser? {
     guard let token = keychain.getSessionToken() else { return nil }
 
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/get-session")
+    let url = configuration.baseURL.appendingPathComponent("/get-session")
     var request = URLRequest(url: url)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
@@ -282,7 +325,7 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.sessionExpired
     }
 
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/list-accounts")
+    let url = configuration.baseURL.appendingPathComponent("/list-accounts")
     var request = URLRequest(url: url)
     request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
@@ -310,7 +353,7 @@ public actor AuthService: AuthServiceProtocol {
     let callbackScheme = configuration.callbackScheme
     let callbackURL = "\(callbackScheme)://auth/link-callback"
 
-    var components = URLComponents(url: configuration.baseURL.appendingPathComponent("/api/auth/link-account"), resolvingAgainstBaseURL: false)!
+    var components = URLComponents(url: configuration.baseURL.appendingPathComponent("/link-social"), resolvingAgainstBaseURL: false)!
     components.queryItems = [
       URLQueryItem(name: "provider", value: provider.rawValue),
       URLQueryItem(name: "callbackURL", value: callbackURL)
@@ -337,7 +380,7 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.sessionExpired
     }
 
-    let url = configuration.baseURL.appendingPathComponent("/api/auth/unlink-account")
+    let url = configuration.baseURL.appendingPathComponent("/unlink-account")
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -368,7 +411,10 @@ public actor AuthService: AuthServiceProtocol {
   private func decodeAuthResponse(from data: Data) throws -> AuthResponse {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
-    return try decoder.decode(AuthResponse.self, from: data)
+    // Decode the Neon Auth response format and convert to our AuthResponse
+    // Format: { "data": { "session": { "access_token", "expires_at" }, "user": {...} } }
+    let neonAuthResponse = try decoder.decode(NeonAuthResponse.self, from: data)
+    return AuthResponse(from: neonAuthResponse)
   }
 
   private func saveAuthState(_ response: AuthResponse) throws {

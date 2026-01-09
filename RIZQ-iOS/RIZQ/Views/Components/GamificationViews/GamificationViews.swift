@@ -262,27 +262,6 @@ struct XpProgressBar: View {
   }
 }
 
-// MARK: - XP Earned Badge
-
-/// Animated badge showing XP earned
-struct XpEarnedBadge: View {
-  let xpAmount: Int
-  let isVisible: Bool
-
-  var body: some View {
-    if isVisible && xpAmount > 0 {
-      Text("+\(xpAmount) XP")
-        .font(.rizqSansBold(.caption))
-        .foregroundStyle(Color.rizqPrimary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.rizqPrimary.opacity(0.15))
-        .clipShape(Capsule())
-        .transition(.scale.combined(with: .opacity))
-    }
-  }
-}
-
 // MARK: - Stats Card
 
 /// Generic stats card for displaying a single statistic

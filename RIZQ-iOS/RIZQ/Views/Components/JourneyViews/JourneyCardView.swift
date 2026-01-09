@@ -1,7 +1,8 @@
 import SwiftUI
 import RIZQKit
 
-/// Card view for displaying a journey in a grid
+/// Full-width journey card matching the React web app design
+/// Layout: Image on left, text content on right, stats row at bottom
 struct JourneyCardView: View {
   let journey: Journey
   let isSubscribed: Bool
@@ -10,60 +11,214 @@ struct JourneyCardView: View {
 
   var body: some View {
     Button(action: onTap) {
-      VStack(spacing: RIZQSpacing.md) {
-        // Emoji icon with decorative frame
-        ZStack {
-          // Background circle
-          Circle()
-            .fill(
-              LinearGradient(
-                colors: isSubscribed
-                  ? [Color.rizqPrimary.opacity(0.2), Color.rizqPrimary.opacity(0.05)]
-                  : [Color.cream, Color.cream.opacity(0.5)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-              )
-            )
-            .frame(width: 56, height: 56)
+      VStack(spacing: 0) {
+        // Main content
+        HStack(alignment: .top, spacing: RIZQSpacing.lg) {
+          // Journey illustration
+          JourneyIconView(journey: journey, size: 72, showDecorations: true)
+            .overlay {
+              // Active glow effect
+              if isSubscribed {
+                Circle()
+                  .fill(Color.rizqPrimary.opacity(0.25))
+                  .blur(radius: 12)
+                  .frame(width: 72, height: 72)
+              }
+            }
 
-          // Decorative corners
-          RoundedRectangle(cornerRadius: 2)
-            .stroke(Color.rizqPrimary.opacity(0.3), lineWidth: 1)
-            .frame(width: 8, height: 8)
-            .offset(x: 22, y: -22)
+          // Text content
+          VStack(alignment: .leading, spacing: RIZQSpacing.xs) {
+            // Title row with premium badge
+            HStack(spacing: RIZQSpacing.sm) {
+              Text(journey.name)
+                .font(.rizqDisplayMedium(.headline))
+                .foregroundStyle(Color.rizqText)
+                .lineLimit(2)
 
-          RoundedRectangle(cornerRadius: 2)
-            .stroke(Color.rizqPrimary.opacity(0.3), lineWidth: 1)
-            .frame(width: 8, height: 8)
-            .offset(x: -22, y: 22)
+              if journey.isPremium {
+                premiumBadge
+              }
+            }
 
-          // Emoji
-          Text(journey.emoji)
-            .font(.system(size: 28))
+            // Description
+            if let description = journey.description {
+              Text(description)
+                .font(.rizqSans(.subheadline))
+                .foregroundStyle(Color.rizqTextSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+          }
 
-          // Active glow
+          Spacer(minLength: 0)
+
+          // Active indicator
           if isSubscribed {
-            Circle()
-              .fill(Color.rizqPrimary.opacity(0.3))
-              .frame(width: 56, height: 56)
-              .blur(radius: 12)
+            activeCheckmark
           }
         }
 
-        // Journey name
+        // Stats row
+        statsRow
+          .padding(.top, RIZQSpacing.md)
+      }
+      .padding(RIZQSpacing.lg)
+      .background(cardBackground)
+      .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
+      .overlay(cardOverlay)
+      .shadowSoft()
+    }
+    .buttonStyle(.plain)
+    .overlay(alignment: .topTrailing) {
+      // Featured badge (diagonal ribbon style)
+      if isFeatured && !isSubscribed {
+        featuredBadge
+      }
+    }
+  }
+
+  // MARK: - Stats Row
+
+  private var statsRow: some View {
+    HStack(spacing: RIZQSpacing.xl) {
+      // Estimated time
+      HStack(spacing: RIZQSpacing.xs) {
+        Image(systemName: "clock")
+          .font(.system(size: 12))
+        Text("\(journey.estimatedMinutes) min/day")
+      }
+      .font(.rizqSans(.caption))
+      .foregroundStyle(Color.rizqTextSecondary)
+
+      // XP per day
+      HStack(spacing: RIZQSpacing.xs) {
+        Image(systemName: "sparkles")
+          .font(.system(size: 12))
+        Text("\(journey.dailyXp) XP/day")
+          .font(.rizqMonoMedium(.caption))
+      }
+      .foregroundStyle(Color.rizqPrimary)
+
+      Spacer()
+    }
+  }
+
+  // MARK: - Active Checkmark
+
+  private var activeCheckmark: some View {
+    ZStack {
+      Circle()
+        .fill(
+          LinearGradient(
+            colors: [Color.rizqPrimary, Color.rizqPrimary.opacity(0.8)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+        .frame(width: 28, height: 28)
+
+      Image(systemName: "checkmark")
+        .font(.system(size: 14, weight: .bold))
+        .foregroundStyle(.white)
+    }
+  }
+
+  // MARK: - Premium Badge
+
+  private var premiumBadge: some View {
+    HStack(spacing: 4) {
+      Image(systemName: "lock.fill")
+        .font(.system(size: 8))
+      Text("Premium")
+        .font(.rizqSansMedium(.caption2))
+    }
+    .foregroundStyle(Color.goldSoft)
+    .padding(.horizontal, RIZQSpacing.sm)
+    .padding(.vertical, 3)
+    .background(Color.goldSoft.opacity(0.15))
+    .clipShape(Capsule())
+  }
+
+  // MARK: - Featured Badge
+
+  private var featuredBadge: some View {
+    HStack(spacing: 4) {
+      Image(systemName: "star.fill")
+        .font(.system(size: 8))
+      Text("Featured")
+        .font(.rizqSansMedium(.caption2))
+    }
+    .foregroundStyle(.white)
+    .padding(.horizontal, RIZQSpacing.md)
+    .padding(.vertical, 5)
+    .background(Color.rizqPrimary)
+    .clipShape(Capsule())
+    .offset(x: -RIZQSpacing.sm, y: RIZQSpacing.sm)
+  }
+
+  // MARK: - Card Background
+
+  private var cardBackground: some View {
+    ZStack {
+      Color.rizqCard
+
+      // Subtle pattern for featured cards
+      if isFeatured && !isSubscribed {
+        GeometryReader { geometry in
+          Path { path in
+            let width = geometry.size.width
+            let height = geometry.size.height
+            path.move(to: CGPoint(x: width * 0.7, y: 0))
+            path.addLine(to: CGPoint(x: width, y: 0))
+            path.addLine(to: CGPoint(x: width, y: height * 0.3))
+            path.closeSubpath()
+          }
+          .fill(Color.rizqPrimary.opacity(0.04))
+        }
+      }
+    }
+  }
+
+  // MARK: - Card Overlay
+
+  private var cardOverlay: some View {
+    RoundedRectangle(cornerRadius: RIZQRadius.islamic)
+      .stroke(
+        isSubscribed
+          ? Color.rizqPrimary.opacity(0.5)
+          : (isFeatured ? Color.rizqPrimary.opacity(0.2) : Color.clear),
+        lineWidth: isSubscribed ? 2 : 1
+      )
+  }
+}
+
+// MARK: - Compact Journey Card (for grid layouts if needed)
+
+/// Smaller card variant for when space is limited
+struct CompactJourneyCardView: View {
+  let journey: Journey
+  let isSubscribed: Bool
+  let onTap: () -> Void
+
+  var body: some View {
+    Button(action: onTap) {
+      VStack(spacing: RIZQSpacing.md) {
+        // Illustration
+        JourneyIconView(journey: journey, size: 56, showDecorations: true)
+
+        // Name
         Text(journey.name)
           .font(.rizqSansMedium(.subheadline))
           .foregroundStyle(Color.rizqText)
           .multilineTextAlignment(.center)
           .lineLimit(2)
-          .minimumScaleFactor(0.9)
 
-        // Status or dua count
+        // XP indicator
         if isSubscribed {
           HStack(spacing: RIZQSpacing.xs) {
             Image(systemName: "checkmark.circle.fill")
               .font(.system(size: 10))
-            Text("Subscribed")
+            Text("Active")
           }
           .font(.rizqSans(.caption2))
           .foregroundStyle(Color.tealSuccess)
@@ -91,163 +246,67 @@ struct JourneyCardView: View {
   }
 }
 
-// MARK: - Featured Journey Card View
+// MARK: - Previews
 
-/// Larger horizontal card for featured journeys
-struct FeaturedJourneyCardView: View {
-  let journey: Journey
-  let isSubscribed: Bool
-  let onTap: () -> Void
+#Preview("Journey Card - Full Width") {
+  VStack(spacing: 16) {
+    JourneyCardView(
+      journey: Journey(
+        id: 1,
+        name: "Rizq Seeker",
+        slug: "rizq-seeker",
+        description: "A comprehensive daily practice focused on increasing provision and blessings in your life.",
+        emoji: "/images/icons/The Rizq Seeker.png",
+        estimatedMinutes: 15,
+        dailyXp: 270,
+        isFeatured: true
+      ),
+      isSubscribed: false,
+      isFeatured: true
+    ) {}
 
-  var body: some View {
-    Button(action: onTap) {
-      VStack(alignment: .leading, spacing: RIZQSpacing.md) {
-        // Top row with emoji and subscribed indicator
-        HStack(alignment: .top) {
-          // Emoji with decorative frame
-          ZStack {
-            RoundedRectangle(cornerRadius: RIZQRadius.md)
-              .fill(
-                LinearGradient(
-                  colors: [Color.cream, Color.cream.opacity(0.3)],
-                  startPoint: .topLeading,
-                  endPoint: .bottomTrailing
-                )
-              )
-              .frame(width: 48, height: 48)
-              .overlay(
-                RoundedRectangle(cornerRadius: RIZQRadius.md)
-                  .stroke(Color.rizqPrimary.opacity(0.2), lineWidth: 1)
-              )
-
-            Text(journey.emoji)
-              .font(.system(size: 24))
-          }
-
-          Spacer()
-
-          // Featured badge
-          HStack(spacing: 4) {
-            Image(systemName: "star.fill")
-              .font(.system(size: 8))
-            Text("Featured")
-              .font(.rizqSansMedium(.caption2))
-          }
-          .foregroundStyle(Color.white)
-          .padding(.horizontal, RIZQSpacing.sm)
-          .padding(.vertical, 4)
-          .background(Color.rizqPrimary)
-          .clipShape(Capsule())
-
-          if isSubscribed {
-            Image(systemName: "checkmark.circle.fill")
-              .foregroundStyle(Color.tealSuccess)
-              .font(.system(size: 20))
-          }
-        }
-
-        // Journey name
-        Text(journey.name)
-          .font(.rizqDisplayMedium(.headline))
-          .foregroundStyle(Color.rizqText)
-          .lineLimit(2)
-
-        // Description
-        if let description = journey.description {
-          Text(description)
-            .font(.rizqSans(.caption))
-            .foregroundStyle(Color.rizqTextSecondary)
-            .lineLimit(2)
-        }
-
-        // Stats row
-        HStack(spacing: RIZQSpacing.lg) {
-          HStack(spacing: RIZQSpacing.xs) {
-            Image(systemName: "clock")
-              .font(.system(size: 11))
-            Text("\(journey.estimatedMinutes) min")
-          }
-          .font(.rizqSans(.caption2))
-          .foregroundStyle(Color.rizqTextSecondary)
-
-          HStack(spacing: RIZQSpacing.xs) {
-            Image(systemName: "star.fill")
-              .font(.system(size: 11))
-            Text("+\(journey.dailyXp) XP")
-          }
-          .font(.rizqMonoMedium(.caption2))
-          .foregroundStyle(Color.rizqPrimary)
-
-          Spacer()
-        }
-      }
-      .padding(RIZQSpacing.lg)
-      .frame(width: 220)
-      .background(
-        ZStack {
-          Color.rizqCard
-
-          // Subtle pattern for featured cards
-          GeometryReader { geometry in
-            Path { path in
-              let width = geometry.size.width
-              let height = geometry.size.height
-              path.move(to: CGPoint(x: width * 0.7, y: 0))
-              path.addLine(to: CGPoint(x: width, y: 0))
-              path.addLine(to: CGPoint(x: width, y: height * 0.3))
-              path.closeSubpath()
-            }
-            .fill(Color.rizqPrimary.opacity(0.03))
-          }
-        }
-      )
-      .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
-      .overlay(
-        RoundedRectangle(cornerRadius: RIZQRadius.islamic)
-          .stroke(Color.rizqPrimary.opacity(0.3), lineWidth: 1)
-      )
-      .shadowSoft()
-    }
-    .buttonStyle(.plain)
+    JourneyCardView(
+      journey: Journey(
+        id: 2,
+        name: "Morning Warrior",
+        slug: "morning-warrior",
+        description: "Start your day with powerful duas for protection and blessings.",
+        emoji: "/images/icons/Morning Warrior.png",
+        estimatedMinutes: 12,
+        dailyXp: 250
+      ),
+      isSubscribed: true,
+      isFeatured: false
+    ) {}
   }
-}
-
-// MARK: - Preview
-
-#Preview("Journey Card") {
-  VStack(spacing: 20) {
-    HStack(spacing: 16) {
-      JourneyCardView(
-        journey: SampleData.journeys[0],
-        isSubscribed: false,
-        isFeatured: false
-      ) {}
-
-      JourneyCardView(
-        journey: SampleData.journeys[1],
-        isSubscribed: true,
-        isFeatured: false
-      ) {}
-    }
-    .padding()
-  }
+  .padding()
   .background(Color.rizqBackground)
 }
 
-#Preview("Featured Card") {
-  ScrollView(.horizontal) {
-    HStack(spacing: 16) {
-      FeaturedJourneyCardView(
-        journey: SampleData.journeys[0],
-        isSubscribed: false
-      ) {}
+#Preview("Compact Card") {
+  HStack(spacing: 16) {
+    CompactJourneyCardView(
+      journey: Journey(
+        id: 1,
+        name: "Rizq Seeker",
+        slug: "rizq-seeker",
+        emoji: "/images/icons/The Rizq Seeker.png",
+        dailyXp: 270
+      ),
+      isSubscribed: false
+    ) {}
 
-      FeaturedJourneyCardView(
-        journey: SampleData.journeys[1],
-        isSubscribed: true
-      ) {}
-    }
-    .padding()
+    CompactJourneyCardView(
+      journey: Journey(
+        id: 2,
+        name: "Morning",
+        slug: "morning-warrior",
+        emoji: "🌅",
+        dailyXp: 250
+      ),
+      isSubscribed: true
+    ) {}
   }
+  .padding()
   .background(Color.rizqBackground)
 }

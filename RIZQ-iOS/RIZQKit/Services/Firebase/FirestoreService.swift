@@ -68,7 +68,10 @@ public struct FirestoreUserProgress: Codable, Sendable {
 // MARK: - Firestore Service
 
 public actor FirestoreService {
-  private let db: Firestore
+  /// Lazy Firestore reference - ensures Firebase is configured before accessing
+  private var db: Firestore {
+    Firestore.firestore()
+  }
 
   // Collection names
   private let userProfilesCollection = "user_profiles"
@@ -76,7 +79,7 @@ public actor FirestoreService {
   private let userProgressCollection = "user_progress"
 
   public init() {
-    self.db = Firestore.firestore()
+    // Firestore is accessed lazily to ensure FirebaseApp.configure() has been called
   }
 
   // MARK: - Date Formatting
@@ -229,6 +232,34 @@ public actor FirestoreService {
       return activity
     }
     return FirestoreUserActivity(userId: userId, date: dateString(from: today))
+  }
+
+  public func fetchWeekActivities(userId: String) async throws -> [FirestoreUserActivity] {
+    let calendar = Calendar.current
+    let today = Date()
+
+    // Generate date strings for the last 7 days
+    let dateStrings = (0..<7).compactMap { offset -> String? in
+      guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+      return dateString(from: date)
+    }
+
+    // Fetch all activity documents for this user
+    let snapshot = try await db.collection(userActivityCollection)
+      .document(userId)
+      .collection("dates")
+      .whereField(FieldPath.documentID(), in: dateStrings)
+      .getDocuments()
+
+    return snapshot.documents.map { doc in
+      let data = doc.data()
+      return FirestoreUserActivity(
+        userId: userId,
+        date: doc.documentID,
+        duasCompleted: data["duasCompleted"] as? [Int] ?? [],
+        xpEarned: data["xpEarned"] as? Int ?? 0
+      )
+    }
   }
 
   // MARK: - User Progress Operations

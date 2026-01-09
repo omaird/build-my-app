@@ -1,6 +1,9 @@
 import ComposableArchitecture
 import Foundation
 import RIZQKit
+import os.log
+
+private let journeyLogger = Logger(subsystem: "com.rizq.app", category: "Journeys")
 
 @Reducer
 struct JourneysFeature {
@@ -50,8 +53,14 @@ struct JourneysFeature {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        guard state.journeys.isEmpty else { return .none }
+        let journeyCount = state.journeys.count
+        journeyLogger.info("onAppear received, journeys.count: \(journeyCount, privacy: .public)")
+        guard state.journeys.isEmpty else {
+          journeyLogger.info("Journeys already loaded, skipping fetch")
+          return .none
+        }
         state.isLoading = true
+        journeyLogger.info("Starting to fetch journeys...")
         return .merge(
           .run { [journeyService] send in
             do {
@@ -65,11 +74,13 @@ struct JourneysFeature {
         )
 
       case .journeysLoaded(.success(let journeys)):
+        journeyLogger.info("journeysLoaded success: \(journeys.count, privacy: .public) journeys")
         state.isLoading = false
         state.journeys = journeys
         return .none
 
       case .journeysLoaded(.failure(let error)):
+        journeyLogger.error("journeysLoaded failure: \(error.localizedDescription, privacy: .public)")
         state.isLoading = false
         state.errorMessage = error.localizedDescription
         return .none
@@ -188,13 +199,32 @@ extension JourneyServiceClient: DependencyKey {
   static let liveValue: JourneyServiceClient = {
     JourneyServiceClient(
       fetchJourneys: {
-        // TODO: Replace with actual API call
-        try await Task.sleep(for: .milliseconds(500))
-        return SampleData.journeys
+        journeyLogger.info("Fetching journeys from Neon...")
+        let neonService = ServiceContainer.shared.neonService
+        journeyLogger.info("NeonService type: \(String(describing: type(of: neonService)), privacy: .public)")
+        do {
+          let journeys = try await neonService.fetchAllJourneys()
+          journeyLogger.info("Fetched \(journeys.count, privacy: .public) journeys")
+          for journey in journeys {
+            journeyLogger.info("  Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public))")
+          }
+          return journeys
+        } catch {
+          journeyLogger.error("Error fetching journeys: \(error.localizedDescription, privacy: .public)")
+          throw error
+        }
       },
       fetchJourneyDuas: { journeyId in
-        try await Task.sleep(for: .milliseconds(300))
-        return SampleData.journeyDuas.filter { $0.journeyDua.journeyId == journeyId }
+        journeyLogger.info("Fetching duas for journey \(journeyId, privacy: .public)...")
+        let neonService = ServiceContainer.shared.neonService
+        do {
+          let duas = try await neonService.fetchJourneyDuas(journeyId: journeyId)
+          journeyLogger.info("Fetched \(duas.count, privacy: .public) duas for journey \(journeyId, privacy: .public)")
+          return duas
+        } catch {
+          journeyLogger.error("Error fetching journey duas: \(error.localizedDescription, privacy: .public)")
+          throw error
+        }
       }
     )
   }()

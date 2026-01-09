@@ -58,13 +58,13 @@ struct DuaTextView: View {
     .padding(.horizontal, RIZQSpacing.xxl)
   }
 
-  // MARK: - Transliteration
+  // MARK: - Transliteration (Warm sand color matching React)
 
   private func transliterationView(_ text: String) -> some View {
     Text(text)
-      .font(.rizqSans(.subheadline))
+      .font(.rizqSans(.body))
       .italic()
-      .foregroundStyle(Color.rizqTextSecondary)
+      .foregroundStyle(Color.sandWarm)
       .multilineTextAlignment(.center)
       .frame(maxWidth: .infinity)
       .transition(.asymmetric(

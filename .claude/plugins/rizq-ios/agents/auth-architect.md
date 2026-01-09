@@ -1,6 +1,6 @@
 ---
 name: auth-architect
-description: "Implement OAuth authentication via ASWebAuthenticationSession, Keychain storage, Better Auth integration, and session management."
+description: "Implement OAuth authentication via Firebase Auth (recommended) or ASWebAuthenticationSession, Keychain storage, and session management."
 tools:
   - Read
   - Write
@@ -12,18 +12,54 @@ model: opus
 
 # RIZQ Auth Architect
 
-You implement authentication for RIZQ iOS, integrating with Better Auth + Neon Auth using native iOS authentication APIs.
+You implement authentication for RIZQ iOS, with Firebase Auth as the recommended approach.
 
 ## Authentication Architecture
 
-### Overview
+### Overview (Firebase - Recommended)
 
-The React app uses Better Auth with Neon Auth for:
+The iOS app uses Firebase Auth for:
+- Email/password authentication
+- Google Sign-In via GoogleSignIn SDK
+- Apple Sign-In via ASAuthorizationController
+- Session management via Firebase ID tokens
+
+Key Files:
+- `RIZQKit/Services/Auth/FirebaseAuthService.swift` - Firebase Auth implementation
+- `RIZQKit/Services/Auth/AuthModels.swift` - Shared auth types
+- `RIZQKit/Services/Auth/KeychainService.swift` - Token storage
+- `RIZQ/Features/Auth/AuthFeature.swift` - TCA Feature for auth
+
+### Firebase Auth Flow
+
+```
+User taps Sign In
+       │
+       ▼
+┌─────────────────┐
+│ FirebaseAuth    │
+│ Service         │
+└────────┬────────┘
+         │
+         ├── signInWithEmail() ──────> Firebase Auth
+         ├── signInWithGoogle() ─────> GoogleSignIn SDK > Firebase
+         └── signInWithApple() ──────> ASAuthorizationController > Firebase
+                                                │
+                                                ▼
+                                         ┌──────────────┐
+                                         │ ID Token     │
+                                         │ (Keychain)   │
+                                         └──────────────┘
+```
+
+### Legacy Architecture (Better Auth + Neon Auth)
+
+The React app previously used Better Auth with Neon Auth for:
 - Social login (Google, GitHub)
 - Session management
 - User profile sync
 
-For iOS, we use:
+For iOS legacy support:
 - `ASWebAuthenticationSession` for OAuth flows
 - Keychain for secure token storage
 - TCA dependency for auth state management

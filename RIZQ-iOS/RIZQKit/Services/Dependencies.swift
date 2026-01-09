@@ -36,10 +36,11 @@ public struct AppConfiguration: Sendable {
     firebase: FirebaseConfiguration,
     neonHost: String,
     neonApiKey: String,
-    projectId: String
+    projectId: String,
+    databaseUrl: String = ""
   ) {
     self.firebase = firebase
-    self.api = APIConfiguration(neonHost: neonHost, neonApiKey: neonApiKey, projectId: projectId)
+    self.api = APIConfiguration(neonHost: neonHost, neonApiKey: neonApiKey, projectId: projectId, databaseUrl: databaseUrl)
   }
 
   /// Initialize with Firebase configuration using environment variables
@@ -50,7 +51,7 @@ public struct AppConfiguration: Sendable {
       self.api = apiConfig
     } else {
       // Placeholder - Firebase doesn't need Neon API for user data
-      self.api = APIConfiguration(neonHost: "", neonApiKey: "", projectId: "")
+      self.api = APIConfiguration(neonHost: "", neonApiKey: "", projectId: "", databaseUrl: "")
     }
   }
 

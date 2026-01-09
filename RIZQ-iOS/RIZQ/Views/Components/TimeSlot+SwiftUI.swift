@@ -22,3 +22,6 @@ extension TimeSlot {
 // Color.init(hex:) is defined in RIZQKit/Design/Colors.swift
 
 
+
+
+

@@ -2,6 +2,7 @@ import SwiftUI
 import RIZQKit
 
 /// Tab bar for switching between Practice and Context views
+/// Matches React design with rounded pill tabs and subtle shadow
 struct ContextTabsView: View {
   @Binding var selectedTab: PracticeFeature.ContextTab
   let hasContext: Bool
@@ -15,8 +16,12 @@ struct ContextTabsView: View {
       }
     }
     .padding(4)
-    .background(Color.rizqMuted.opacity(0.2))
-    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+    .background(Color.rizqSurface)
+    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
+    .overlay(
+      RoundedRectangle(cornerRadius: RIZQRadius.islamic)
+        .stroke(Color.rizqBorder.opacity(0.5), lineWidth: 1)
+    )
   }
 
   // MARK: - Tab Button
@@ -42,14 +47,14 @@ struct ContextTabsView: View {
         isSelected ? Color.rizqPrimary : Color.rizqTextSecondary
       )
       .opacity(isDisabled ? 0.4 : 1.0)
-      .padding(.horizontal, RIZQSpacing.lg)
+      .padding(.horizontal, RIZQSpacing.xl)
       .padding(.vertical, RIZQSpacing.md)
       .frame(maxWidth: .infinity)
       .background {
         if isSelected {
-          RoundedRectangle(cornerRadius: RIZQRadius.md)
+          RoundedRectangle(cornerRadius: RIZQRadius.btn)
             .fill(Color.rizqCard)
-            .shadowSoft()
+            .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
             .matchedGeometryEffect(id: "tab-indicator", in: animation)
         }
       }

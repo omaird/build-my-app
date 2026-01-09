@@ -3,6 +3,7 @@ import SnapshotTesting
 import SwiftUI
 import ComposableArchitecture
 @testable import RIZQ
+@testable import RIZQKit
 
 final class RIZQSnapshotTests: XCTestCase {
 
@@ -17,8 +18,8 @@ final class RIZQSnapshotTests: XCTestCase {
         streak: 7,
         totalXp: 450,
         level: 3,
-        todaysProgress: 3,
-        totalHabits: 5
+        todaysProgress: TodayProgress(completed: 3, total: 5, xpEarned: 30),
+        todaysHabits: []
       )) {
         HomeFeature()
       }

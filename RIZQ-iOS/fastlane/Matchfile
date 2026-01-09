@@ -1,0 +1,17 @@
+# Matchfile for code signing management
+# Uncomment and configure when ready
+
+# git_url("https://github.com/your-org/certificates")
+# storage_mode("git")
+
+type("appstore")
+app_identifier([
+  "com.rizq.app",
+  "com.rizq.app.widget"
+])
+
+# team_id("YOUR_TEAM_ID")
+# username("your-apple-id@example.com")
+
+# For CI/CD, use API key instead of username/password
+# api_key_path("./fastlane/api_key.json")

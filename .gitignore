@@ -29,3 +29,7 @@ dist-ssr
 
 # Auto Claude data directory
 .auto-claude/
+firebase-service-account.json
+
+# Firebase service account key (never commit)
+scripts/service-account-key.json

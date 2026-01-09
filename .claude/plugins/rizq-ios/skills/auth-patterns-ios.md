@@ -1,15 +1,205 @@
 ---
 name: auth-patterns-ios
-description: "OAuth authentication with ASWebAuthenticationSession, Keychain storage, token refresh, and Better Auth/Neon Auth integration"
+description: "Firebase Auth (recommended), OAuth with ASWebAuthenticationSession, Keychain storage, and session management"
 ---
 
 # Authentication Patterns for iOS
 
-This skill provides patterns for implementing OAuth authentication in the RIZQ iOS app, integrating with Better Auth and Neon Auth.
+This skill provides patterns for implementing authentication in the RIZQ iOS app. **Firebase Auth is the recommended approach.**
 
 ---
 
-## Architecture Overview
+## Firebase Auth (Recommended)
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      SwiftUI Views                          │
+│              (AuthView, ProfileView)                        │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│                   TCA Auth Feature                          │
+│            (AuthFeature with AuthClient dependency)         │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│              FirebaseAuthService                            │
+│  (AuthServiceProtocol implementation)                       │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+         ┌────────────────┼────────────────┐
+         ▼                ▼                ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ Firebase    │   │ GoogleSignIn│   │ ASAuth      │
+│ Auth        │   │ SDK         │   │ Controller  │
+└─────────────┘   └─────────────┘   └─────────────┘
+                          │
+                 ┌────────▼────────┐
+                 │ Keychain        │
+                 │ Storage         │
+                 └─────────────────┘
+```
+
+### FirebaseAuthService Pattern
+
+```swift
+public actor FirebaseAuthService: AuthServiceProtocol {
+  private let keychain: KeychainService
+
+  public init() {
+    self.keychain = KeychainService.shared
+  }
+
+  // Email Authentication
+  public func signInWithEmail(email: String, password: String) async throws -> AuthResponse {
+    let result = try await Auth.auth().signIn(withEmail: email, password: password)
+    let authResponse = try await mapFirebaseUserToAuthResponse(result.user)
+    try saveAuthState(authResponse)
+    return authResponse
+  }
+
+  // Google Sign-In
+  @MainActor
+  private func signInWithGoogle(presentingWindow: ASPresentationAnchor?) async throws -> AuthResponse {
+    guard let clientID = FirebaseApp.app()?.options.clientID else {
+      throw RIZQAuthError.oauthFailed("Firebase client ID not configured")
+    }
+
+    let config = GIDConfiguration(clientID: clientID)
+    GIDSignIn.sharedInstance.configuration = config
+
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+          let rootViewController = windowScene.windows.first?.rootViewController else {
+      throw RIZQAuthError.oauthFailed("No root view controller available")
+    }
+
+    let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
+
+    guard let idToken = result.user.idToken?.tokenString else {
+      throw RIZQAuthError.oauthFailed("No ID token received from Google")
+    }
+
+    let credential = GoogleAuthProvider.credential(
+      withIDToken: idToken,
+      accessToken: result.user.accessToken.tokenString
+    )
+
+    let authResult = try await Auth.auth().signIn(with: credential)
+    return try await mapFirebaseUserToAuthResponse(authResult.user)
+  }
+
+  // Apple Sign-In (with nonce)
+  @MainActor
+  private func signInWithApple(presentingWindow: ASPresentationAnchor?) async throws -> AuthResponse {
+    let nonce = randomNonceString()
+    let hashedNonce = sha256(nonce)
+
+    let appleIDProvider = ASAuthorizationAppleIDProvider()
+    let request = appleIDProvider.createRequest()
+    request.requestedScopes = [.fullName, .email]
+    request.nonce = hashedNonce
+
+    let credential = try await performAppleSignIn(request: request)
+
+    guard let appleIDToken = credential.identityToken,
+          let idTokenString = String(data: appleIDToken, encoding: .utf8) else {
+      throw RIZQAuthError.oauthFailed("Unable to get Apple ID token")
+    }
+
+    let firebaseCredential = OAuthProvider.appleCredential(
+      withIDToken: idTokenString,
+      rawNonce: nonce,
+      fullName: credential.fullName
+    )
+
+    let authResult = try await Auth.auth().signIn(with: firebaseCredential)
+    return try await mapFirebaseUserToAuthResponse(authResult.user)
+  }
+
+  // Session Management
+  public func getSession() async throws -> AuthSession? {
+    guard let user = Auth.auth().currentUser else { return nil }
+    let token = try await user.getIDToken()
+    return AuthSession(
+      id: UUID().uuidString,
+      userId: user.uid,
+      token: token,
+      expiresAt: Date().addingTimeInterval(3600)
+    )
+  }
+
+  public func refreshSession() async throws -> AuthSession {
+    guard let user = Auth.auth().currentUser else {
+      throw RIZQAuthError.sessionExpired
+    }
+    let token = try await user.getIDToken(forcingRefresh: true)
+    return AuthSession(
+      id: UUID().uuidString,
+      userId: user.uid,
+      token: token,
+      expiresAt: Date().addingTimeInterval(3600)
+    )
+  }
+}
+```
+
+### Nonce Generation for Apple Sign-In
+
+```swift
+private func randomNonceString(length: Int = 32) -> String {
+  precondition(length > 0)
+  var randomBytes = [UInt8](repeating: 0, count: length)
+  let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+  if errorCode != errSecSuccess {
+    fatalError("Unable to generate nonce")
+  }
+  let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+  return String(randomBytes.map { byte in charset[Int(byte) % charset.count] })
+}
+
+private func sha256(_ input: String) -> String {
+  let inputData = Data(input.utf8)
+  var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+  inputData.withUnsafeBytes {
+    _ = CC_SHA256($0.baseAddress, CC_LONG(inputData.count), &hash)
+  }
+  return hash.map { String(format: "%02x", $0) }.joined()
+}
+```
+
+### Firebase Error Mapping
+
+```swift
+private func mapFirebaseError(_ error: NSError) -> RIZQAuthError {
+  guard let errorCode = AuthErrorCode(rawValue: error.code) else {
+    return .unknown(error.localizedDescription)
+  }
+  switch errorCode {
+  case .wrongPassword, .invalidCredential:
+    return .invalidCredentials
+  case .emailAlreadyInUse:
+    return .emailAlreadyExists
+  case .userNotFound:
+    return .userNotFound
+  case .userTokenExpired, .invalidUserToken:
+    return .sessionExpired
+  case .networkError:
+    return .networkError(error.localizedDescription)
+  default:
+    return .unknown(error.localizedDescription)
+  }
+}
+```
+
+---
+
+## Legacy: Better Auth / Neon Auth
+
+The patterns below are for the legacy Better Auth + Neon Auth integration using ASWebAuthenticationSession.
+
+### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

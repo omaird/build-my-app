@@ -71,11 +71,10 @@ public struct DuaInput: Equatable, Sendable {
   public var translationEn: String
   public var source: String?
   public var repetitions: Int
-  public var bestTime: TimeSlot?
-  public var difficulty: DuaDifficulty
+  public var bestTime: String?  // Changed from TimeSlot? to match Dua model
+  public var difficulty: DuaDifficulty?  // Made optional to match Dua model
   public var estDurationSec: Int?
   public var rizqBenefit: String?
-  public var context: String?
   public var propheticContext: String?
   public var xpValue: Int
   public var audioUrl: String?
@@ -90,11 +89,10 @@ public struct DuaInput: Equatable, Sendable {
     translationEn: String = "",
     source: String? = nil,
     repetitions: Int = 1,
-    bestTime: TimeSlot? = nil,
-    difficulty: DuaDifficulty = .beginner,
+    bestTime: String? = nil,
+    difficulty: DuaDifficulty? = .beginner,
     estDurationSec: Int? = nil,
     rizqBenefit: String? = nil,
-    context: String? = nil,
     propheticContext: String? = nil,
     xpValue: Int = 10,
     audioUrl: String? = nil,
@@ -112,7 +110,6 @@ public struct DuaInput: Equatable, Sendable {
     self.difficulty = difficulty
     self.estDurationSec = estDurationSec
     self.rizqBenefit = rizqBenefit
-    self.context = context
     self.propheticContext = propheticContext
     self.xpValue = xpValue
     self.audioUrl = audioUrl
@@ -133,7 +130,6 @@ public struct DuaInput: Equatable, Sendable {
     self.difficulty = dua.difficulty
     self.estDurationSec = dua.estDurationSec
     self.rizqBenefit = dua.rizqBenefit
-    self.context = dua.context
     self.propheticContext = dua.propheticContext
     self.xpValue = dua.xpValue
     self.audioUrl = dua.audioUrl
@@ -348,10 +344,10 @@ public actor AdminService: AdminServiceProtocol {
       INSERT INTO duas (
         category_id, collection_id, title_en, title_ar, arabic_text,
         transliteration, translation_en, source, repetitions, best_time,
-        difficulty, est_duration_sec, rizq_benefit, context, prophetic_context,
+        difficulty, est_duration_sec, rizq_benefit, prophetic_context,
         xp_value, audio_url, created_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW(), NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW()
       )
       RETURNING *
     """
@@ -366,11 +362,10 @@ public actor AdminService: AdminServiceProtocol {
       .string(input.translationEn.trimmingCharacters(in: .whitespacesAndNewlines)),
       input.source.map { .string($0) } ?? .null,
       .int(input.repetitions),
-      input.bestTime.map { .string($0.rawValue) } ?? .null,
-      .string(input.difficulty.rawValue),
+      input.bestTime.map { .string($0) } ?? .null,
+      input.difficulty.map { .string($0.rawValue) } ?? .null,
       input.estDurationSec.map { .int($0) } ?? .null,
       input.rizqBenefit.map { .string($0) } ?? .null,
-      input.context.map { .string($0) } ?? .null,
       input.propheticContext.map { .string($0) } ?? .null,
       .int(input.xpValue),
       input.audioUrl.map { .string($0) } ?? .null
@@ -399,10 +394,9 @@ public actor AdminService: AdminServiceProtocol {
         difficulty = $12,
         est_duration_sec = $13,
         rizq_benefit = $14,
-        context = $15,
-        prophetic_context = $16,
-        xp_value = $17,
-        audio_url = $18,
+        prophetic_context = $15,
+        xp_value = $16,
+        audio_url = $17,
         updated_at = NOW()
       WHERE id = $1
       RETURNING *
@@ -419,11 +413,10 @@ public actor AdminService: AdminServiceProtocol {
       .string(input.translationEn.trimmingCharacters(in: .whitespacesAndNewlines)),
       input.source.map { .string($0) } ?? .null,
       .int(input.repetitions),
-      input.bestTime.map { .string($0.rawValue) } ?? .null,
-      .string(input.difficulty.rawValue),
+      input.bestTime.map { .string($0) } ?? .null,
+      input.difficulty.map { .string($0.rawValue) } ?? .null,
       input.estDurationSec.map { .int($0) } ?? .null,
       input.rizqBenefit.map { .string($0) } ?? .null,
-      input.context.map { .string($0) } ?? .null,
       input.propheticContext.map { .string($0) } ?? .null,
       .int(input.xpValue),
       input.audioUrl.map { .string($0) } ?? .null
@@ -747,7 +740,6 @@ public actor MockAdminService: AdminServiceProtocol {
       difficulty: input.difficulty,
       estDurationSec: input.estDurationSec,
       rizqBenefit: input.rizqBenefit,
-      context: input.context,
       propheticContext: input.propheticContext,
       xpValue: input.xpValue,
       audioUrl: input.audioUrl
@@ -770,7 +762,6 @@ public actor MockAdminService: AdminServiceProtocol {
       difficulty: input.difficulty,
       estDurationSec: input.estDurationSec,
       rizqBenefit: input.rizqBenefit,
-      context: input.context,
       propheticContext: input.propheticContext,
       xpValue: input.xpValue,
       audioUrl: input.audioUrl

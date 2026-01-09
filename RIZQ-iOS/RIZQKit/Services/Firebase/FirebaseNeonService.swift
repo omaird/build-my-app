@@ -35,6 +35,10 @@ public actor FirebaseNeonService: NeonServiceProtocol {
     try await neonService.fetchDuasByCategory(categoryId: categoryId)
   }
 
+  public func fetchDuasByCategory(slug: CategorySlug) async throws -> [Dua] {
+    try await neonService.fetchDuasByCategory(slug: slug)
+  }
+
   public func searchDuas(query: String) async throws -> [Dua] {
     try await neonService.searchDuas(query: query)
   }
@@ -73,6 +77,18 @@ public actor FirebaseNeonService: NeonServiceProtocol {
     try await neonService.fetchJourneyDuas(journeyId: journeyId)
   }
 
+  public func fetchJourneyBySlug(_ slug: String) async throws -> Journey? {
+    try await neonService.fetchJourneyBySlug(slug)
+  }
+
+  public func fetchJourneyWithDuas(id: Int) async throws -> JourneyWithDuas? {
+    try await neonService.fetchJourneyWithDuas(id: id)
+  }
+
+  public func fetchMultipleJourneysDuas(journeyIds: [Int]) async throws -> [JourneyDuaFull] {
+    try await neonService.fetchMultipleJourneysDuas(journeyIds: journeyIds)
+  }
+
   // MARK: - User Profile (Firestore-backed)
 
   public func fetchUserProfile(userId: String) async throws -> UserProfile? {
@@ -105,6 +121,14 @@ public actor FirebaseNeonService: NeonServiceProtocol {
       return nil
     }
     return mapFirestoreToUserActivity(firestoreActivity, date: date)
+  }
+
+  public func fetchWeekActivities(userId: String) async throws -> [UserActivity] {
+    let activities = try await firestoreService.fetchWeekActivities(userId: userId)
+    return activities.compactMap { activity -> UserActivity? in
+      guard let date = dateFromString(activity.date) else { return nil }
+      return mapFirestoreToUserActivity(activity, date: date)
+    }
   }
 
   public func recordDuaCompletion(userId: String, duaId: Int, xpEarned: Int) async throws {
@@ -150,5 +174,11 @@ public actor FirebaseNeonService: NeonServiceProtocol {
       duasCompleted: activity.duasCompleted,
       xpEarned: activity.xpEarned
     )
+  }
+
+  private func dateFromString(_ string: String) -> Date? {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    return formatter.date(from: string)
   }
 }

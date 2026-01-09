@@ -47,12 +47,13 @@ struct CategoryFilterView: View {
     }
   }
 
-  private func categoryColor(for slug: CategorySlug) -> Color {
+  private func categoryColor(for slug: CategorySlug?) -> Color {
     switch slug {
     case .morning: return .badgeMorning
     case .evening: return .badgeEvening
     case .rizq: return .badgeRizq
     case .gratitude: return .badgeGratitude
+    case nil: return .rizqPrimary
     }
   }
 }
@@ -117,19 +118,19 @@ struct CategoryChip: View {
 #Preview {
   VStack(spacing: 32) {
     CategoryFilterView(
-      categories: CategoryDisplay.allCases,
+      categories: CategoryDisplay.allCategories,
       selectedCategory: nil,
       onCategorySelected: { _ in }
     )
 
     CategoryFilterView(
-      categories: CategoryDisplay.allCases,
+      categories: CategoryDisplay.allCategories,
       selectedCategory: .morning,
       onCategorySelected: { _ in }
     )
 
     CategoryFilterView(
-      categories: CategoryDisplay.allCases,
+      categories: CategoryDisplay.allCategories,
       selectedCategory: .rizq,
       onCategorySelected: { _ in }
     )

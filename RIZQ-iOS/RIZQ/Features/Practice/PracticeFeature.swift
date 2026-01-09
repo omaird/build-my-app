@@ -6,6 +6,9 @@ import RIZQKit
 struct PracticeFeature {
   @ObservableState
   struct State: Equatable {
+    // User ID for persisting XP (set by parent feature)
+    var userId: String?
+
     var dua: Dua?
     var currentCount: Int = 0
     var targetCount: Int = 1
@@ -14,6 +17,10 @@ struct PracticeFeature {
     var selectedTab: ContextTab = .practice
     var showTransliteration: Bool = true
     var alreadyCompletedToday: Bool = false
+
+    // XP persistence state
+    var isSavingCompletion: Bool = false
+    var xpEarned: Int = 0
 
     // Computed properties
     var progress: Double {
@@ -29,8 +36,7 @@ struct PracticeFeature {
       guard let dua = dua else { return false }
       return dua.source != nil ||
              dua.rizqBenefit != nil ||
-             dua.propheticContext != nil ||
-             dua.context != nil
+             dua.propheticContext != nil
     }
   }
 
@@ -58,18 +64,31 @@ struct PracticeFeature {
   enum Action: Equatable {
     case onAppear
     case setDua(Dua)
+    case setUserId(String?)
     case incrementCounter
     case decrementCounter
     case resetCounter
     case completionReached
+    case completionSaved(UserProfile)
+    case completionSaveFailed(String)
     case dismissCelebration
     case tabSelected(ContextTab)
     case toggleTransliteration
     case navigateBack
     case navigateToNext
+
+    // Delegate action for parent to listen to
+    case delegate(Delegate)
+
+    enum Delegate: Equatable {
+      case duaCompleted(duaId: Int, xpEarned: Int)
+      case profileUpdated(UserProfile)
+    }
   }
 
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.haptics) var haptics
+  @Dependency(\.neonClient) var neonClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -85,6 +104,11 @@ struct PracticeFeature {
         state.isCompleted = false
         state.showCelebration = false
         state.selectedTab = .practice
+        state.xpEarned = 0
+        return .none
+
+      case .setUserId(let userId):
+        state.userId = userId
         return .none
 
       case .incrementCounter:
@@ -94,26 +118,92 @@ struct PracticeFeature {
 
         // Check if completed
         if state.currentCount >= state.targetCount {
-          return .send(.completionReached)
+          // Trigger completion haptic
+          return .run { send in
+            await send(.completionReached)
+          }
         }
-        return .none
+
+        // Trigger counter tap haptic
+        return .run { _ in
+          haptics.counterIncrement()
+        }
 
       case .decrementCounter:
         guard state.currentCount > 0 else { return .none }
         state.currentCount -= 1
-        return .none
+        return .run { _ in
+          haptics.lightTap()
+        }
 
       case .resetCounter:
         state.currentCount = 0
         state.isCompleted = false
         state.showCelebration = false
-        return .none
+        state.xpEarned = 0
+        return .run { _ in
+          haptics.warning()
+        }
 
       case .completionReached:
         state.isCompleted = true
         state.showCelebration = true
-        // TODO: In Phase 5+, integrate with activity tracking
-        // markActivityCompleted, markProgressCompleted, markHabitCompleted
+
+        guard let dua = state.dua else {
+          // Trigger celebration even without dua
+          return .run { _ in
+            haptics.counterComplete()
+            try? await clock.sleep(for: .milliseconds(300))
+            haptics.celebration()
+          }
+        }
+
+        let xp = dua.xpValue
+        state.xpEarned = xp
+
+        // Persist XP if we have a user ID
+        guard let userId = state.userId else {
+          // No user ID, just trigger celebration haptics
+          return .run { send in
+            haptics.counterComplete()
+            try? await clock.sleep(for: .milliseconds(300))
+            haptics.celebration()
+            // Still notify delegate even without persistence
+            await send(.delegate(.duaCompleted(duaId: dua.id, xpEarned: xp)))
+          }
+        }
+
+        state.isSavingCompletion = true
+
+        return .run { [userId, duaId = dua.id, xp] send in
+          // Trigger celebration haptics immediately
+          haptics.counterComplete()
+          try? await clock.sleep(for: .milliseconds(300))
+          haptics.celebration()
+
+          // Persist completion to Firestore
+          do {
+            try await neonClient.recordDuaCompletion(userId, duaId, xp)
+            let updatedProfile = try await neonClient.addXp(userId, xp)
+            await send(.completionSaved(updatedProfile))
+            await send(.delegate(.duaCompleted(duaId: duaId, xpEarned: xp)))
+            await send(.delegate(.profileUpdated(updatedProfile)))
+          } catch {
+            await send(.completionSaveFailed(error.localizedDescription))
+            // Still notify delegate of completion even if save failed
+            await send(.delegate(.duaCompleted(duaId: duaId, xpEarned: xp)))
+          }
+        }
+
+      case .completionSaved(let profile):
+        state.isSavingCompletion = false
+        // Profile updated successfully - parent will be notified via delegate
+        return .none
+
+      case .completionSaveFailed(let error):
+        state.isSavingCompletion = false
+        // Log error but don't show to user - completion still counts locally
+        print("[PracticeFeature] Failed to save completion: \(error)")
         return .none
 
       case .dismissCelebration:
@@ -126,14 +216,22 @@ struct PracticeFeature {
           return .none
         }
         state.selectedTab = tab
-        return .none
+        return .run { _ in
+          haptics.tabSwitch()
+        }
 
       case .toggleTransliteration:
         state.showTransliteration.toggle()
-        return .none
+        return .run { _ in
+          haptics.selection()
+        }
 
       case .navigateBack, .navigateToNext:
         // Handled by parent feature
+        return .none
+
+      case .delegate:
+        // Delegate actions are handled by parent feature
         return .none
       }
     }

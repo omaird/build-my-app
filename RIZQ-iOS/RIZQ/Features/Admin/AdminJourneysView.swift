@@ -24,7 +24,7 @@ struct AdminJourneysView: View {
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
         Button {
-          store.send(.addJourneyTapped)
+          store.send(.createJourneyTapped)
         } label: {
           Image(systemName: "plus.circle.fill")
             .font(.title2)
@@ -167,14 +167,14 @@ private struct JourneyFormSheet: View {
           Toggle("Featured", isOn: $store.formInput.isFeatured)
         }
       }
-      .navigationTitle(store.editingJourney == nil ? "New Journey" : "Edit Journey")
+      .navigationTitle(store.editingJourneyId == nil ? "New Journey" : "Edit Journey")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { store.send(.cancelForm) }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Save") { store.send(.saveJourney) }
+          Button("Save") { store.send(.submitForm) }
             .disabled(!store.formInput.isValid)
         }
       }

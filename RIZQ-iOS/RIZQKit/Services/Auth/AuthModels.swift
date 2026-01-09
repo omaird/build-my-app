@@ -56,14 +56,20 @@ public struct AuthUser: Codable, Identifiable, Equatable, Sendable {
     self.updatedAt = updatedAt
   }
 
+  // Custom decoding to handle missing date fields from Neon Auth
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    id = try container.decode(String.self, forKey: .id)
+    email = try container.decodeIfPresent(String.self, forKey: .email)
+    name = try container.decodeIfPresent(String.self, forKey: .name)
+    image = try container.decodeIfPresent(String.self, forKey: .image)
+    emailVerified = try container.decodeIfPresent(Bool.self, forKey: .emailVerified) ?? false
+    createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+  }
+
   private enum CodingKeys: String, CodingKey {
-    case id
-    case email
-    case name
-    case image
-    case emailVerified = "email_verified"
-    case createdAt = "created_at"
-    case updatedAt = "updated_at"
+    case id, email, name, image, emailVerified, createdAt, updatedAt
   }
 }
 
@@ -148,8 +154,9 @@ public struct AuthState: Equatable, Sendable {
 }
 
 // MARK: - Auth Error
+// Named RIZQAuthError to avoid conflict with Supabase Auth.AuthError
 
-public enum AuthError: Error, Equatable, Sendable {
+public enum RIZQAuthError: Error, Equatable, Sendable {
   case invalidCredentials
   case emailAlreadyExists
   case userNotFound
@@ -184,8 +191,35 @@ public enum AuthError: Error, Equatable, Sendable {
   }
 }
 
+// Type alias for backward compatibility
+public typealias AuthError = RIZQAuthError
+
 // MARK: - Auth Response Types
 
+/// Session object from Neon Auth API response
+public struct NeonAuthSessionResponse: Codable, Sendable {
+  public let accessToken: String
+  public let expiresAt: Int  // Unix timestamp
+
+  private enum CodingKeys: String, CodingKey {
+    case accessToken = "access_token"
+    case expiresAt = "expires_at"
+  }
+}
+
+/// Inner data object from Neon Auth API response
+public struct NeonAuthData: Codable, Sendable {
+  public let session: NeonAuthSessionResponse
+  public let user: AuthUser
+}
+
+/// Response from Neon Auth API (what we receive from the server)
+/// Format: { "data": { "session": {...}, "user": {...} } }
+public struct NeonAuthResponse: Codable, Sendable {
+  public let data: NeonAuthData
+}
+
+/// Our internal auth response that contains user and constructed session
 public struct AuthResponse: Codable, Sendable {
   public let user: AuthUser
   public let session: AuthSession
@@ -193,6 +227,17 @@ public struct AuthResponse: Codable, Sendable {
   public init(user: AuthUser, session: AuthSession) {
     self.user = user
     self.session = session
+  }
+
+  /// Create from Neon Auth API response
+  public init(from neonAuthResponse: NeonAuthResponse) {
+    self.user = neonAuthResponse.data.user
+    self.session = AuthSession(
+      id: UUID().uuidString,
+      userId: neonAuthResponse.data.user.id,
+      token: neonAuthResponse.data.session.accessToken,
+      expiresAt: Date(timeIntervalSince1970: TimeInterval(neonAuthResponse.data.session.expiresAt))
+    )
   }
 }
 

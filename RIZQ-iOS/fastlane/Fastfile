@@ -1,0 +1,114 @@
+default_platform(:ios)
+
+platform :ios do
+  # Configuration
+  XCODEPROJ = "RIZQ.xcodeproj"
+  SCHEME = "RIZQ"
+  APP_IDENTIFIER = "com.rizq.app"
+  
+  before_all do
+    # Regenerate Xcode project from project.yml
+    sh "cd .. && xcodegen generate"
+  end
+
+  desc "Run all tests"
+  lane :test do
+    run_tests(
+      project: XCODEPROJ,
+      scheme: SCHEME,
+      devices: ["iPhone 17 Pro"],
+      clean: true,
+      output_style: "raw"  # Avoid Ruby version conflicts with xcpretty
+    )
+  end
+
+  desc "Build the app for release"
+  lane :build do
+    # Increment build number
+    increment_build_number(
+      xcodeproj: XCODEPROJ
+    )
+
+    # Build the app
+    build_app(
+      project: XCODEPROJ,
+      scheme: SCHEME,
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "RIZQ.ipa"
+    )
+  end
+
+  desc "Submit a new build to TestFlight"
+  lane :beta do
+    # Ensure we're on a clean git state
+    ensure_git_status_clean unless ENV["CI"]
+
+    # Run tests first
+    test
+
+    # Build the app
+    build
+
+    # Upload to TestFlight
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
+
+    # Clean up
+    clean_build_artifacts
+  end
+
+  desc "Prepare release (bump version)"
+  lane :release do |options|
+    version = options[:version]
+    
+    unless version
+      UI.user_error!("Please provide a version number: fastlane release version:X.Y.Z")
+    end
+
+    # Bump version
+    increment_version_number(
+      version_number: version,
+      xcodeproj: XCODEPROJ
+    )
+
+    # Build and upload
+    build
+    upload_to_testflight(
+      skip_waiting_for_build_processing: false
+    )
+  end
+
+  desc "Sync code signing certificates and profiles"
+  lane :certificates do
+    match(
+      type: "appstore",
+      app_identifier: [APP_IDENTIFIER, "#{APP_IDENTIFIER}.widget"],
+      readonly: true
+    )
+  end
+
+  desc "Add a new test device"
+  lane :add_device do |options|
+    name = options[:name]
+    udid = options[:udid]
+
+    unless name && udid
+      UI.user_error!("Please provide name and udid: fastlane add_device name:'My iPhone' udid:'xxx'")
+    end
+
+    register_devices(
+      devices: { name => udid }
+    )
+
+    match(type: "development", force_for_new_devices: true)
+  end
+
+  # Error handling
+  error do |lane, exception|
+    UI.error("Error in lane #{lane}: #{exception.message}")
+  end
+end

@@ -15,7 +15,7 @@ struct PracticeView: View {
         isVisible: store.showCelebration,
         title: "Masha'Allah!",
         subtitle: "Dua completed",
-        xpEarned: store.dua?.xpValue ?? 0,
+        xpEarned: store.xpEarned > 0 ? store.xpEarned : (store.dua?.xpValue ?? 0),
         onDismiss: { store.send(.dismissCelebration) }
       )
       .animation(.easeInOut(duration: 0.3), value: store.showCelebration)
@@ -105,6 +105,14 @@ struct PracticeView: View {
       // Dua Card (Tappable)
       duaCard
 
+      // Tap hint (when not completed)
+      if !store.isCompleted && !store.alreadyCompletedToday {
+        Text("Tap the card to count")
+          .font(.rizqSans(.caption))
+          .foregroundStyle(Color.rizqTextSecondary)
+          .padding(.top, -RIZQSpacing.md)
+      }
+
       // Action Buttons
       actionButtons
 
@@ -114,7 +122,7 @@ struct PracticeView: View {
     .padding(.horizontal)
   }
 
-  // MARK: - Progress Indicator
+  // MARK: - Progress Indicator (Matches React design with circle indicator)
 
   private var progressIndicator: some View {
     VStack(spacing: RIZQSpacing.sm) {
@@ -123,41 +131,49 @@ struct PracticeView: View {
           .font(.rizqSans(.caption))
           .fontWeight(.medium)
           .foregroundStyle(Color.rizqTextSecondary)
-          .tracking(0.5)
+          .tracking(1.0)
 
         Spacer()
 
         Text("\(store.currentCount) / \(store.targetCount)")
-          .font(.rizqMonoMedium(.subheadline))
-          .foregroundStyle(Color.rizqPrimary)
+          .font(.rizqMonoMedium(.headline))
+          .foregroundStyle(Color.rizqText)
       }
 
-      // Progress bar
+      // Progress bar with circle indicator (matches React)
       GeometryReader { geometry in
         ZStack(alignment: .leading) {
+          // Background track
           Capsule()
-            .fill(Color.rizqMuted.opacity(0.3))
-            .frame(height: 8)
+            .fill(LinearGradient.rizqPrimaryGradient.opacity(0.25))
+            .frame(height: 6)
 
+          // Progress fill
           Capsule()
             .fill(LinearGradient.rizqPrimaryGradient)
             .frame(
-              width: geometry.size.width * store.progress,
-              height: 8
+              width: max(geometry.size.width * store.progress, 6),
+              height: 6
             )
             .animation(.easeInOut(duration: 0.3), value: store.progress)
+
+          // Circle indicator at the start
+          Circle()
+            .fill(LinearGradient.rizqPrimaryGradient)
+            .frame(width: 12, height: 12)
+            .offset(x: -3) // Center the circle at the start
         }
       }
-      .frame(height: 8)
+      .frame(height: 12)
     }
   }
 
-  // MARK: - Dua Card
+  // MARK: - Dua Card (Clean reading layout matching React)
 
   private var duaCard: some View {
     VStack(spacing: RIZQSpacing.xl) {
       if let dua = store.dua {
-        // Dua Text
+        // Dua Text (Arabic, divider, transliteration, translation)
         DuaTextView(
           arabicText: dua.arabicText,
           transliteration: dua.transliteration,
@@ -165,28 +181,6 @@ struct PracticeView: View {
           showTransliteration: store.showTransliteration
         )
         .animation(.easeInOut(duration: 0.2), value: store.showTransliteration)
-
-        // Counter
-        VStack(spacing: RIZQSpacing.md) {
-          CounterView(
-            currentCount: store.currentCount,
-            targetCount: store.targetCount,
-            isCompleted: store.isCompleted || store.alreadyCompletedToday,
-            onTap: { store.send(.incrementCounter) }
-          )
-
-          if !store.isCompleted && !store.alreadyCompletedToday {
-            Text("Tap anywhere to count")
-              .font(.rizqSans(.caption))
-              .foregroundStyle(Color.rizqTextSecondary)
-          } else {
-            Text(store.alreadyCompletedToday && !store.isCompleted
-                 ? "Completed Today"
-                 : "Completed!")
-              .font(.rizqSansMedium(.subheadline))
-              .foregroundStyle(Color.rizqPrimary)
-          }
-        }
       } else {
         // Loading state
         ProgressView()
@@ -195,20 +189,42 @@ struct PracticeView: View {
           .padding(.vertical, RIZQSpacing.huge)
       }
     }
-    .padding(RIZQSpacing.xl)
-    .rizqCard()
+    .padding(.horizontal, RIZQSpacing.lg)
+    .padding(.vertical, RIZQSpacing.xxl)
+    .background(Color.rizqCard)
+    .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
+    .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
     .contentShape(Rectangle())
     .onTapGesture {
       store.send(.incrementCounter)
     }
   }
 
-  // MARK: - Action Buttons
+  // MARK: - Action Buttons (Matches React full-width Done button)
 
   private var actionButtons: some View {
-    HStack(spacing: RIZQSpacing.md) {
-      // Reset button (only when not completed)
-      if !store.isCompleted && !store.alreadyCompletedToday {
+    VStack(spacing: RIZQSpacing.md) {
+      // Done button (primary action - always visible)
+      Button {
+        store.send(.navigateToNext)
+      } label: {
+        Text("Done")
+          .font(.rizqSansSemiBold(.headline))
+          .foregroundStyle(.white)
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, RIZQSpacing.lg)
+          .background(
+            (store.isCompleted || store.alreadyCompletedToday)
+              ? Color.rizqPrimary
+              : Color.rizqPrimary.opacity(0.5)
+          )
+          .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+      }
+      .buttonStyle(.plain)
+      .disabled(!store.isCompleted && !store.alreadyCompletedToday)
+
+      // Reset button (only when in progress)
+      if !store.isCompleted && !store.alreadyCompletedToday && store.currentCount > 0 {
         Button {
           store.send(.resetCounter)
         } label: {
@@ -216,28 +232,11 @@ struct PracticeView: View {
             Image(systemName: "arrow.counterclockwise")
             Text("Reset")
           }
-          .frame(maxWidth: .infinity)
-          .rizqSecondaryButton()
+          .font(.rizqSansMedium(.subheadline))
+          .foregroundStyle(Color.rizqTextSecondary)
         }
         .buttonStyle(.plain)
       }
-
-      // Next/Done button
-      Button {
-        store.send(.navigateToNext)
-      } label: {
-        HStack(spacing: RIZQSpacing.sm) {
-          Text(store.isCompleted || store.alreadyCompletedToday ? "Done" : "Next Dua")
-          if !store.isCompleted && !store.alreadyCompletedToday {
-            Image(systemName: "chevron.right")
-          }
-        }
-        .frame(maxWidth: .infinity)
-        .rizqPrimaryButton()
-      }
-      .buttonStyle(.plain)
-      .disabled(!store.isCompleted && !store.alreadyCompletedToday)
-      .opacity(store.isCompleted || store.alreadyCompletedToday ? 1.0 : 0.5)
     }
   }
 

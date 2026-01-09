@@ -69,45 +69,9 @@ struct JourneyDetailView: View {
 
   private var journeyHeader: some View {
     VStack(spacing: RIZQSpacing.md) {
-      // Decorative emoji container
-      ZStack {
-        // Outer decorative ring
-        Circle()
-          .stroke(style: StrokeStyle(lineWidth: 2, dash: [5, 5]))
-          .foregroundStyle(Color.rizqPrimary.opacity(0.2))
-          .frame(width: 100, height: 100)
-          .rotationEffect(.degrees(animatingRing ? 360 : 0))
-          .animation(.linear(duration: 20).repeatForever(autoreverses: false), value: animatingRing)
-
-        // Inner glow
-        Circle()
-          .fill(Color.rizqPrimary.opacity(0.1))
-          .frame(width: 80, height: 80)
-          .blur(radius: 10)
-
-        // Emoji frame
-        ZStack {
-          Circle()
-            .fill(
-              LinearGradient(
-                colors: [Color.cream, Color.cream.opacity(0.3)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-              )
-            )
-            .frame(width: 80, height: 80)
-            .overlay(
-              Circle()
-                .stroke(Color.rizqPrimary.opacity(0.2), lineWidth: 2)
-            )
-            .shadowSoft()
-
-          Text(store.journey.emoji)
-            .font(.system(size: 40))
-        }
-      }
-      .padding(.top, RIZQSpacing.xl)
-      .onAppear { animatingRing = true }
+      // Large journey illustration with decorative frame
+      LargeJourneyIconView(journey: store.journey, size: 100)
+        .padding(.top, RIZQSpacing.xl)
 
       // Journey name
       Text(store.journey.name)
@@ -139,8 +103,6 @@ struct JourneyDetailView: View {
       }
     }
   }
-
-  @State private var animatingRing = false
 
   // MARK: - Stats Row
 

@@ -7,6 +7,7 @@ public protocol NeonServiceProtocol: Sendable {
   func fetchAllDuas() async throws -> [Dua]
   func fetchDua(id: Int) async throws -> Dua?
   func fetchDuasByCategory(categoryId: Int) async throws -> [Dua]
+  func fetchDuasByCategory(slug: CategorySlug) async throws -> [Dua]
   func searchDuas(query: String) async throws -> [Dua]
 
   // Categories
@@ -20,7 +21,10 @@ public protocol NeonServiceProtocol: Sendable {
   func fetchAllJourneys() async throws -> [Journey]
   func fetchFeaturedJourneys() async throws -> [Journey]
   func fetchJourney(id: Int) async throws -> Journey?
+  func fetchJourneyBySlug(_ slug: String) async throws -> Journey?
   func fetchJourneyDuas(journeyId: Int) async throws -> [JourneyDuaFull]
+  func fetchJourneyWithDuas(id: Int) async throws -> JourneyWithDuas?
+  func fetchMultipleJourneysDuas(journeyIds: [Int]) async throws -> [JourneyDuaFull]
 
   // User Profile
   func fetchUserProfile(userId: String) async throws -> UserProfile?
@@ -30,6 +34,7 @@ public protocol NeonServiceProtocol: Sendable {
 
   // User Activity
   func fetchUserActivity(userId: String, date: Date) async throws -> UserActivity?
+  func fetchWeekActivities(userId: String) async throws -> [UserActivity]
   func recordDuaCompletion(userId: String, duaId: Int, xpEarned: Int) async throws
 }
 
@@ -73,6 +78,17 @@ public actor NeonService: NeonServiceProtocol {
       ORDER BY title_en
     """
     return try await apiClient.execute(query, params: [.int(categoryId)])
+  }
+
+  public func fetchDuasByCategory(slug: CategorySlug) async throws -> [Dua] {
+    // Join with categories to filter by slug
+    let query = """
+      SELECT d.* FROM duas d
+      JOIN categories c ON d.category_id = c.id
+      WHERE c.slug = $1
+      ORDER BY d.title_en
+    """
+    return try await apiClient.execute(query, params: [.string(slug.rawValue)])
   }
 
   public func searchDuas(query searchText: String) async throws -> [Dua] {
@@ -161,6 +177,58 @@ public actor NeonService: NeonServiceProtocol {
 
     // Get all dua IDs
     let duaIds = journeyDuas.map { $0.duaId }
+
+    // Fetch all duas in one query
+    let duasQuery = """
+      SELECT * FROM duas
+      WHERE id = ANY($1::int[])
+    """
+    let duas: [Dua] = try await apiClient.execute(duasQuery, params: [.intArray(duaIds)])
+
+    // Map duas by ID for quick lookup
+    let duaMap = Dictionary(uniqueKeysWithValues: duas.map { ($0.id, $0) })
+
+    // Combine journey_duas with dua data
+    return journeyDuas.compactMap { journeyDua in
+      guard let dua = duaMap[journeyDua.duaId] else { return nil }
+      return JourneyDuaFull(journeyDua: journeyDua, dua: dua)
+    }
+  }
+
+  public func fetchJourneyBySlug(_ slug: String) async throws -> Journey? {
+    let query = """
+      SELECT * FROM journeys
+      WHERE slug = $1
+      LIMIT 1
+    """
+    let results: [Journey] = try await apiClient.execute(query, params: [.string(slug)])
+    return results.first
+  }
+
+  public func fetchJourneyWithDuas(id: Int) async throws -> JourneyWithDuas? {
+    guard let journey = try await fetchJourney(id: id) else {
+      return nil
+    }
+    let duas = try await fetchJourneyDuas(journeyId: id)
+    return JourneyWithDuas(journey: journey, duas: duas)
+  }
+
+  public func fetchMultipleJourneysDuas(journeyIds: [Int]) async throws -> [JourneyDuaFull] {
+    guard !journeyIds.isEmpty else { return [] }
+
+    // Fetch all journey_duas for the given journey IDs
+    let joinQuery = """
+      SELECT journey_id, dua_id, time_slot, sort_order
+      FROM journey_duas
+      WHERE journey_id = ANY($1::int[])
+      ORDER BY sort_order
+    """
+    let journeyDuas: [JourneyDua] = try await apiClient.execute(joinQuery, params: [.intArray(journeyIds)])
+
+    guard !journeyDuas.isEmpty else { return [] }
+
+    // Get unique dua IDs
+    let duaIds = Array(Set(journeyDuas.map { $0.duaId }))
 
     // Fetch all duas in one query
     let duasQuery = """
@@ -277,6 +345,17 @@ public actor NeonService: NeonServiceProtocol {
     return results.first
   }
 
+  public func fetchWeekActivities(userId: String) async throws -> [UserActivity] {
+    // Get activity for the last 7 days
+    let query = """
+      SELECT * FROM user_activity
+      WHERE user_id = $1::uuid
+        AND date >= CURRENT_DATE - INTERVAL '6 days'
+      ORDER BY date ASC
+    """
+    return try await apiClient.execute(query, params: [.string(userId)])
+  }
+
   public func recordDuaCompletion(userId: String, duaId: Int, xpEarned: Int) async throws {
     let today = formatDate(Date())
 
@@ -337,6 +416,17 @@ public actor MockNeonService: NeonServiceProtocol {
     SampleData.duas.filter { $0.categoryId == categoryId }
   }
 
+  public func fetchDuasByCategory(slug: CategorySlug) async throws -> [Dua] {
+    SampleData.duas.filter { dua in
+      switch slug {
+      case .morning: return dua.categoryId == 1
+      case .evening: return dua.categoryId == 2
+      case .rizq: return dua.categoryId == 3
+      case .gratitude: return dua.categoryId == 4
+      }
+    }
+  }
+
   public func searchDuas(query: String) async throws -> [Dua] {
     SampleData.duas.filter { $0.titleEn.localizedCaseInsensitiveContains(query) }
   }
@@ -370,6 +460,22 @@ public actor MockNeonService: NeonServiceProtocol {
     SampleData.journeyDuas.filter { $0.journeyDua.journeyId == journeyId }
   }
 
+  public func fetchJourneyBySlug(_ slug: String) async throws -> Journey? {
+    SampleData.journeys.first { $0.slug == slug }
+  }
+
+  public func fetchJourneyWithDuas(id: Int) async throws -> JourneyWithDuas? {
+    guard let journey = SampleData.journeys.first(where: { $0.id == id }) else {
+      return nil
+    }
+    let duas = SampleData.journeyDuas.filter { $0.journeyDua.journeyId == id }
+    return JourneyWithDuas(journey: journey, duas: duas)
+  }
+
+  public func fetchMultipleJourneysDuas(journeyIds: [Int]) async throws -> [JourneyDuaFull] {
+    SampleData.journeyDuas.filter { journeyIds.contains($0.journeyDua.journeyId) }
+  }
+
   public func fetchUserProfile(userId: String) async throws -> UserProfile? {
     SampleData.userProfile
   }
@@ -383,7 +489,7 @@ public actor MockNeonService: NeonServiceProtocol {
   }
 
   public func addXp(userId: String, amount: Int) async throws -> UserProfile {
-    var profile = SampleData.userProfile
+    let profile = SampleData.userProfile
     return UserProfile(
       id: profile.id,
       userId: profile.userId,
@@ -398,6 +504,10 @@ public actor MockNeonService: NeonServiceProtocol {
 
   public func fetchUserActivity(userId: String, date: Date) async throws -> UserActivity? {
     nil
+  }
+
+  public func fetchWeekActivities(userId: String) async throws -> [UserActivity] {
+    []
   }
 
   public func recordDuaCompletion(userId: String, duaId: Int, xpEarned: Int) async throws {

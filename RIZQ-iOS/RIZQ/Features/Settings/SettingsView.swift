@@ -21,6 +21,9 @@ struct SettingsView: View {
           // Preferences Section
           preferencesSection
 
+          // Admin Section (only visible for admins)
+          adminSection
+
           // Account Section
           accountSection
 
@@ -260,8 +263,9 @@ struct SettingsView: View {
   }
 
   private func makeLinkedAccountRow(for provider: AuthProvider) -> some View {
-    let isLinked = store.isProviderLinked(provider)
-    let canUnlink = store.canUnlinkAccount
+    let linkedAccounts = store.linkedAccounts
+    let isLinked = linkedAccounts.contains { $0.provider == provider }
+    let canUnlink = linkedAccounts.count > 1
     let isLinking = store.isLinkingAccount == provider
     let isUnlinking = store.isUnlinkingAccount == provider
 
@@ -284,7 +288,10 @@ struct SettingsView: View {
         icon: "moon.fill",
         iconColor: Color(hex: "6366F1"),
         title: "Dark Mode",
-        isOn: $store.isDarkMode.sending(\.darkModeToggled)
+        isOn: Binding(
+          get: { store.isDarkMode },
+          set: { store.send(.darkModeToggled($0)) }
+        )
       )
 
       Divider()
@@ -294,8 +301,28 @@ struct SettingsView: View {
         iconColor: Color.streakGlow,
         title: "Notifications",
         subtitle: "Daily reminders for your habits",
-        isOn: $store.notificationsEnabled.sending(\.notificationsToggled)
+        isOn: Binding(
+          get: { store.notificationsEnabled },
+          set: { store.send(.notificationsToggled($0)) }
+        )
       )
+    }
+  }
+
+  // MARK: - Admin Section
+
+  @ViewBuilder
+  private var adminSection: some View {
+    if store.profile?.isAdmin == true {
+      SettingsSection(title: "Administration") {
+        SettingsRow.navigation(
+          icon: "slider.horizontal.3",
+          iconColor: Color.rizqPrimary,
+          title: "Admin Panel",
+          subtitle: "Manage duas, journeys & users",
+          action: { store.send(.adminPanelTapped) }
+        )
+      }
     }
   }
 
@@ -379,17 +406,6 @@ struct ShimmerModifier: ViewModifier {
   }
 }
 
-// MARK: - Binding Extension for Sending Actions
-
-extension Binding {
-  func sending<Action>(_ action: @escaping (Value) -> Action) -> Binding<Value>
-  where Action: Equatable {
-    Binding<Value>(
-      get: { self.wrappedValue },
-      set: { _ in }
-    )
-  }
-}
 
 // MARK: - Preview
 
@@ -457,8 +473,7 @@ extension Binding {
           level: 2
         ),
         linkedAccounts: [
-          LinkedAccount(id: "1", provider: .google, providerAccountId: "g1"),
-          LinkedAccount(id: "2", provider: .apple, providerAccountId: "a1")
+          LinkedAccount(id: "1", provider: .google, providerAccountId: "g1")
         ],
         isEditingDisplayName: true,
         editedDisplayName: "Omar"

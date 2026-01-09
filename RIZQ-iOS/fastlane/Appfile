@@ -1,0 +1,14 @@
+# App identifiers
+app_identifier("com.rizq.app")
+
+# Apple Developer account
+# Uncomment and fill in when ready:
+# apple_id("your-apple-id@example.com")
+# team_id("YOUR_TEAM_ID")
+
+# For App Store Connect API (recommended for CI/CD)
+# Generate an API key at: https://appstoreconnect.apple.com/access/api
+# json_key_file("./fastlane/api_key.json")
+
+# For match (code signing)
+# git_url("https://github.com/your-org/certificates")
