@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import ComposableArchitecture
 import RIZQKit
 
@@ -226,6 +227,8 @@ struct AdkharView: View {
 
       Button {
         print("🔵 DEBUG: Browse Journeys button tapped!")
+        // Trigger haptic feedback immediately
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.send(.navigateToJourneys)
       } label: {
         HStack(spacing: RIZQSpacing.sm) {
@@ -236,7 +239,6 @@ struct AdkharView: View {
       }
       .accessibilityLabel("Browse Journeys")
       .accessibilityHint("Explore dua collections to add to your daily routine")
-      .sensoryFeedback(.impact, trigger: store.isLoading) // Haptic on tap
     }
     .padding(.top, 40)
   }
