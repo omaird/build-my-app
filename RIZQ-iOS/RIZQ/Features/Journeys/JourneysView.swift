@@ -26,6 +26,16 @@ struct JourneysView: View {
           if !store.availableJourneys.isEmpty {
             allJourneysSection
           }
+
+          // Empty State - show when no journeys loaded and not loading
+          if store.journeys.isEmpty && !store.isLoading && store.errorMessage == nil {
+            emptyState
+          }
+
+          // Error State - show when there's an error
+          if let errorMessage = store.errorMessage {
+            errorState(message: errorMessage)
+          }
         }
         .padding(.horizontal, RIZQSpacing.lg)
         .padding(.bottom, 100) // Tab bar clearance
@@ -34,7 +44,7 @@ struct JourneysView: View {
       .navigationTitle("Journeys")
       .navigationBarTitleDisplayMode(.large)
       .overlay {
-        if store.isLoading {
+        if store.isLoading && store.journeys.isEmpty {
           loadingOverlay
         }
       }
@@ -44,6 +54,9 @@ struct JourneysView: View {
     }
     .onAppear {
       store.send(.onAppear)
+    }
+    .refreshable {
+      store.send(.refreshJourneys)
     }
   }
 
@@ -156,6 +169,84 @@ struct JourneysView: View {
 
       Spacer()
     }
+  }
+
+  // MARK: - Empty State
+
+  private var emptyState: some View {
+    VStack(spacing: RIZQSpacing.lg) {
+      ZStack {
+        Circle()
+          .fill(Color.rizqPrimary.opacity(0.1))
+          .frame(width: 80, height: 80)
+
+        Image(systemName: "map.fill")
+          .font(.system(size: 36))
+          .foregroundStyle(Color.rizqPrimary)
+      }
+      .accessibilityHidden(true)
+
+      Text("No Journeys Available")
+        .font(.rizqDisplaySemiBold(.title2))
+        .foregroundStyle(Color.rizqText)
+
+      Text("Check back soon for curated dua collections to guide your daily practice")
+        .font(.rizqSans(.body))
+        .foregroundStyle(Color.rizqTextSecondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 32)
+
+      Button {
+        store.send(.refreshJourneys)
+      } label: {
+        HStack(spacing: RIZQSpacing.sm) {
+          Image(systemName: "arrow.clockwise")
+          Text("Refresh")
+        }
+        .rizqPrimaryButton()
+      }
+      .accessibilityLabel("Refresh journeys")
+    }
+    .padding(.top, 60)
+  }
+
+  // MARK: - Error State
+
+  private func errorState(message: String) -> some View {
+    VStack(spacing: RIZQSpacing.lg) {
+      ZStack {
+        Circle()
+          .fill(Color.rizqPrimary.opacity(0.1))
+          .frame(width: 80, height: 80)
+
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.system(size: 36))
+          .foregroundStyle(Color.rizqPrimary)
+      }
+      .accessibilityHidden(true)
+
+      Text("Something Went Wrong")
+        .font(.rizqDisplaySemiBold(.title2))
+        .foregroundStyle(Color.rizqText)
+
+      Text(message)
+        .font(.rizqSans(.body))
+        .foregroundStyle(Color.rizqTextSecondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 32)
+
+      Button {
+        store.send(.refreshJourneys)
+      } label: {
+        HStack(spacing: RIZQSpacing.sm) {
+          Image(systemName: "arrow.clockwise")
+          Text("Try Again")
+        }
+        .rizqPrimaryButton()
+      }
+      .accessibilityLabel("Try again")
+    }
+    .padding(.top, 60)
   }
 
   // MARK: - Loading Overlay

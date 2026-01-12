@@ -37,6 +37,7 @@ struct JourneysFeature {
   enum Action {
     case onAppear
     case becameActive  // Called when tab becomes active via programmatic navigation
+    case refreshJourneys  // Force refresh - clears current journeys and reloads
     case journeysLoaded(Result<[Journey], Error>)
     case loadSubscribedIds
     case subscribedIdsLoaded(Set<Int>)
@@ -85,6 +86,24 @@ struct JourneysFeature {
         }
         state.isLoading = true
         journeyLogger.info("Loading journeys on becameActive...")
+        return .merge(
+          .run { [journeyService] send in
+            do {
+              let journeys = try await journeyService.fetchJourneys()
+              await send(.journeysLoaded(.success(journeys)))
+            } catch {
+              await send(.journeysLoaded(.failure(error)))
+            }
+          },
+          .send(.loadSubscribedIds)
+        )
+
+      case .refreshJourneys:
+        // Force refresh - clear current data and reload
+        journeyLogger.info("refreshJourneys: Force refreshing journeys...")
+        state.journeys = []
+        state.errorMessage = nil
+        state.isLoading = true
         return .merge(
           .run { [journeyService] send in
             do {

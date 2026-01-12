@@ -41,12 +41,14 @@ platform :ios do
   end
 
   desc "Submit a new build to TestFlight"
-  lane :beta do
+  lane :beta do |options|
     # Ensure we're on a clean git state
     ensure_git_status_clean unless ENV["CI"]
 
-    # Run tests first
-    test
+    # Run tests first (unless skip_tests is true)
+    unless options[:skip_tests]
+      test
+    end
 
     # Build the app
     build
