@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import ComposableArchitecture
 import RIZQKit
 
@@ -293,6 +294,8 @@ struct HomeView: View {
     HStack(spacing: RIZQSpacing.md) {
       // Browse Journeys - Primary button
       Button {
+        print("🔵 DEBUG: Home -> Browse Journeys button tapped!")
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.send(.navigateToJourneys)
       } label: {
         HStack(spacing: RIZQSpacing.sm) {

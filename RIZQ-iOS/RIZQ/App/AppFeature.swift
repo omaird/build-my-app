@@ -105,8 +105,12 @@ struct AppFeature {
         return .none
 
       case .home(.navigateToJourneys):
+        appLogger.info("🚀 Home -> Journeys navigation, switching tab...")
         state.selectedTab = .journeys
-        return .send(.journeys(.becameActive))
+        return .run { send in
+          try? await Task.sleep(for: .milliseconds(100))
+          await send(.journeys(.becameActive))
+        }
 
       case .home(.navigateToPractice(let timeSlot)):
         // Navigate to Adkhar with specific time slot filter
