@@ -275,20 +275,38 @@ extension JourneyServiceClient: DependencyKey {
       fetchJourneys: {
         journeyLogger.info("🚀 Fetching journeys from Firestore...")
         do {
-          let journeys = try await firestoreContentService.fetchAllJourneys()
-          journeyLogger.info("✅ Fetched \(journeys.count, privacy: .public) journeys from Firestore")
-          if journeys.isEmpty {
-            journeyLogger.warning("⚠️ No journeys returned from Firestore - check if data exists in 'journeys' collection")
-          } else {
-            for journey in journeys {
-              journeyLogger.info("  📍 Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public), featured: \(journey.isFeatured, privacy: .public))")
+          // Add timeout to prevent hanging
+          let journeys = try await withThrowingTaskGroup(of: [Journey].self) { group in
+            group.addTask {
+              try await firestoreContentService.fetchAllJourneys()
             }
+            group.addTask {
+              try await Task.sleep(for: .seconds(10))
+              throw NSError(domain: "JourneyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Firestore fetch timed out after 10 seconds"])
+            }
+            // Return the first successful result
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+          }
+
+          journeyLogger.info("✅ Fetched \(journeys.count, privacy: .public) journeys from Firestore")
+
+          // If Firestore returns empty, fall back to sample data
+          if journeys.isEmpty {
+            journeyLogger.warning("⚠️ No journeys from Firestore - using SampleData fallback")
+            return SampleData.journeys
+          }
+
+          for journey in journeys.prefix(3) {
+            journeyLogger.info("  📍 Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public), featured: \(journey.isFeatured, privacy: .public))")
           }
           return journeys
         } catch {
           journeyLogger.error("❌ Error fetching journeys: \(error.localizedDescription, privacy: .public)")
-          journeyLogger.error("❌ Full error: \(String(describing: error), privacy: .public)")
-          throw error
+          journeyLogger.warning("⚠️ Falling back to SampleData due to error")
+          // Return sample data as fallback when Firestore fails
+          return SampleData.journeys
         }
       },
       fetchJourneyDuas: { journeyId in
