@@ -87,6 +87,7 @@ struct AdkharView: View {
       }
     }
     .onAppear {
+      print("📱 AdkharView: .onAppear triggered, totalHabits=\(store.totalHabits), isLoading=\(store.isLoading)")
       store.send(.onAppear)
     }
     .refreshable {

@@ -60,7 +60,11 @@ struct JourneysView: View {
     .task {
       // Use .task instead of .onAppear for more reliable loading
       // .task runs when the view appears AND is cancelled when it disappears
+      print("📱 JourneysView: .task triggered - view appeared, sending .onAppear")
       store.send(.onAppear)
+    }
+    .onAppear {
+      print("📱 JourneysView: .onAppear triggered")
     }
     .refreshable {
       store.send(.refreshJourneys)
