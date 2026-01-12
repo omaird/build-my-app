@@ -4,43 +4,41 @@ import RIZQKit
 
 /// TCA dependency client for user habits operations
 /// Wraps HabitStorage for easy testing and provides closures for habit management
-@DependencyClient
+/// NOTE: Using manual struct registration instead of @DependencyClient macro per CLAUDE.md guidelines
 struct UserHabitsClient: Sendable {
   // MARK: - Storage
 
-  var loadStorage: @Sendable () async throws -> UserHabitsStorage = { UserHabitsStorage() }
+  var loadStorage: @Sendable () async throws -> UserHabitsStorage
 
   // MARK: - Journey Management
 
-  var getActiveJourneyIds: @Sendable () async throws -> [Int] = { [] }
+  var getActiveJourneyIds: @Sendable () async throws -> [Int]
   var addJourney: @Sendable (_ journeyId: Int) async throws -> Void
   var removeJourney: @Sendable (_ journeyId: Int) async throws -> Void
-  var isJourneyActive: @Sendable (_ journeyId: Int) async throws -> Bool = { _ in false }
+  var isJourneyActive: @Sendable (_ journeyId: Int) async throws -> Bool
 
   // MARK: - Custom Habits
 
-  var getCustomHabits: @Sendable () async throws -> [CustomHabit] = { [] }
+  var getCustomHabits: @Sendable () async throws -> [CustomHabit]
   var addCustomHabit: @Sendable (_ duaId: Int, _ timeSlot: TimeSlot) async throws -> CustomHabit
   var removeCustomHabit: @Sendable (_ habitId: String) async throws -> Void
 
   // MARK: - Completions
 
-  var getCompletionsForToday: @Sendable () async throws -> [HabitCompletion] = { [] }
-  var getCompletedHabitIdsForToday: @Sendable () async throws -> Set<String> = { [] }
-  var isCompletedToday: @Sendable (_ habitId: String) async throws -> Bool = { _ in false }
+  var getCompletionsForToday: @Sendable () async throws -> [HabitCompletion]
+  var getCompletedHabitIdsForToday: @Sendable () async throws -> Set<String>
+  var isCompletedToday: @Sendable (_ habitId: String) async throws -> Bool
   var completeHabit: @Sendable (_ habitId: String, _ xpEarned: Int) async throws -> HabitCompletion
   var uncompleteHabit: @Sendable (_ habitId: String) async throws -> Void
 
   // MARK: - Statistics
 
-  var getTodayProgress: @Sendable (_ totalHabits: Int) async throws -> TodayProgress = { total in
-    TodayProgress(completed: 0, total: total, xpEarned: 0)
-  }
-  var calculateStreak: @Sendable () async throws -> Int = { 0 }
+  var getTodayProgress: @Sendable (_ totalHabits: Int) async throws -> TodayProgress
+  var calculateStreak: @Sendable () async throws -> Int
 
   // MARK: - Cleanup
 
-  var clearOldCompletions: @Sendable (_ keepDays: Int) async throws -> Int = { _ in 0 }
+  var clearOldCompletions: @Sendable (_ keepDays: Int) async throws -> Int
   var clearAllData: @Sendable () async throws -> Void
 }
 
@@ -106,7 +104,29 @@ extension UserHabitsClient: DependencyKey {
     )
   }()
 
-  static let testValue = UserHabitsClient()
+  static let testValue = UserHabitsClient(
+    loadStorage: { UserHabitsStorage() },
+    getActiveJourneyIds: { [] },
+    addJourney: { _ in },
+    removeJourney: { _ in },
+    isJourneyActive: { _ in false },
+    getCustomHabits: { [] },
+    addCustomHabit: { duaId, timeSlot in
+      CustomHabit(id: "test-\(duaId)", duaId: duaId, timeSlot: timeSlot, addedAt: Date())
+    },
+    removeCustomHabit: { _ in },
+    getCompletionsForToday: { [] },
+    getCompletedHabitIdsForToday: { [] },
+    isCompletedToday: { _ in false },
+    completeHabit: { habitId, xpEarned in
+      HabitCompletion(habitId: habitId, date: "2024-01-01", completedAt: Date(), xpEarned: xpEarned)
+    },
+    uncompleteHabit: { _ in },
+    getTodayProgress: { TodayProgress(completed: 0, total: $0, xpEarned: 0) },
+    calculateStreak: { 0 },
+    clearOldCompletions: { _ in 0 },
+    clearAllData: { }
+  )
 }
 
 // MARK: - Dependency Values

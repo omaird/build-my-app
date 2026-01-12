@@ -12,6 +12,10 @@ final class RIZQTests: XCTestCase {
     let store = TestStore(initialState: AppFeature.State()) {
       AppFeature()
     }
+    // Use non-exhaustive testing since tab selection triggers cascading effects
+    // (e.g., .adkhar(.becameActive) → .refreshData → Firestore fetches)
+    // We only care about verifying the tab selection state change here
+    store.exhaustivity = .off
 
     await store.send(.tabSelected(.library)) {
       $0.selectedTab = .library
@@ -836,11 +840,13 @@ final class JourneysFeatureTests: XCTestCase {
       $0.continuousClock = ImmediateClock()
     }
 
+    // Use non-exhaustive testing since onAppear triggers fetch effects
+    // without setting isLoading (loading state is only set on .becameActive)
     store.exhaustivity = .off
 
-    await store.send(.onAppear) {
-      $0.isLoading = true
-    }
+    // onAppear now only fires effects without state changes
+    // The actual loading happens asynchronously via journeysLoaded
+    await store.send(.onAppear)
   }
 
   @MainActor

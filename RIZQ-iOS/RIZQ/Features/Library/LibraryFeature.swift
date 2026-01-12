@@ -309,8 +309,9 @@ struct PracticeSheetFeature {
 
         return .run { send in
           do {
-            // Record the completion
-            try await userClient.recordDuaCompletion(userId, duaId, xpValue)
+            // Use recordPracticeCompletion to update user_activity, user_progress, AND user_profiles.totalXp
+            // This ensures XP is awarded and appears on the Home page
+            _ = try await userClient.recordPracticeCompletion(userId, duaId, xpValue)
             await send(.saveCompleted(.success(())))
           } catch {
             await send(.saveCompleted(.failure(error)))

@@ -180,6 +180,7 @@ struct HomeFeature {
 
   @Dependency(\.continuousClock) var clock
   @Dependency(\.firestoreUserClient) var userClient
+  @Dependency(\.adkharService) var adkharService
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -192,7 +193,7 @@ struct HomeFeature {
         state.isLoading = true
         state.loadError = nil
 
-        return .run { [userId] send in
+        return .run { [userId, adkharService] send in
           // Fetch user profile from Firestore via FirestoreUserClient
           do {
             if let profile = try await userClient.fetchUserProfile(userId) {
@@ -210,6 +211,16 @@ struct HomeFeature {
             // Fetch week activities for calendar
             let weekActivities = try await userClient.fetchWeekActivities(userId)
             await send(.weekActivitiesLoaded(weekActivities))
+
+            // Fetch total habits for progress display
+            let habits = try await adkharService.fetchAllHabits()
+            let totalHabits = habits.morning.count + habits.anytime.count + habits.evening.count
+            let habitsProgress = TodayProgress(
+              completed: activity?.duasCompleted.count ?? 0,
+              total: totalHabits,
+              xpEarned: activity?.xpEarned ?? 0
+            )
+            await send(.habitsProgressLoaded(habitsProgress))
           } catch {
             await send(.profileLoadFailed(error.localizedDescription))
           }
@@ -220,7 +231,7 @@ struct HomeFeature {
         state.isLoading = true
         state.loadError = nil
 
-        return .run { [userId] send in
+        return .run { [userId, adkharService] send in
           do {
             // Fetch profile - create if not found (consistent with onAppear)
             if let profile = try await userClient.fetchUserProfile(userId) {
@@ -237,6 +248,16 @@ struct HomeFeature {
             // Fetch week activities for calendar
             let weekActivities = try await userClient.fetchWeekActivities(userId)
             await send(.weekActivitiesLoaded(weekActivities))
+
+            // Fetch total habits for progress display
+            let habits = try await adkharService.fetchAllHabits()
+            let totalHabits = habits.morning.count + habits.anytime.count + habits.evening.count
+            let habitsProgress = TodayProgress(
+              completed: activity?.duasCompleted.count ?? 0,
+              total: totalHabits,
+              xpEarned: activity?.xpEarned ?? 0
+            )
+            await send(.habitsProgressLoaded(habitsProgress))
           } catch {
             await send(.profileLoadFailed(error.localizedDescription))
           }

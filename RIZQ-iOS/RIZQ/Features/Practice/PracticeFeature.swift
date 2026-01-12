@@ -181,10 +181,10 @@ struct PracticeFeature {
           try? await clock.sleep(for: .milliseconds(300))
           haptics.celebration()
 
-          // Persist completion to Firestore
+          // Persist completion to Firestore using recordPracticeCompletion
+          // This atomically updates user_activity, user_progress, AND user_profiles.totalXp
           do {
-            try await userClient.recordDuaCompletion(userId, duaId, xp)
-            let updatedProfile = try await userClient.addXp(userId, xp)
+            let updatedProfile = try await userClient.recordPracticeCompletion(userId, duaId, xp)
             await send(.completionSaved(updatedProfile))
             await send(.delegate(.duaCompleted(duaId: duaId, xpEarned: xp)))
             await send(.delegate(.profileUpdated(updatedProfile)))

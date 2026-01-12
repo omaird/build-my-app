@@ -75,27 +75,15 @@ struct AdkharView: View {
           errorOverlay(error: error)
         }
 
-        // Debug banner on top of everything
-        #if DEBUG
-        VStack {
-          debugBanner
-            .padding(.horizontal)
-            .padding(.top, 50)
-          Spacer()
-        }
-        #endif
+        // Debug banner removed - was causing visual clutter
       }
     }
     .task {
-      // Use .task for more reliable loading - runs when view appears and cancels on disappear
-      print("📱 AdkharView: .task triggered, totalHabits=\(store.totalHabits), isLoading=\(store.isLoading)")
       store.send(.onAppear)
     }
     .onAppear {
       // Backup trigger in case .task doesn't fire
-      print("📱 AdkharView: .onAppear triggered as backup")
       if !store.isLoading && store.totalHabits == 0 && store.loadError == nil {
-        print("📱 AdkharView: .onAppear triggering load (task may have missed)")
         store.send(.onAppear)
       }
     }
@@ -121,27 +109,6 @@ struct AdkharView: View {
     }
   }
 
-  // MARK: - Debug Banner (DEBUG builds only)
-  #if DEBUG
-  private var debugBanner: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text("DEBUG: Adkhar State")
-        .font(.caption.bold())
-      Text("isLoading: \(store.isLoading ? "true" : "false")")
-        .font(.caption2)
-      Text("totalHabits: \(store.totalHabits)")
-        .font(.caption2)
-      Text("morning: \(store.morningHabits.count), anytime: \(store.anytimeHabits.count), evening: \(store.eveningHabits.count)")
-        .font(.caption2)
-      Text("error: \(store.loadError ?? "none")")
-        .font(.caption2)
-    }
-    .padding(8)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color.orange.opacity(0.3))
-    .cornerRadius(8)
-  }
-  #endif
 
   // MARK: - Header Section
   private var headerSection: some View {
@@ -236,8 +203,6 @@ struct AdkharView: View {
         .padding(.horizontal, 32)
 
       Button {
-        print("🔵 DEBUG: Browse Journeys button tapped!")
-        // Trigger haptic feedback immediately
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         store.send(.navigateToJourneys)
       } label: {

@@ -541,7 +541,9 @@ extension AdkharServiceClient: DependencyKey {
 
               // Fetch custom habits
               let customHabits = try await habitStorage.getCustomHabits()
+              adkharLogger.info("📱 fetchAllHabits: Got \(customHabits.count) custom habits from storage")
               for customHabit in customHabits {
+                adkharLogger.info("📱 fetchAllHabits: Processing custom habit duaId=\(customHabit.duaId), timeSlot=\(customHabit.timeSlot.rawValue)")
                 if let dua = duasCache[customHabit.duaId] {
                   let habit = Habit(
                     id: dua.id,
@@ -625,7 +627,9 @@ extension AdkharServiceClient: DependencyKey {
       },
 
       recordCompletion: { userId, duaId, xpEarned in
-        try await firestoreService.recordDuaCompletion(
+        // Use recordPracticeCompletion to update user_activity, user_progress, AND user_profiles.totalXp
+        // This ensures completions reflect on the Home page and XP is properly awarded
+        _ = try await firestoreService.recordPracticeCompletion(
           userId: userId,
           duaId: duaId,
           xp: xpEarned

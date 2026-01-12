@@ -58,17 +58,11 @@ struct JourneysView: View {
       }
     }
     .task {
-      // Use .task instead of .onAppear for more reliable loading
-      // .task runs when the view appears AND is cancelled when it disappears
-      print("📱 JourneysView: .task triggered - view appeared, sending .onAppear")
       store.send(.onAppear)
     }
     .onAppear {
-      // Backup trigger - .onAppear runs EVERY time tab is selected (unlike .task which runs once)
-      // This ensures content loads when navigating programmatically from other tabs
-      print("📱 JourneysView: .onAppear triggered, journeys.count=\(store.journeys.count), isLoading=\(store.isLoading)")
+      // Backup trigger for programmatic navigation from other tabs
       if store.journeys.isEmpty && !store.isLoading && store.errorMessage == nil {
-        print("📱 JourneysView: .onAppear triggering load (journeys empty, not loading)")
         store.send(.onAppear)
       }
     }

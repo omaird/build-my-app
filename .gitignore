@@ -1,35 +1,113 @@
+# ===========================================
+# RIZQ App - Comprehensive .gitignore
+# ===========================================
+
+# -------------------------------------------
+# SECURITY - Credentials & Secrets (CRITICAL)
+# -------------------------------------------
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+.env.test
+
+# Firebase credentials (NEVER commit these)
+firebase-service-account.json
+*-service-account*.json
+scripts/service-account-key.json
+
+# Generic secrets patterns
+*.key
+*.pem
+*.p12
+*.cer
+*.pfx
+secrets/
+config/secrets/
+credentials.json
+*credentials*.json
+*secret*.json
+
+# -------------------------------------------
+# Development Tools (Claude, Agents, etc.)
+# -------------------------------------------
+# Claude Code
+.auto-claude/
+.claude/settings.local.json
+.claude/*.local.md
+.claude/ralph-*-state.yml
+
+# Agent frameworks
+.agents/
+
+# MCP servers (Playwright, etc.)
+.playwright-mcp/
+
+# -------------------------------------------
+# Build & Dependencies
+# -------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+build/
+*.local
+
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+firebase-debug.log
+firebase-debug.*.log
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Environment variables
-.env
-.env.local
-
-# Editor directories and files
+# -------------------------------------------
+# Editor & IDE
+# -------------------------------------------
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+
+# Vim/Neovim
 *.sw?
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
 
-# Auto Claude data directory
-.auto-claude/
-firebase-service-account.json
+# -------------------------------------------
+# OS Files
+# -------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Firebase service account key (never commit)
-scripts/service-account-key.json
+# -------------------------------------------
+# Testing
+# -------------------------------------------
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# -------------------------------------------
+# Misc
+# -------------------------------------------
+*.bak
+*.tmp
+*.temp

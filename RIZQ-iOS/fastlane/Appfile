@@ -50,7 +50,7 @@ team_id("5SA6M6679W")
 #   "key_filepath": "fastlane/AuthKey_XXXXXXXXXX.p8"
 # }
 #
-# json_key_file("./fastlane/api_key.json")
+json_key_file("./fastlane/api_key.json")
 
 # ============================================================
 # For Team/Match Code Signing (Optional)

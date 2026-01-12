@@ -40,9 +40,6 @@ struct AppView: View {
             .tag(AppFeature.Tab.settings)
         }
         .tint(.rizqPrimary)
-        .onChange(of: store.selectedTab) { oldTab, newTab in
-          print("📱 AppView: Tab changed from \(oldTab.rawValue) to \(newTab.rawValue)")
-        }
         // Admin Panel Full Screen Cover
         .fullScreenCover(
           item: $store.scope(state: \.admin, action: \.admin)
@@ -55,7 +52,6 @@ struct AppView: View {
     }
     .preferredColorScheme(store.settings.isDarkMode ? .dark : .light)
     .onAppear {
-      print("📱 AppView: onAppear, isAuthenticated=\(store.isAuthenticated), selectedTab=\(store.selectedTab.rawValue)")
       store.send(.onAppear)
     }
   }
