@@ -1,6 +1,9 @@
 import ComposableArchitecture
 import Foundation
+import os.log
 import RIZQKit
+
+private let appLogger = Logger(subsystem: "com.rizq.app", category: "AppFeature")
 
 @Reducer
 struct AppFeature {
@@ -113,6 +116,7 @@ struct AppFeature {
 
       // Handle navigation from Adkhar
       case .adkhar(.navigateToJourneys):
+        appLogger.info("Navigation: Adkhar -> Journeys, switching tab and triggering becameActive")
         state.selectedTab = .journeys
         return .send(.journeys(.becameActive))
 

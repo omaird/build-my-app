@@ -124,15 +124,19 @@ struct JourneysFeature {
         )
 
       case .journeysLoaded(.success(let journeys)):
-        journeyLogger.info("journeysLoaded success: \(journeys.count, privacy: .public) journeys")
+        journeyLogger.info("✅ journeysLoaded success: \(journeys.count, privacy: .public) journeys")
         state.isLoading = false
+        state.errorMessage = nil
         state.journeys = journeys
+        if journeys.isEmpty {
+          journeyLogger.warning("⚠️ journeysLoaded completed but array is empty")
+        }
         return .none
 
       case .journeysLoaded(.failure(let error)):
-        journeyLogger.error("journeysLoaded failure: \(error.localizedDescription, privacy: .public)")
+        journeyLogger.error("❌ journeysLoaded failure: \(error.localizedDescription, privacy: .public)")
         state.isLoading = false
-        state.errorMessage = error.localizedDescription
+        state.errorMessage = "Failed to load journeys: \(error.localizedDescription)"
         return .none
 
       case .loadSubscribedIds:
@@ -274,16 +278,21 @@ extension JourneyServiceClient: DependencyKey {
 
     return JourneyServiceClient(
       fetchJourneys: {
-        journeyLogger.info("Fetching journeys from Firestore...")
+        journeyLogger.info("🚀 Fetching journeys from Firestore...")
         do {
           let journeys = try await firestoreContentService.fetchAllJourneys()
-          journeyLogger.info("Fetched \(journeys.count, privacy: .public) journeys from Firestore")
-          for journey in journeys {
-            journeyLogger.info("  Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public))")
+          journeyLogger.info("✅ Fetched \(journeys.count, privacy: .public) journeys from Firestore")
+          if journeys.isEmpty {
+            journeyLogger.warning("⚠️ No journeys returned from Firestore - check if data exists in 'journeys' collection")
+          } else {
+            for journey in journeys {
+              journeyLogger.info("  📍 Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public), featured: \(journey.isFeatured, privacy: .public))")
+            }
           }
           return journeys
         } catch {
-          journeyLogger.error("Error fetching journeys: \(error.localizedDescription, privacy: .public)")
+          journeyLogger.error("❌ Error fetching journeys: \(error.localizedDescription, privacy: .public)")
+          journeyLogger.error("❌ Full error: \(String(describing: error), privacy: .public)")
           throw error
         }
       },
