@@ -52,7 +52,9 @@ struct JourneysView: View {
         JourneyDetailView(store: detailStore)
       }
     }
-    .onAppear {
+    .task {
+      // Use .task instead of .onAppear for more reliable loading
+      // .task runs when the view appears AND is cancelled when it disappears
       store.send(.onAppear)
     }
     .refreshable {

@@ -78,13 +78,20 @@ struct JourneysFeature {
 
       case .becameActive:
         // Triggered when tab becomes active via programmatic navigation
-        // Load journeys if not already loaded
+        // Always try to load if journeys is empty (even if isLoading is stuck true)
         let journeyCount = state.journeys.count
-        journeyLogger.info("becameActive received, journeys.count: \(journeyCount, privacy: .public)")
-        guard state.journeys.isEmpty && !state.isLoading else {
+        let currentlyLoading = state.isLoading
+        journeyLogger.info("becameActive received, journeys.count: \(journeyCount, privacy: .public), isLoading: \(currentlyLoading, privacy: .public)")
+
+        // If we have journeys, no need to reload
+        guard state.journeys.isEmpty else {
+          journeyLogger.info("Journeys already loaded, skipping fetch on becameActive")
           return .none
         }
+
+        // Force load even if isLoading is true (might be stuck)
         state.isLoading = true
+        state.errorMessage = nil
         journeyLogger.info("Loading journeys on becameActive...")
         return .merge(
           .run { [journeyService] send in

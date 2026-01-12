@@ -391,8 +391,9 @@ struct AdkharFeature {
 
       case .becameActive:
         // Refresh data when tab becomes active to pick up any journey subscription changes
-        // Only refresh if not currently loading and we've loaded before (or have no data)
-        guard !state.isLoading else { return .none }
+        // Always refresh to ensure we have latest data (handles stuck loading state too)
+        let currentlyLoading = state.isLoading
+        adkharLogger.info("becameActive: Refreshing habits, isLoading: \(currentlyLoading, privacy: .public)")
         return .send(.refreshData)
       }
     }
