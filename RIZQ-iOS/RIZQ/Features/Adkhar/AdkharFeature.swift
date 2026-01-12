@@ -512,59 +512,86 @@ extension AdkharServiceClient: DependencyKey {
 
     return AdkharServiceClient(
       fetchAllHabits: {
-        // Get active journey IDs from habit storage
-        let journeyIds = try await habitStorage.getActiveJourneyIds()
+        adkharLogger.info("📱 fetchAllHabits: Starting...")
 
-        // Fetch all duas once and create a lookup cache
-        let allDuas = try await firestoreContentService.fetchAllDuas()
-        let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
+        // Wrap in timeout to prevent hanging
+        do {
+          return try await withThrowingTaskGroup(of: (morning: [Habit], anytime: [Habit], evening: [Habit]).self) { group in
+            group.addTask {
+              // Main fetch logic
+              let journeyIds = try await habitStorage.getActiveJourneyIds()
+              adkharLogger.info("📱 fetchAllHabits: Got \(journeyIds.count) active journey IDs")
 
-        var morning: [Habit] = []
-        var anytime: [Habit] = []
-        var evening: [Habit] = []
+              // Fetch all duas once and create a lookup cache
+              let allDuas = try await firestoreContentService.fetchAllDuas()
+              adkharLogger.info("📱 fetchAllHabits: Got \(allDuas.count) duas from Firestore")
+              let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
 
-        // Fetch journey habits using Firestore
-        for journeyId in journeyIds {
-          let habits = try await fetchJourneyHabits(journeyId: journeyId, duasCache: duasCache)
-          morning.append(contentsOf: habits.morning)
-          anytime.append(contentsOf: habits.anytime)
-          evening.append(contentsOf: habits.evening)
-        }
+              var morning: [Habit] = []
+              var anytime: [Habit] = []
+              var evening: [Habit] = []
 
-        // Fetch custom habits
-        let customHabits = try await habitStorage.getCustomHabits()
-        for customHabit in customHabits {
-          // Use cached dua if available
-          if let dua = duasCache[customHabit.duaId] {
-            let habit = Habit(
-              id: dua.id,
-              duaId: dua.id,
-              titleEn: dua.titleEn,
-              arabicText: dua.arabicText,
-              transliteration: dua.transliteration,
-              translation: dua.translationEn,
-              source: dua.source,
-              rizqBenefit: dua.rizqBenefit,
-              propheticContext: dua.propheticContext,
-              timeSlot: customHabit.timeSlot,
-              xpValue: dua.xpValue,
-              repetitions: dua.repetitions
-            )
+              // Fetch journey habits using Firestore
+              for journeyId in journeyIds {
+                let habits = try await fetchJourneyHabits(journeyId: journeyId, duasCache: duasCache)
+                morning.append(contentsOf: habits.morning)
+                anytime.append(contentsOf: habits.anytime)
+                evening.append(contentsOf: habits.evening)
+              }
 
-            switch customHabit.timeSlot {
-            case .morning: morning.append(habit)
-            case .anytime: anytime.append(habit)
-            case .evening: evening.append(habit)
+              // Fetch custom habits
+              let customHabits = try await habitStorage.getCustomHabits()
+              for customHabit in customHabits {
+                if let dua = duasCache[customHabit.duaId] {
+                  let habit = Habit(
+                    id: dua.id,
+                    duaId: dua.id,
+                    titleEn: dua.titleEn,
+                    arabicText: dua.arabicText,
+                    transliteration: dua.transliteration,
+                    translation: dua.translationEn,
+                    source: dua.source,
+                    rizqBenefit: dua.rizqBenefit,
+                    propheticContext: dua.propheticContext,
+                    timeSlot: customHabit.timeSlot,
+                    xpValue: dua.xpValue,
+                    repetitions: dua.repetitions
+                  )
+
+                  switch customHabit.timeSlot {
+                  case .morning: morning.append(habit)
+                  case .anytime: anytime.append(habit)
+                  case .evening: evening.append(habit)
+                  }
+                }
+              }
+
+              // Sort by ID and remove duplicates
+              morning = Array(Set(morning)).sorted { $0.id < $1.id }
+              anytime = Array(Set(anytime)).sorted { $0.id < $1.id }
+              evening = Array(Set(evening)).sorted { $0.id < $1.id }
+
+              adkharLogger.info("📱 fetchAllHabits: Returning morning=\(morning.count), anytime=\(anytime.count), evening=\(evening.count)")
+              return (morning: morning, anytime: anytime, evening: evening)
             }
+
+            // Timeout task - 8 seconds
+            group.addTask {
+              try await Task.sleep(for: .seconds(8))
+              adkharLogger.warning("📱 fetchAllHabits: Timeout after 8 seconds!")
+              throw NSError(domain: "AdkharService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Fetch timed out"])
+            }
+
+            // Return first result (success or timeout error)
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
           }
+        } catch {
+          // On any error, return empty arrays so user sees "Browse Journeys" button
+          adkharLogger.error("📱 fetchAllHabits: Error - \(error.localizedDescription). Returning empty arrays.")
+          return (morning: [], anytime: [], evening: [])
         }
-
-        // Sort by ID and remove duplicates (same dua might be in journey + custom)
-        morning = Array(Set(morning)).sorted { $0.id < $1.id }
-        anytime = Array(Set(anytime)).sorted { $0.id < $1.id }
-        evening = Array(Set(evening)).sorted { $0.id < $1.id }
-
-        return (morning: morning, anytime: anytime, evening: evening)
       },
 
       fetchHabitsForJourneys: { journeyIds in
