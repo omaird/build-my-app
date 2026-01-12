@@ -64,7 +64,13 @@ struct JourneysView: View {
       store.send(.onAppear)
     }
     .onAppear {
-      print("📱 JourneysView: .onAppear triggered")
+      // Backup trigger - .onAppear runs EVERY time tab is selected (unlike .task which runs once)
+      // This ensures content loads when navigating programmatically from other tabs
+      print("📱 JourneysView: .onAppear triggered, journeys.count=\(store.journeys.count), isLoading=\(store.isLoading)")
+      if store.journeys.isEmpty && !store.isLoading && store.errorMessage == nil {
+        print("📱 JourneysView: .onAppear triggering load (journeys empty, not loading)")
+        store.send(.onAppear)
+      }
     }
     .refreshable {
       store.send(.refreshJourneys)

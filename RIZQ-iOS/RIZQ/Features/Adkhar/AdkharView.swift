@@ -86,9 +86,18 @@ struct AdkharView: View {
         #endif
       }
     }
-    .onAppear {
-      print("📱 AdkharView: .onAppear triggered, totalHabits=\(store.totalHabits), isLoading=\(store.isLoading)")
+    .task {
+      // Use .task for more reliable loading - runs when view appears and cancels on disappear
+      print("📱 AdkharView: .task triggered, totalHabits=\(store.totalHabits), isLoading=\(store.isLoading)")
       store.send(.onAppear)
+    }
+    .onAppear {
+      // Backup trigger in case .task doesn't fire
+      print("📱 AdkharView: .onAppear triggered as backup")
+      if !store.isLoading && store.totalHabits == 0 && store.loadError == nil {
+        print("📱 AdkharView: .onAppear triggering load (task may have missed)")
+        store.send(.onAppear)
+      }
     }
     .refreshable {
       store.send(.refreshData)
