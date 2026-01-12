@@ -73,6 +73,16 @@ struct AdkharView: View {
         } else if let error = store.loadError {
           errorOverlay(error: error)
         }
+
+        // Debug banner on top of everything
+        #if DEBUG
+        VStack {
+          debugBanner
+            .padding(.horizontal)
+            .padding(.top, 50)
+          Spacer()
+        }
+        #endif
       }
     }
     .onAppear {
@@ -99,6 +109,28 @@ struct AdkharView: View {
       }
     }
   }
+
+  // MARK: - Debug Banner (DEBUG builds only)
+  #if DEBUG
+  private var debugBanner: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("DEBUG: Adkhar State")
+        .font(.caption.bold())
+      Text("isLoading: \(store.isLoading ? "true" : "false")")
+        .font(.caption2)
+      Text("totalHabits: \(store.totalHabits)")
+        .font(.caption2)
+      Text("morning: \(store.morningHabits.count), anytime: \(store.anytimeHabits.count), evening: \(store.eveningHabits.count)")
+        .font(.caption2)
+      Text("error: \(store.loadError ?? "none")")
+        .font(.caption2)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.orange.opacity(0.3))
+    .cornerRadius(8)
+  }
+  #endif
 
   // MARK: - Header Section
   private var headerSection: some View {
