@@ -9,7 +9,9 @@ private let journeyLogger = Logger(subsystem: "com.rizq.app", category: "Journey
 struct JourneysFeature {
   @ObservableState
   struct State: Equatable {
-    var journeys: [Journey] = []
+    // Initialize with sample data so content shows IMMEDIATELY
+    // This ensures user always sees journeys, even if Firestore is slow/failing
+    var journeys: [Journey] = SampleData.journeys
     var subscribedJourneyIds: Set<Int> = []
     var isLoading: Bool = false
     var errorMessage: String? = nil
@@ -58,12 +60,9 @@ struct JourneysFeature {
       case .onAppear:
         let journeyCount = state.journeys.count
         journeyLogger.info("onAppear received, journeys.count: \(journeyCount, privacy: .public)")
-        guard state.journeys.isEmpty else {
-          journeyLogger.info("Journeys already loaded, skipping fetch")
-          return .none
-        }
-        state.isLoading = true
-        journeyLogger.info("Starting to fetch journeys...")
+        // Always try to fetch from Firestore to get latest data
+        // Sample data is shown immediately, then replaced with Firestore data
+        journeyLogger.info("Starting to fetch journeys from Firestore...")
         return .merge(
           .run { [journeyService] send in
             do {
