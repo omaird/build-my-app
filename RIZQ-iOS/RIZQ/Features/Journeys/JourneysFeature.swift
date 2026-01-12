@@ -81,7 +81,7 @@ struct JourneysFeature {
         // Always try to load if journeys is empty (even if isLoading is stuck true)
         let journeyCount = state.journeys.count
         let currentlyLoading = state.isLoading
-        journeyLogger.info("becameActive received, journeys.count: \(journeyCount, privacy: .public), isLoading: \(currentlyLoading, privacy: .public)")
+        journeyLogger.info("🎯 JourneysFeature.becameActive received! journeys.count: \(journeyCount, privacy: .public), isLoading: \(currentlyLoading, privacy: .public)")
 
         // If we have journeys, no need to reload
         guard state.journeys.isEmpty else {

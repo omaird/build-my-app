@@ -387,6 +387,7 @@ struct AdkharFeature {
 
       case .navigateToJourneys:
         // Handled by parent AppFeature
+        adkharLogger.info("🚀 navigateToJourneys action sent from AdkharFeature - bubbling up to parent")
         return .none
 
       case .becameActive:

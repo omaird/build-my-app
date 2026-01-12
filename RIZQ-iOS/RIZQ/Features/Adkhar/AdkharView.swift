@@ -225,6 +225,7 @@ struct AdkharView: View {
         .padding(.horizontal, 32)
 
       Button {
+        print("🔵 DEBUG: Browse Journeys button tapped!")
         store.send(.navigateToJourneys)
       } label: {
         HStack(spacing: RIZQSpacing.sm) {
@@ -235,6 +236,7 @@ struct AdkharView: View {
       }
       .accessibilityLabel("Browse Journeys")
       .accessibilityHint("Explore dua collections to add to your daily routine")
+      .sensoryFeedback(.impact, trigger: store.isLoading) // Haptic on tap
     }
     .padding(.top, 40)
   }

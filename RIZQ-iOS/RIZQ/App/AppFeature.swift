@@ -116,8 +116,10 @@ struct AppFeature {
 
       // Handle navigation from Adkhar
       case .adkhar(.navigateToJourneys):
-        appLogger.info("Navigation: Adkhar -> Journeys, switching tab and triggering becameActive")
+        let previousTab = state.selectedTab.rawValue
         state.selectedTab = .journeys
+        let newTab = state.selectedTab.rawValue
+        appLogger.info("🚀 AppFeature received navigateToJourneys! Previous: \(previousTab, privacy: .public) -> Now: \(newTab, privacy: .public)")
         return .send(.journeys(.becameActive))
 
       // Handle auth state changes
