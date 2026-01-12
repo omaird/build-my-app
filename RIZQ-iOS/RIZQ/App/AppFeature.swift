@@ -120,7 +120,12 @@ struct AppFeature {
         state.selectedTab = .journeys
         let newTab = state.selectedTab.rawValue
         appLogger.info("🚀 AppFeature received navigateToJourneys! Previous: \(previousTab, privacy: .public) -> Now: \(newTab, privacy: .public)")
-        return .send(.journeys(.becameActive))
+        // Send becameActive after a short delay to ensure tab switch completes
+        return .run { send in
+          // Small delay to let SwiftUI process the tab change
+          try? await Task.sleep(for: .milliseconds(100))
+          await send(.journeys(.becameActive))
+        }
 
       // Handle auth state changes
       case .auth(.authSuccess(let user)):

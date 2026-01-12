@@ -36,7 +36,14 @@ platform :ios do
       export_method: "app-store",
       clean: true,
       output_directory: "./build",
-      output_name: "RIZQ.ipa"
+      output_name: "RIZQ.ipa",
+      xcpretty_formatter: nil,  # Disable xcpretty to avoid Ruby conflicts
+      disable_xcpretty: true,
+      export_xcargs: "-allowProvisioningUpdates",
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "5SA6M6679W"
+      }
     )
   end
 
@@ -80,7 +87,7 @@ platform :ios do
     # Build and upload
     build
     upload_to_testflight(
-      skip_waiting_for_build_processing: false
+      skip_waiting_for_build_processing: true
     )
   end
 

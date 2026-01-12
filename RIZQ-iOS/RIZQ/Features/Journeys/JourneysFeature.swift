@@ -78,21 +78,16 @@ struct JourneysFeature {
 
       case .becameActive:
         // Triggered when tab becomes active via programmatic navigation
-        // Always try to load if journeys is empty (even if isLoading is stuck true)
+        // ALWAYS force load to ensure content shows - this is called explicitly when navigating
         let journeyCount = state.journeys.count
         let currentlyLoading = state.isLoading
         journeyLogger.info("🎯 JourneysFeature.becameActive received! journeys.count: \(journeyCount, privacy: .public), isLoading: \(currentlyLoading, privacy: .public)")
 
-        // If we have journeys, no need to reload
-        guard state.journeys.isEmpty else {
-          journeyLogger.info("Journeys already loaded, skipping fetch on becameActive")
-          return .none
-        }
-
-        // Force load even if isLoading is true (might be stuck)
+        // Force load regardless of current state when explicitly navigated to
+        // This ensures content always loads when user taps "Browse Journeys"
         state.isLoading = true
         state.errorMessage = nil
-        journeyLogger.info("Loading journeys on becameActive...")
+        journeyLogger.info("🔄 Force loading journeys on becameActive...")
         return .merge(
           .run { [journeyService] send in
             do {
