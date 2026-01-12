@@ -9,6 +9,11 @@ struct JourneysView: View {
     NavigationStack {
       ScrollView {
         VStack(spacing: RIZQSpacing.xxl) {
+          // Debug banner - shows current state for troubleshooting
+          #if DEBUG
+          debugBanner
+          #endif
+
           // Header description
           headerSection
 
@@ -61,6 +66,28 @@ struct JourneysView: View {
       store.send(.refreshJourneys)
     }
   }
+
+  // MARK: - Debug Banner (DEBUG builds only)
+  #if DEBUG
+  private var debugBanner: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text("DEBUG: Journeys State")
+        .font(.caption.bold())
+      Text("isLoading: \(store.isLoading ? "true" : "false")")
+        .font(.caption2)
+      Text("journeys.count: \(store.journeys.count)")
+        .font(.caption2)
+      Text("error: \(store.errorMessage ?? "none")")
+        .font(.caption2)
+      Text("subscribed: \(store.subscribedJourneyIds.count)")
+        .font(.caption2)
+    }
+    .padding(8)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color.yellow.opacity(0.3))
+    .cornerRadius(8)
+  }
+  #endif
 
   // MARK: - Header Section
 
