@@ -109,6 +109,8 @@ struct QuickPracticeSheet: View {
             .foregroundStyle(Color.rizqTextSecondary)
         }
       }
+      .accessibilityLabel("Close")
+      .accessibilityHint("Dismiss quick practice sheet")
     }
     .padding(.horizontal, 24)
     .padding(.top, 16)
@@ -235,6 +237,8 @@ struct QuickPracticeSheet: View {
               .foregroundStyle(Color.rizqTextSecondary)
           }
         }
+        .accessibilityLabel("Reset counter")
+        .accessibilityHint("Start counting repetitions from zero")
       }
 
       // Main Action Button
@@ -258,6 +262,17 @@ struct QuickPracticeSheet: View {
         .shadowGlowPrimary()
       }
       .disabled(isCompleted)
+      .accessibilityLabel(mainButtonAccessibilityLabel)
+      .accessibilityHint(isCompleted ? "" : "Tap to increment repetition counter")
+    }
+  }
+
+  // MARK: - Accessibility Helpers
+  private var mainButtonAccessibilityLabel: String {
+    if isCompleted {
+      return "Completed"
+    } else {
+      return "Count repetition \(repetitionCount + 1) of \(habit.repetitions)"
     }
   }
 
@@ -297,6 +312,9 @@ struct QuickPracticeSheet: View {
       }
     }
     .transition(.opacity)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Congratulations! MashaAllah! You earned \(habit.xpValue) XP")
+    .accessibilityAddTraits(.isModal)
   }
 }
 

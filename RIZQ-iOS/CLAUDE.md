@@ -228,13 +228,49 @@ state.detail = nil
 .sheet(item: $store.scope(state: \.detail, action: \.detail)) { ... }
 ```
 
+## Data Layer Architecture
+
+### Firebase-Only Architecture (Current)
+
+As of January 2026, the iOS app uses **Firebase Firestore exclusively** for all data operations:
+
+| Data Type | TCA Dependency | Service |
+|-----------|----------------|---------|
+| Content (duas, journeys, categories) | `\.firestoreContentClient` | `FirestoreContentService` |
+| User data (profiles, activity) | `\.firestoreUserClient` | `FirebaseUserService` |
+| Admin operations | `\.adminService` | `FirebaseAdminService` |
+| Authentication | `\.authClient` | `FirebaseAuthService` |
+
+### Deprecated: Neon PostgreSQL
+
+The following Neon-related code is **deprecated but preserved** for potential rollback:
+
+| Deprecated File | Replacement |
+|-----------------|-------------|
+| `NeonService.swift` | `FirebaseUserService`, `FirestoreContentService` |
+| `NeonClient.swift` | `FirestoreUserClient`, `FirestoreContentClient` |
+| `AdminService.swift` | `FirebaseAdminService` |
+| `APIClient.swift` | Firebase services |
+| `FirebaseNeonService.swift` | Direct Firebase services |
+
+**Do NOT use deprecated Neon services in new code.**
+
+### Rollback Procedure (If Needed)
+
+If issues arise requiring Neon rollback:
+1. Revert `AdminServiceKey.liveValue` to use `AdminService` in `AdminDashboardFeature.swift`
+2. Update features to use `neonClient` instead of `firestoreUserClient`
+3. Restore `ServiceContainer` Neon initialization in `Dependencies.swift`
+4. Re-add Neon environment variables to `Info.plist`
+
 ## Dependencies
 
 ### Accessing Dependencies
 
 ```swift
-@Dependency(\.firestoreClient) var firestoreClient
-@Dependency(\.authService) var authService
+@Dependency(\.firestoreContentClient) var firestoreContentClient  // Content data
+@Dependency(\.firestoreUserClient) var firestoreUserClient        // User data
+@Dependency(\.authClient) var authClient                          // Authentication
 @Dependency(\.date.now) var now
 @Dependency(\.dismiss) var dismiss
 ```
@@ -243,8 +279,10 @@ state.detail = nil
 
 | Dependency | Purpose |
 |------------|---------|
-| `\.firestoreClient` | Firestore database operations |
-| `\.authService` | Firebase Authentication |
+| `\.firestoreContentClient` | Content (duas, journeys, categories) from Firestore |
+| `\.firestoreUserClient` | User data (profiles, activity, completions) from Firestore |
+| `\.authClient` | Firebase Authentication (sign in, sign up, OAuth) |
+| `\.adminService` | Admin panel operations (user management) |
 | `\.haptics` | Haptic feedback |
 | `\.dismiss` | Dismiss presented views |
 | `\.continuousClock` | Timing and delays |

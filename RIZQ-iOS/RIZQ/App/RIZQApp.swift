@@ -58,29 +58,15 @@ struct RIZQApp: App {
     // Note: Firebase is configured in AppDelegate.didFinishLaunchingWithOptions
     // Emulator configuration is also handled there (must happen after FirebaseApp.configure)
 
-    // Debug: Check Info.plist values
-    let neonHost = Bundle.main.object(forInfoDictionaryKey: "NeonHost") as? String
-    let neonApiKey = Bundle.main.object(forInfoDictionaryKey: "NeonApiKey") as? String
-    let neonProjectId = Bundle.main.object(forInfoDictionaryKey: "NeonProjectId") as? String
-    let neonDbUrl = Bundle.main.object(forInfoDictionaryKey: "NeonDatabaseUrl") as? String
-    logger.info("NeonHost: \(neonHost ?? "nil", privacy: .public)")
-    logger.info("NeonApiKey: \(neonApiKey != nil ? "SET" : "NIL", privacy: .public)")
-    logger.info("NeonProjectId: \(neonProjectId ?? "nil", privacy: .public)")
-    logger.info("NeonDatabaseUrl: \(neonDbUrl ?? "nil", privacy: .public)")
-
-    // Configure ServiceContainer with Firebase
+    // Configure ServiceContainer with Firebase only
+    // Neon PostgreSQL is deprecated - all data now uses Firebase Firestore
     let firebaseConfig = FirebaseConfiguration(
       projectId: "rizq-app-c6468",
       useEmulator: false
     )
     let configuration = AppConfiguration(firebase: firebaseConfig)
-
-    // Debug: Check if API config was loaded
-    logger.info("API neonHost: \(configuration.api.neonHost, privacy: .public)")
-    logger.info("API databaseUrl empty: \(configuration.api.databaseUrl.isEmpty, privacy: .public)")
-
     ServiceContainer.shared.configure(with: configuration)
-    logger.info("ServiceContainer configured: \(ServiceContainer.shared.isConfigured, privacy: .public)")
+    logger.info("ServiceContainer configured with Firebase: \(ServiceContainer.shared.isConfigured, privacy: .public)")
   }
 
   var body: some Scene {

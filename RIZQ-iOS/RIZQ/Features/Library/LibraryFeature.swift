@@ -51,9 +51,12 @@ struct LibraryFeature {
     var selectedCategory: CategorySlug?
     var isLoading: Bool = false
     var errorMessage: String?
-    var activeHabitDuaIds: Set<Int> = []  // Track which duas are in user's habits
+    var activeHabitDuaIds: Set<Int> = []   // Track which duas are in user's habits
+    var completedTodayDuaIds: Set<Int> = []  // Track which duas were completed today
+    var userId: String?
 
     @Presents var addToAdkharSheet: AddToAdkharSheetFeature.State?
+    @Presents var practiceSheet: PracticeSheetFeature.State?
 
     /// Computed property for filtered duas based on search and category
     var filteredDuas: [Dua] {
@@ -72,21 +75,30 @@ struct LibraryFeature {
 
       return result
     }
+
+    /// Check if a dua was completed today
+    func isCompletedToday(_ duaId: Int) -> Bool {
+      completedTodayDuaIds.contains(duaId)
+    }
   }
 
   enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
+    case setUserId(String?)
     case duasLoaded(Result<[Dua], Error>)
+    case todayActivityLoaded(UserActivity?)
     case categorySelected(CategorySlug?)
     case categoryDuasLoaded(Result<[Dua], Error>)
     case duaTapped(Dua)
     case addToAdkharTapped(Dua)
     case addToAdkharSheet(PresentationAction<AddToAdkharSheetFeature.Action>)
+    case practiceSheet(PresentationAction<PracticeSheetFeature.Action>)
     case retryTapped
   }
 
   @Dependency(\.firestoreContentClient) var contentClient
+  @Dependency(\.firestoreUserClient) var userClient
   @Dependency(\.continuousClock) var clock
 
   private enum CancelID { case search }
@@ -108,14 +120,37 @@ struct LibraryFeature {
         state.isLoading = true
         state.errorMessage = nil
 
-        return .run { send in
+        return .run { [userId = state.userId] send in
           do {
             let duas = try await contentClient.fetchAllDuas()
             await send(.duasLoaded(.success(duas)))
+
+            // Fetch today's activity if we have a user ID
+            if let userId = userId {
+              let activity = try await userClient.fetchUserActivity(userId, Date())
+              await send(.todayActivityLoaded(activity))
+            }
           } catch {
             await send(.duasLoaded(.failure(error)))
           }
         }
+
+      case .setUserId(let userId):
+        state.userId = userId
+        // If we already have duas loaded, fetch today's activity
+        if !state.allDuas.isEmpty, let userId = userId {
+          return .run { send in
+            let activity = try? await userClient.fetchUserActivity(userId, Date())
+            await send(.todayActivityLoaded(activity))
+          }
+        }
+        return .none
+
+      case .todayActivityLoaded(let activity):
+        if let activity = activity {
+          state.completedTodayDuaIds = Set(activity.duasCompleted)
+        }
+        return .none
 
       case .duasLoaded(.success(let duas)):
         state.isLoading = false
@@ -171,8 +206,17 @@ struct LibraryFeature {
         }
         return .none
 
-      case .duaTapped:
-        // Navigate to practice view - handled by parent
+      case .duaTapped(let dua):
+        // Present practice sheet for the selected dua
+        state.practiceSheet = PracticeSheetFeature.State(dua: dua, userId: state.userId)
+        return .none
+
+      case .practiceSheet(.presented(.delegate(.duaCompleted(let duaId)))):
+        // Add to completed set when dua is completed in practice sheet
+        state.completedTodayDuaIds.insert(duaId)
+        return .none
+
+      case .practiceSheet:
         return .none
 
       case .addToAdkharTapped(let dua):
@@ -194,6 +238,108 @@ struct LibraryFeature {
     }
     .ifLet(\.$addToAdkharSheet, action: \.addToAdkharSheet) {
       AddToAdkharSheetFeature()
+    }
+    .ifLet(\.$practiceSheet, action: \.practiceSheet) {
+      PracticeSheetFeature()
+    }
+  }
+}
+
+// MARK: - Practice Sheet Feature (inline for quick practice from library)
+
+@Reducer
+struct PracticeSheetFeature {
+  @ObservableState
+  struct State: Equatable {
+    let dua: Dua
+    var userId: String?
+    var currentCount: Int = 0
+    var isComplete: Bool = false
+    var isSaving: Bool = false
+
+    var targetCount: Int { dua.repetitions }
+    var progress: Double {
+      targetCount > 0 ? Double(currentCount) / Double(targetCount) : 0
+    }
+  }
+
+  enum Action {
+    case incrementTapped
+    case completeTapped
+    case closeTapped
+    case saveCompleted(Result<Void, Error>)
+    case delegate(Delegate)
+
+    @CasePathable
+    enum Delegate: Equatable {
+      case duaCompleted(duaId: Int)
+    }
+  }
+
+  @Dependency(\.dismiss) var dismiss
+  @Dependency(\.firestoreUserClient) var userClient
+  @Dependency(HapticClient.self) var haptics
+
+  var body: some ReducerOf<Self> {
+    Reduce { state, action in
+      switch action {
+      case .incrementTapped:
+        guard state.currentCount < state.targetCount else { return .none }
+        state.currentCount += 1
+
+        // Auto-complete when target reached
+        if state.currentCount >= state.targetCount {
+          state.isComplete = true
+          return .run { _ in
+            haptics.success()
+          }
+        } else {
+          return .run { _ in
+            haptics.counterIncrement()
+          }
+        }
+
+      case .completeTapped:
+        guard let userId = state.userId else {
+          return .run { _ in await dismiss() }
+        }
+        state.isSaving = true
+        let duaId = state.dua.id
+        let xpValue = state.dua.xpValue
+
+        return .run { send in
+          do {
+            // Record the completion
+            try await userClient.recordDuaCompletion(userId, duaId, xpValue)
+            await send(.saveCompleted(.success(())))
+          } catch {
+            await send(.saveCompleted(.failure(error)))
+          }
+        }
+
+      case .saveCompleted(.success):
+        state.isSaving = false
+        let duaId = state.dua.id
+        return .run { send in
+          haptics.success()
+          await send(.delegate(.duaCompleted(duaId: duaId)))
+          await dismiss()
+        }
+
+      case .saveCompleted(.failure):
+        state.isSaving = false
+        // Still dismiss but don't mark as completed
+        return .run { _ in
+          haptics.warning()
+          await dismiss()
+        }
+
+      case .closeTapped:
+        return .run { _ in await dismiss() }
+
+      case .delegate:
+        return .none
+      }
     }
   }
 }

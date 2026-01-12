@@ -21,6 +21,10 @@ struct AdminUsersFeature {
     var userToToggleAdmin: UserProfile?
     var isToggleAdminConfirmationPresented: Bool = false
 
+    // Premium toggle confirmation
+    var userToTogglePremium: UserProfile?
+    var isTogglePremiumConfirmationPresented: Bool = false
+
     // Delete confirmation
     var userToDelete: UserProfile?
     var isDeleteConfirmationPresented: Bool = false
@@ -38,6 +42,7 @@ struct AdminUsersFeature {
     // Stats
     var totalUsers: Int { users.count }
     var adminCount: Int { users.filter { $0.isAdmin }.count }
+    var premiumCount: Int { users.filter { $0.isPremium }.count }
     var activeToday: Int { users.filter { isActiveToday($0) }.count }
 
     private func isActiveToday(_ user: UserProfile) -> Bool {
@@ -60,6 +65,12 @@ struct AdminUsersFeature {
     case confirmToggleAdmin
     case cancelToggleAdmin
     case adminToggled(Result<UserProfile, Error>)
+
+    // Premium toggle
+    case togglePremiumTapped(UserProfile)
+    case confirmTogglePremium
+    case cancelTogglePremium
+    case premiumToggled(Result<UserProfile, Error>)
 
     // Delete actions
     case deleteUserTapped(UserProfile)
@@ -162,6 +173,54 @@ struct AdminUsersFeature {
         state.isLoading = false
         state.errorMessage = error.localizedDescription
         state.userToToggleAdmin = nil
+        return .none
+
+      // MARK: - Premium Toggle
+
+      case .togglePremiumTapped(let user):
+        state.userToTogglePremium = user
+        state.isTogglePremiumConfirmationPresented = true
+        return .none
+
+      case .confirmTogglePremium:
+        guard let user = state.userToTogglePremium else { return .none }
+        state.isTogglePremiumConfirmationPresented = false
+        state.isLoading = true
+
+        let userId = user.userId
+        let newIsPremium = !user.isPremium
+
+        return .run { send in
+          do {
+            let updatedUser = try await adminService.updateUserPremium(userId: userId, isPremium: newIsPremium)
+            await send(.premiumToggled(.success(updatedUser)))
+          } catch {
+            await send(.premiumToggled(.failure(error)))
+          }
+        }
+
+      case .cancelTogglePremium:
+        state.isTogglePremiumConfirmationPresented = false
+        state.userToTogglePremium = nil
+        return .none
+
+      case .premiumToggled(.success(let updatedUser)):
+        state.isLoading = false
+        if let index = state.users.firstIndex(where: { $0.userId == updatedUser.userId }) {
+          state.users[index] = updatedUser
+        }
+        // Update selected user if it's the same
+        if state.selectedUser?.userId == updatedUser.userId {
+          state.selectedUser = updatedUser
+        }
+        state.userToTogglePremium = nil
+        state.successMessage = updatedUser.isPremium ? "User upgraded to premium" : "Premium status removed"
+        return .none
+
+      case .premiumToggled(.failure(let error)):
+        state.isLoading = false
+        state.errorMessage = error.localizedDescription
+        state.userToTogglePremium = nil
         return .none
 
       // MARK: - Delete Actions

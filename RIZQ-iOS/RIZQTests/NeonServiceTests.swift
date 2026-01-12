@@ -1,6 +1,18 @@
 import XCTest
 @testable import RIZQKit
 
+// MARK: - DEPRECATED: Neon Service Tests
+// ============================================================================
+// These tests are DEPRECATED and kept for potential rollback.
+// The app has migrated from Neon PostgreSQL to Firebase Firestore.
+// MockNeonService is still available for backward compatibility testing.
+//
+// For new tests, use:
+// - FirestoreUserClient for user data operations
+// - FirestoreContentClient for content (duas, journeys, categories)
+// - FirebaseAdminService for admin operations
+// ============================================================================
+
 final class NeonServiceTests: XCTestCase {
 
   // MARK: - MockNeonService Dua Tests

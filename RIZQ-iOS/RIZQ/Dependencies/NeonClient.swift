@@ -2,8 +2,16 @@ import ComposableArchitecture
 import Foundation
 import RIZQKit
 
+// MARK: - DEPRECATED: Neon Client
+// ============================================================================
+// This file is DEPRECATED and kept for potential rollback.
+// Use FirestoreUserClient for user data operations.
+// Use FirestoreContentClient for content (duas, journeys, categories).
+// ============================================================================
+
 /// TCA dependency client for Neon database operations
 /// Provides async closures that wrap the NeonServiceProtocol for easy testing
+@available(*, deprecated, message: "Use FirestoreUserClient for user data and FirestoreContentClient for content")
 @DependencyClient
 struct NeonClient: Sendable {
   // MARK: - Duas

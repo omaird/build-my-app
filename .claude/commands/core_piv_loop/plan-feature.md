@@ -14,6 +14,8 @@ Transform a feature request into a **comprehensive implementation plan** through
 
 **Key Philosophy**: Context is King. The plan must contain ALL information needed for implementation - patterns, mandatory reading, documentation, validation commands - so the execution agent succeeds on the first attempt.
 
+**Plan-Loop Ready**: Plans must include a FEATURES section that groups atomic tasks into logical features with acceptance criteria. This enables multi-persona iterative review via `/ralph-wiggum:plan-loop`.
+
 ## Planning Process
 
 ### Phase 1: Feature Understanding
@@ -141,6 +143,19 @@ So that <benefit/value>
 
 **Create comprehensive plan with the following structure:**
 
+**Feature Grouping Strategy:**
+When creating the FEATURES section, group atomic tasks into 3-6 logical features:
+
+1. **Foundation Features First** - Data models, types, schemas (Tasks that other tasks depend on)
+2. **Component Features** - Individual UI components or service modules (Can be built independently)
+3. **Integration Features Last** - Wiring everything together, state management updates, final polish
+
+Each feature should:
+- Be completable in 6-12 persona iterations (1-2 cycles)
+- Have 5-15 specific acceptance criteria
+- Include all files that change together logically
+- Reference which atomic tasks it encompasses
+
 Whats below here is a template for you to fill for the implementation agent:
 
 ```markdown
@@ -260,6 +275,49 @@ So that <benefit/value>
 - Create integration tests for feature workflow
 - Add edge case tests
 - Validate against acceptance criteria
+
+---
+
+## FEATURES (For Plan-Loop Execution)
+
+Group the atomic tasks below into logical features. Each feature goes through a 6-persona iterative review cycle (Code Reviewer → System Architect → Frontend Designer → QA Engineer → Project Manager → Business Analyst) before moving to the next.
+
+### 1. <Feature Name>
+
+**Description:** <What this feature does and why - one paragraph>
+
+**Files:**
+- `path/to/file1.ext` - Create/Modify
+- `path/to/file2.ext` - Modify
+
+**Tasks Included:** Task 1, Task 2, ...
+
+**Acceptance Criteria:**
+- [ ] <Specific, testable criterion 1>
+- [ ] <Specific, testable criterion 2>
+- [ ] <Specific, testable criterion 3>
+- [ ] Build compiles without errors
+- [ ] Tests pass for this feature
+
+---
+
+### 2. <Feature Name>
+
+**Description:** <What this feature does and why>
+
+**Files:**
+- `path/to/file.ext` - Create/Modify
+
+**Tasks Included:** Task X, Task Y, ...
+
+**Acceptance Criteria:**
+- [ ] <Specific, testable criterion 1>
+- [ ] <Specific, testable criterion 2>
+- [ ] Build compiles without errors
+
+---
+
+<Continue with additional features as needed - typically 3-6 features per plan>
 
 ---
 
@@ -398,6 +456,14 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 - [ ] Each task is atomic and independently testable
 - [ ] Pattern references include specific file:line numbers
 
+### Plan-Loop Ready (Ralph Wiggum)
+
+- [ ] FEATURES section groups tasks into 3-6 logical features
+- [ ] Each feature has specific, testable acceptance criteria (5-15 per feature)
+- [ ] Features ordered by dependency (foundation → components → integration)
+- [ ] Each feature references which atomic tasks it encompasses
+- [ ] Acceptance criteria are checkboxes that can be verified after persona cycles
+
 ### Pattern Consistency
 
 - [ ] Tasks follow existing codebase conventions
@@ -431,3 +497,25 @@ After creating the Plan, provide:
 - Complexity assessment
 - Key implementation risks or considerations
 - Estimated confidence score for one-pass success
+- Number of features created for plan-loop
+
+## Plan-Loop Execution
+
+After the plan is created, it can be executed with multi-persona iterative review:
+
+```
+/ralph-wiggum:plan-loop .agents/plans/{plan-filename}.md
+```
+
+**Execution Flow:**
+1. Loop processes each feature one at a time
+2. Each feature gets 6-persona review cycle before moving to next
+3. Acceptance criteria checked after each persona cycle
+4. Progress tracked in `.claude/ralph-plan-state.yml`
+
+**Options:**
+- `--personas-per-feature 6` - Full 6-persona cycle per feature (default)
+- `--personas-per-feature 3` - Quick 3-persona cycle (Code Reviewer, QA, PM)
+- `--max-iterations 50` - Cap total iterations
+
+**Cancel:** `/ralph-wiggum:cancel-ralph`

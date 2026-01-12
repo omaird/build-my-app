@@ -61,12 +61,9 @@ struct AdminDashboardFeature {
 // MARK: - Dependency
 
 private enum AdminServiceKey: DependencyKey {
-  static let liveValue: any AdminServiceProtocol = {
-    if let config = ServiceContainer.shared.appConfiguration {
-      return AdminService(configuration: config.api)
-    }
-    return MockAdminService()
-  }()
+  // Use FirebaseAdminService for all admin operations
+  // No longer requires Neon API configuration
+  static let liveValue: any AdminServiceProtocol = FirebaseAdminService()
 
   static let testValue: any AdminServiceProtocol = MockAdminService()
   static let previewValue: any AdminServiceProtocol = MockAdminService()

@@ -88,7 +88,7 @@ struct PracticeFeature {
 
   @Dependency(\.continuousClock) var clock
   @Dependency(\.haptics) var haptics
-  @Dependency(\.neonClient) var neonClient
+  @Dependency(\.firestoreUserClient) var userClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -183,8 +183,8 @@ struct PracticeFeature {
 
           // Persist completion to Firestore
           do {
-            try await neonClient.recordDuaCompletion(userId, duaId, xp)
-            let updatedProfile = try await neonClient.addXp(userId, xp)
+            try await userClient.recordDuaCompletion(userId, duaId, xp)
+            let updatedProfile = try await userClient.addXp(userId, xp)
             await send(.completionSaved(updatedProfile))
             await send(.delegate(.duaCompleted(duaId: duaId, xpEarned: xp)))
             await send(.delegate(.profileUpdated(updatedProfile)))

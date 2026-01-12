@@ -27,11 +27,23 @@ public struct FirebaseConfiguration: Sendable {
 }
 
 /// Combined configuration for all services
+/// Note: Neon API configuration is deprecated - all user data now uses Firebase
 public struct AppConfiguration: Sendable {
+  /// Deprecated: Neon API configuration is no longer used
+  @available(*, deprecated, message: "Neon API configuration is no longer used. All data now uses Firebase.")
   public let api: APIConfiguration
+
   public let firebase: FirebaseConfiguration
 
-  /// Initialize with Firebase configuration
+  /// Initialize with Firebase configuration only (recommended)
+  public init(firebase: FirebaseConfiguration) {
+    self.firebase = firebase
+    // Empty placeholder for backwards compatibility
+    self.api = APIConfiguration(neonHost: "", neonApiKey: "", projectId: "", databaseUrl: "")
+  }
+
+  /// Deprecated: Initialize with Neon API configuration
+  @available(*, deprecated, message: "Use init(firebase:) instead. Neon API is no longer used.")
   public init(
     firebase: FirebaseConfiguration,
     neonHost: String,
@@ -41,18 +53,6 @@ public struct AppConfiguration: Sendable {
   ) {
     self.firebase = firebase
     self.api = APIConfiguration(neonHost: neonHost, neonApiKey: neonApiKey, projectId: projectId, databaseUrl: databaseUrl)
-  }
-
-  /// Initialize with Firebase configuration using environment variables
-  public init(firebase: FirebaseConfiguration) {
-    self.firebase = firebase
-    // Try to get API config from environment
-    if let apiConfig = APIConfiguration.fromEnvironment() {
-      self.api = apiConfig
-    } else {
-      // Placeholder - Firebase doesn't need Neon API for user data
-      self.api = APIConfiguration(neonHost: "", neonApiKey: "", projectId: "", databaseUrl: "")
-    }
   }
 
   /// Create configuration from environment or Info.plist
@@ -71,11 +71,16 @@ public struct AppConfiguration: Sendable {
 // MARK: - Service Container
 
 /// Central container for all services used by the app
+/// Note: Neon services are deprecated. All user data operations now use Firebase via TCA dependencies.
 public final class ServiceContainer: @unchecked Sendable {
   public static let shared = ServiceContainer()
 
+  /// Deprecated: Neon service is no longer used. Use FirestoreUserClient TCA dependency instead.
+  @available(*, deprecated, message: "Use @Dependency(\\.firestoreUserClient) instead")
   private var _neonService: (any NeonServiceProtocol)?
   private var _authService: (any AuthServiceProtocol)?
+  /// Deprecated: Admin service is now provided via TCA dependency using FirebaseAdminService
+  @available(*, deprecated, message: "Use @Dependency(\\.adminService) instead")
   private var _adminService: (any AdminServiceProtocol)?
   private var _userDefaultsService: UserDefaultsService?
   private var _habitStorage: HabitStorage?
@@ -103,13 +108,12 @@ public final class ServiceContainer: @unchecked Sendable {
     // Set up Firebase Auth service
     self._authService = FirebaseAuthService()
 
-    // Set up Neon service with Firestore adapter for user data
-    if !configuration.api.neonHost.isEmpty {
-      let firestoreService = FirestoreService()
-      let neonService = NeonService(configuration: configuration.api)
-      self._neonService = FirebaseNeonService(neonService: neonService, firestoreService: firestoreService)
-      self._adminService = AdminService(configuration: configuration.api)
-    }
+    // Note: Neon services are no longer initialized
+    // User data operations now use FirestoreUserClient TCA dependency
+    // Admin operations now use FirebaseAdminService TCA dependency
+    // Keeping mock instances for backwards compatibility
+    self._neonService = MockNeonService()
+    self._adminService = MockAdminService()
   }
 
   public func configureForPreview(authenticated: Bool = false) {
@@ -122,6 +126,8 @@ public final class ServiceContainer: @unchecked Sendable {
 
   // MARK: - Services
 
+  /// Deprecated: Use @Dependency(\.firestoreUserClient) TCA dependency instead
+  @available(*, deprecated, message: "Use @Dependency(\\.firestoreUserClient) TCA dependency instead")
   public var neonService: any NeonServiceProtocol {
     lock.lock()
     defer { lock.unlock() }
@@ -130,7 +136,7 @@ public final class ServiceContainer: @unchecked Sendable {
       return service
     }
 
-    // Fallback to mock if not configured
+    // Always return mock - Neon is no longer used
     let mock = MockNeonService()
     _neonService = mock
     return mock
@@ -150,6 +156,8 @@ public final class ServiceContainer: @unchecked Sendable {
     return mock
   }
 
+  /// Deprecated: Use @Dependency(\.adminService) TCA dependency instead (which now uses FirebaseAdminService)
+  @available(*, deprecated, message: "Use @Dependency(\\.adminService) TCA dependency instead")
   public var adminService: any AdminServiceProtocol {
     lock.lock()
     defer { lock.unlock() }
@@ -158,7 +166,7 @@ public final class ServiceContainer: @unchecked Sendable {
       return service
     }
 
-    // Fallback to mock if not configured
+    // Always return mock - admin ops handled by TCA dependency
     let mock = MockAdminService()
     _adminService = mock
     return mock

@@ -7,11 +7,13 @@ public struct UserProfile: Codable, Identifiable, Equatable, Sendable {
   public let id_: String
   public let userId: String
   public let displayName: String?
+  public let email: String?
   public let streak: Int
   public let totalXp: Int
   public let level: Int
   public let lastActiveDate: Date?
   public let isAdmin: Bool
+  public let isPremium: Bool
   public let createdAt: Date
   public let updatedAt: Date
 
@@ -19,22 +21,26 @@ public struct UserProfile: Codable, Identifiable, Equatable, Sendable {
     id: String,
     userId: String,
     displayName: String? = nil,
+    email: String? = nil,
     streak: Int = 0,
     totalXp: Int = 0,
     level: Int = 1,
     lastActiveDate: Date? = nil,
     isAdmin: Bool = false,
+    isPremium: Bool = false,
     createdAt: Date = Date(),
     updatedAt: Date = Date()
   ) {
     self.id_ = id
     self.userId = userId
     self.displayName = displayName
+    self.email = email
     self.streak = streak
     self.totalXp = totalXp
     self.level = level
     self.lastActiveDate = lastActiveDate
     self.isAdmin = isAdmin
+    self.isPremium = isPremium
     self.createdAt = createdAt
     self.updatedAt = updatedAt
   }
@@ -43,13 +49,39 @@ public struct UserProfile: Codable, Identifiable, Equatable, Sendable {
     case id_ = "id"
     case userId = "user_id"
     case displayName = "display_name"
+    case email
     case streak
     case totalXp = "total_xp"
     case level
     case lastActiveDate = "last_active_date"
     case isAdmin = "is_admin"
+    case isPremium = "is_premium"
     case createdAt = "created_at"
     case updatedAt = "updated_at"
+  }
+
+  // Custom decoder to handle id being either Int (PostgreSQL) or String (Firestore)
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+
+    // Handle id as either Int or String
+    if let intId = try? container.decode(Int.self, forKey: .id_) {
+      self.id_ = String(intId)
+    } else {
+      self.id_ = try container.decode(String.self, forKey: .id_)
+    }
+
+    self.userId = try container.decode(String.self, forKey: .userId)
+    self.displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+    self.email = try container.decodeIfPresent(String.self, forKey: .email)
+    self.streak = try container.decodeIfPresent(Int.self, forKey: .streak) ?? 0
+    self.totalXp = try container.decodeIfPresent(Int.self, forKey: .totalXp) ?? 0
+    self.level = try container.decodeIfPresent(Int.self, forKey: .level) ?? 1
+    self.lastActiveDate = try container.decodeIfPresent(Date.self, forKey: .lastActiveDate)
+    self.isAdmin = try container.decodeIfPresent(Bool.self, forKey: .isAdmin) ?? false
+    self.isPremium = try container.decodeIfPresent(Bool.self, forKey: .isPremium) ?? false
+    self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    self.updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
   }
 
   /// Calculate XP needed for next level

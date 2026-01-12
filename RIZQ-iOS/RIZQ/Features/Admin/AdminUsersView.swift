@@ -10,10 +10,11 @@ struct AdminUsersView: View {
     List {
       // Stats Section
       Section {
-        HStack(spacing: RIZQSpacing.xl) {
+        HStack(spacing: RIZQSpacing.md) {
           StatItem(title: "Total", value: "\(store.totalUsers)", icon: "person.2.fill", color: .rizqPrimary)
           StatItem(title: "Admins", value: "\(store.adminCount)", icon: "shield.fill", color: .badgeEvening)
-          StatItem(title: "Active Today", value: "\(store.activeToday)", icon: "checkmark.circle.fill", color: .tealMuted)
+          StatItem(title: "Premium", value: "\(store.premiumCount)", icon: "crown.fill", color: .goldSoft)
+          StatItem(title: "Active", value: "\(store.activeToday)", icon: "checkmark.circle.fill", color: .tealMuted)
         }
         .padding(.vertical, 8)
       }
@@ -40,6 +41,7 @@ struct AdminUsersView: View {
           UserAdminRow(
             user: user,
             onToggleAdmin: { store.send(.toggleAdminTapped(user)) },
+            onTogglePremium: { store.send(.togglePremiumTapped(user)) },
             onDelete: { store.send(.deleteUserTapped(user)) },
             onTap: { store.send(.userTapped(user)) }
           )
@@ -87,6 +89,19 @@ struct AdminUsersView: View {
         Text(user.isAdmin
              ? "Remove admin rights from \(user.displayName ?? user.userId)?"
              : "Grant admin rights to \(user.displayName ?? user.userId)?")
+      }
+    }
+    .alert("Toggle Premium Status", isPresented: $store.isTogglePremiumConfirmationPresented) {
+      Button("Cancel", role: .cancel) { store.send(.cancelTogglePremium) }
+      Button(store.userToTogglePremium?.isPremium == true ? "Remove Premium" : "Make Premium",
+             role: store.userToTogglePremium?.isPremium == true ? .destructive : .none) {
+        store.send(.confirmTogglePremium)
+      }
+    } message: {
+      if let user = store.userToTogglePremium {
+        Text(user.isPremium
+             ? "Remove premium status from \(user.displayName ?? user.userId)?"
+             : "Upgrade \(user.displayName ?? user.userId) to premium?")
       }
     }
     .alert("Delete User", isPresented: $store.isDeleteConfirmationPresented) {
@@ -139,6 +154,7 @@ private struct StatItem: View {
 private struct UserAdminRow: View {
   let user: UserProfile
   let onToggleAdmin: () -> Void
+  let onTogglePremium: () -> Void
   let onDelete: () -> Void
   let onTap: () -> Void
 
@@ -171,6 +187,16 @@ private struct UserAdminRow: View {
                 .background(Color.badgeEvening)
                 .clipShape(Capsule())
             }
+
+            if user.isPremium {
+              Text("PREMIUM")
+                .font(.rizqMono(.caption2))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.goldSoft)
+                .clipShape(Capsule())
+            }
           }
 
           HStack(spacing: 8) {
@@ -200,6 +226,11 @@ private struct UserAdminRow: View {
           Button(user.isAdmin ? "Remove Admin" : "Make Admin",
                  systemImage: user.isAdmin ? "shield.slash" : "shield.fill") {
             onToggleAdmin()
+          }
+
+          Button(user.isPremium ? "Remove Premium" : "Make Premium",
+                 systemImage: user.isPremium ? "crown" : "crown.fill") {
+            onTogglePremium()
           }
 
           Divider()
@@ -262,14 +293,36 @@ private struct UserDetailSheet: View {
             Text(user.displayName ?? "Anonymous")
               .font(.rizqDisplay(.title2))
 
-            if user.isAdmin {
-              Text("Administrator")
-                .font(.rizqSans(.caption))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Color.badgeEvening)
-                .clipShape(Capsule())
+            HStack(spacing: 8) {
+              if user.isAdmin {
+                Text("Administrator")
+                  .font(.rizqSans(.caption))
+                  .foregroundStyle(.white)
+                  .padding(.horizontal, 10)
+                  .padding(.vertical, 4)
+                  .background(Color.badgeEvening)
+                  .clipShape(Capsule())
+              }
+
+              if user.isPremium {
+                Text("Premium")
+                  .font(.rizqSans(.caption))
+                  .foregroundStyle(.white)
+                  .padding(.horizontal, 10)
+                  .padding(.vertical, 4)
+                  .background(Color.goldSoft)
+                  .clipShape(Capsule())
+              }
+
+              if !user.isAdmin && !user.isPremium {
+                Text("Free User")
+                  .font(.rizqSans(.caption))
+                  .foregroundStyle(Color.rizqTextSecondary)
+                  .padding(.horizontal, 10)
+                  .padding(.vertical, 4)
+                  .background(Color.rizqSurface)
+                  .clipShape(Capsule())
+              }
             }
           }
           .frame(maxWidth: .infinity)
@@ -301,13 +354,21 @@ private struct UserDetailSheet: View {
           }
         }
 
-        Section {
+        Section("Role Management") {
           Button(user.isAdmin ? "Remove Admin Rights" : "Grant Admin Rights") {
             store.send(.toggleAdminTapped(user))
             dismiss()
           }
           .foregroundStyle(user.isAdmin ? Color.red : Color.rizqPrimary)
 
+          Button(user.isPremium ? "Remove Premium Status" : "Upgrade to Premium") {
+            store.send(.togglePremiumTapped(user))
+            dismiss()
+          }
+          .foregroundStyle(user.isPremium ? Color.red : Color.goldSoft)
+        }
+
+        Section {
           Button("Delete User", role: .destructive) {
             store.send(.deleteUserTapped(user))
             dismiss()

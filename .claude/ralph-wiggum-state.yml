@@ -1,0 +1,81 @@
+target: adkhar-ios
+plan_file: null
+iteration: 12
+maxIterations: 12
+started_at: 2026-01-11T20:48:05
+target_files:
+  - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharView.swift
+  - RIZQ-iOS/RIZQ/Views/Components/HabitViews/
+deferred_issues:
+  - id: navigation-browse-journeys
+    description: "Empty state 'Browse Journeys' button navigates to EmptyView - needs parent feature coordination"
+    first_seen: 5
+    status: documented-in-code
+  - id: widget-hardcoded-xp
+    description: "Widget update uses hardcoded XP/level values (0, 100, 1) - AdkharFeature lacks user profile data"
+    first_seen: 6
+    status: architectural-limitation
+completed_improvements:
+  - iteration: 0
+    persona: Code Reviewer
+    improvement: Added error handling to 4 clock.sleep calls in AdkharFeature.swift to prevent effects from throwing CancellationError and leaving state inconsistent (showQuickPractice stuck true, celebrationFinished never sent)
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - iteration: 1
+    persona: System Architect
+    improvement: Added error state architecture - loadError property in State, loadFailed action, refreshData action, errorOverlay in View. Users now see meaningful feedback when data loading fails with a retry button
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharView.swift
+  - iteration: 2
+    persona: Frontend Designer
+    improvement: Added comprehensive VoiceOver accessibility labels and hints to progress summary card (streak, progress bar), empty state (decorative icon hidden, button hint), loading overlay (modal trait), and error overlay (modal trait, button hint)
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharView.swift
+  - iteration: 3
+    persona: QA Engineer
+    improvement: Added 12 AdkharFeature tests covering onAppear loading state, habitsLoaded success, loadFailed error handling, refreshData clears error, toggleHabit complete/uncomplete, quickPracticeRequested, incrementRepetition, progress calculation, streakLoaded, and completionsRestored
+    files_changed:
+      - RIZQ-iOS/RIZQTests/RIZQTests.swift
+  - iteration: 4
+    persona: Project Manager
+    improvement: Added comprehensive documentation comments to AdkharFeature describing feature requirements (morning/anytime/evening adhkar), user states (loading/error/empty/active), quick practice flow, and acceptance criteria (7 items covering grouping, progress, streak, refresh, quick practice, persistence, accessibility)
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - iteration: 5
+    persona: Business Analyst
+    improvement: Changed empty state messaging from passive ("No habits yet") to action-oriented ("Begin Your Journey") with clearer guidance ("Choose a themed collection of duas below to build your daily practice routine"). Converted vague TODO to actionable FIXME documenting navigation options.
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharView.swift
+  - iteration: 6
+    persona: Code Reviewer
+    improvement: Added guard clause to resetRepetitions action to prevent resetting counter after habit is already completed - prevents potential inconsistent state where user could reset a completed habit
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - iteration: 7
+    persona: System Architect
+    improvement: Moved getCurrentUserId() from free function to AdkharServiceClient dependency. Added currentUserId closure to the service client struct with live/test/preview implementations. Improves testability - tests can now inject mock user IDs without globally mocking Firebase Auth.
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - iteration: 8
+    persona: Frontend Designer
+    improvement: Added VoiceOver accessibility to HabitItemView (title, repetitions, XP, completion status with selected trait) and QuickPracticeSheet (close button, reset button, main action button with dynamic label, celebration overlay as modal). Habit items now accessible via VoiceOver.
+    files_changed:
+      - RIZQ-iOS/RIZQ/Views/Components/HabitViews/HabitItemView.swift
+      - RIZQ-iOS/RIZQ/Views/Components/HabitViews/QuickPracticeSheet.swift
+  - iteration: 9
+    persona: QA Engineer
+    improvement: Fixed pre-existing test compilation errors - 3 UserProfile initializations in RIZQTests.swift were missing required `id` parameter. Added id parameter to all test profile instances. Build and tests now compile successfully.
+    files_changed:
+      - RIZQ-iOS/RIZQTests/RIZQTests.swift
+  - iteration: 10
+    persona: Project Manager
+    improvement: Replaced debug print() statements with structured os.log logging using Logger. Added adkharLogger matching the established project pattern (subsystem "com.rizq.app", category "Adkhar"). Completion recording now logs with proper privacy annotations for consistency with JourneysFeature and APIClient.
+    files_changed:
+      - RIZQ-iOS/RIZQ/Features/Adkhar/AdkharFeature.swift
+  - iteration: 11
+    persona: Business Analyst
+    improvement: Added VoiceOver accessibility to TimeSlotSectionView header button. Users can now discover the collapse/expand functionality via screenreader. Label announces slot name and progress count, value announces expanded/collapsed state, hint provides action guidance.
+    files_changed:
+      - RIZQ-iOS/RIZQ/Views/Components/HabitViews/TimeSlotSectionView.swift

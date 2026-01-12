@@ -1,0 +1,52 @@
+{
+  "name": "ios-ui-toolkit",
+  "version": "1.0.0",
+  "description": "Tools for building beautiful SwiftUI interfaces matching the RIZQ design system - animations, components, and React-to-iOS UI translation",
+  "author": "RIZQ App Team",
+  "skills": [
+    {
+      "name": "ios-animation",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/ios-animation.md",
+      "description": "Add SwiftUI animations matching the RIZQ design system - staggered entry, spring physics, celebration effects, progress animations"
+    },
+    {
+      "name": "ios-component",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/ios-component.md",
+      "description": "Create beautiful SwiftUI components using the RIZQ design system - cards, badges, buttons, progress indicators"
+    },
+    {
+      "name": "react-to-ios",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/react-to-ios.md",
+      "description": "Translate React/Framer Motion UI to SwiftUI - match layouts, animations, and styling from the React web app"
+    },
+    {
+      "name": "ios-design-tokens",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/ios-design-tokens.md",
+      "description": "Reference guide for RIZQ iOS design tokens - colors, typography, spacing, shadows, and radius values"
+    }
+  ],
+  "commands": [
+    {
+      "name": "match-react-screen",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/match-react-screen.md",
+      "description": "Interactive command to match a React screen to iOS SwiftUI implementation"
+    },
+    {
+      "name": "add-animation",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/add-animation.md",
+      "description": "Interactive command to add animations to an existing SwiftUI view"
+    }
+  ],
+  "agents": [
+    {
+      "name": "ios-ui-reviewer",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/ios-ui-reviewer.md",
+      "description": "Review iOS SwiftUI implementation against the React app and RIZQ design system for visual consistency"
+    },
+    {
+      "name": "animation-implementer",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/animation-implementer.md",
+      "description": "Implement complex animations and micro-interactions in SwiftUI matching React/Framer Motion patterns"
+    }
+  ]
+}

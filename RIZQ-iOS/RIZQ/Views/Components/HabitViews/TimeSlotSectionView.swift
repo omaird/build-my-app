@@ -83,6 +83,9 @@ struct TimeSlotSectionView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .accessibilityLabel("\(slot.displayName), \(progress.completed) of \(progress.total) completed")
+    .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+    .accessibilityHint(isExpanded ? "Double tap to collapse section" : "Double tap to expand section")
   }
 }
 

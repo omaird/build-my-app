@@ -1,7 +1,15 @@
 import Foundation
 
+// MARK: - DEPRECATED: Neon Service
+// ============================================================================
+// This file is DEPRECATED and kept for potential rollback.
+// All user data operations should use FirestoreUserClient TCA dependency.
+// Content operations should use FirestoreContentClient TCA dependency.
+// ============================================================================
+
 // MARK: - Neon Service Protocol
 
+@available(*, deprecated, message: "Use FirestoreUserClient and FirestoreContentClient instead")
 public protocol NeonServiceProtocol: Sendable {
   // Duas
   func fetchAllDuas() async throws -> [Dua]
@@ -40,6 +48,7 @@ public protocol NeonServiceProtocol: Sendable {
 
 // MARK: - Neon Service Implementation
 
+@available(*, deprecated, message: "Use FirestoreUserClient and FirestoreContentClient instead")
 public actor NeonService: NeonServiceProtocol {
   private let apiClient: APIClientProtocol
 

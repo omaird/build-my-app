@@ -1,6 +1,12 @@
 import Foundation
 import os.log
 
+// MARK: - DEPRECATED: API Client
+// ============================================================================
+// This file is DEPRECATED and kept for potential rollback.
+// All API operations now use Firebase services instead of Neon PostgreSQL.
+// ============================================================================
+
 private let apiLogger = Logger(subsystem: "com.rizq.app", category: "APIClient")
 
 // MARK: - API Error
@@ -42,6 +48,7 @@ public enum APIError: Error, LocalizedError, Sendable {
 
 // MARK: - API Configuration
 
+@available(*, deprecated, message: "Use Firebase configuration instead. Neon API is no longer used.")
 public struct APIConfiguration: Sendable {
   public let neonHost: String
   public let neonApiKey: String
@@ -237,14 +244,66 @@ enum NeonValue: Decodable {
 
 // MARK: - API Client Protocol
 
+@available(*, deprecated, message: "Use Firebase services instead. Neon API is no longer used.")
 public protocol APIClientProtocol: Sendable {
   func execute<T: Decodable>(_ query: String, params: [SQLValue]?) async throws -> [T]
   func executeRaw(_ query: String, params: [SQLValue]?) async throws -> [[String: Any]]
   func executeUpdate(_ query: String, params: [SQLValue]?) async throws -> Int
 }
 
+// MARK: - PostgreSQL Date Formatter
+
+/// Handles various PostgreSQL timestamp formats including microseconds
+private let postgresDateFormatter: DateFormatter = {
+  let formatter = DateFormatter()
+  formatter.locale = Locale(identifier: "en_US_POSIX")
+  formatter.timeZone = TimeZone(secondsFromGMT: 0)
+  return formatter
+}()
+
+/// Parse PostgreSQL timestamp strings to Date
+/// Handles formats like: "2024-01-15 10:00:00.123456+00", "2024-01-15T10:00:00Z", etc.
+private func parsePostgresDate(_ string: String) -> Date? {
+  // Try ISO 8601 with fractional seconds first
+  let iso8601WithFractional = ISO8601DateFormatter()
+  iso8601WithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  if let date = iso8601WithFractional.date(from: string) {
+    return date
+  }
+
+  // Try standard ISO 8601
+  let iso8601 = ISO8601DateFormatter()
+  iso8601.formatOptions = [.withInternetDateTime]
+  if let date = iso8601.date(from: string) {
+    return date
+  }
+
+  // Try PostgreSQL format with space separator: "2024-01-15 10:00:00.123456+00"
+  let patterns = [
+    "yyyy-MM-dd HH:mm:ss.SSSSSSZZZZZ",
+    "yyyy-MM-dd HH:mm:ss.SSSZZZZZ",
+    "yyyy-MM-dd HH:mm:ssZZZZZ",
+    "yyyy-MM-dd HH:mm:ss.SSSSSS",
+    "yyyy-MM-dd HH:mm:ss.SSS",
+    "yyyy-MM-dd HH:mm:ss",
+    "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ",
+    "yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ",
+    "yyyy-MM-dd'T'HH:mm:ssZZZZZ"
+  ]
+
+  for pattern in patterns {
+    postgresDateFormatter.dateFormat = pattern
+    if let date = postgresDateFormatter.date(from: string) {
+      return date
+    }
+  }
+
+  return nil
+}
+
 // MARK: - API Client Implementation
 
+@available(*, deprecated, message: "Use Firebase services instead. Neon API is no longer used.")
 public actor APIClient: APIClientProtocol {
   private let configuration: APIConfiguration
   private let urlSession: URLSession
@@ -254,7 +313,15 @@ public actor APIClient: APIClientProtocol {
     self.configuration = configuration
     self.urlSession = URLSession.shared
     self.decoder = JSONDecoder()
-    self.decoder.dateDecodingStrategy = .iso8601
+    // Use custom date decoding strategy for PostgreSQL timestamps
+    self.decoder.dateDecodingStrategy = .custom { decoder in
+      let container = try decoder.singleValueContainer()
+      let dateString = try container.decode(String.self)
+      if let date = parsePostgresDate(dateString) {
+        return date
+      }
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot parse date: \(dateString)")
+    }
   }
 
   /// Execute a SQL query and decode results to a specific type

@@ -11,12 +11,12 @@ struct HabitItemView: View {
 
   var body: some View {
     Button(action: onSelect) {
-      HStack(spacing: 16) {
+      HStack(spacing: RIZQSpacing.lg) {
         // Animated Checkbox
         checkboxView
 
         // Content
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: RIZQSpacing.sm) {
           // Title and XP
           HStack(alignment: .top) {
             Text(habit.titleEn)
@@ -48,7 +48,7 @@ struct HabitItemView: View {
           }
         }
       }
-      .padding(16)
+      .padding(RIZQSpacing.lg)
       .background(
         RoundedRectangle(cornerRadius: RIZQRadius.islamic)
           .fill(isCompleted ? Color.tealSuccess.opacity(0.05) : Color.rizqCard)
@@ -63,6 +63,11 @@ struct HabitItemView: View {
       .shadowSoft()
       .scaleEffect(isPressed ? 0.98 : 1.0)
       .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(accessibilityLabel)
+      .accessibilityValue(isCompleted ? "Completed" : "Not completed")
+      .accessibilityHint("Double tap to practice this dua")
+      .accessibilityAddTraits(isCompleted ? [.isButton, .isSelected] : .isButton)
     }
     .buttonStyle(.plain)
     .pressEvents {
@@ -95,6 +100,19 @@ struct HabitItemView: View {
     }
     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isCompleted)
   }
+
+  // MARK: - Accessibility Label
+  private var accessibilityLabel: String {
+    var components: [String] = [habit.titleEn]
+
+    if habit.repetitions > 1 {
+      components.append("Repeat \(habit.repetitions) times")
+    }
+
+    components.append("\(habit.xpValue) XP")
+
+    return components.joined(separator: ", ")
+  }
 }
 
 // MARK: - Press Events Modifier
@@ -119,7 +137,7 @@ struct PressEventsModifier: ViewModifier {
 }
 
 #Preview {
-  VStack(spacing: 16) {
+  VStack(spacing: RIZQSpacing.lg) {
     HabitItemView(
       habit: Habit(
         id: 1,

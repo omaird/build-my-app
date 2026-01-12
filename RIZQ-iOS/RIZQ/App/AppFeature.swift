@@ -74,7 +74,15 @@ struct AppFeature {
 
       case .tabSelected(let tab):
         state.selectedTab = tab
-        return .none
+        // Notify features when their tab becomes active
+        switch tab {
+        case .adkhar:
+          return .send(.adkhar(.becameActive))
+        case .journeys:
+          return .send(.journeys(.becameActive))
+        default:
+          return .none
+        }
 
       case .authStateChanged(let isAuthenticated):
         state.isAuthenticated = isAuthenticated
@@ -87,17 +95,26 @@ struct AppFeature {
       // Handle navigation from Home
       case .home(.navigateToAdkhar):
         state.selectedTab = .adkhar
-        return .none
+        return .send(.adkhar(.becameActive))
 
       case .home(.navigateToLibrary):
         state.selectedTab = .library
         return .none
 
+      case .home(.navigateToJourneys):
+        state.selectedTab = .journeys
+        return .send(.journeys(.becameActive))
+
       case .home(.navigateToPractice(let timeSlot)):
         // Navigate to Adkhar with specific time slot filter
         state.selectedTab = .adkhar
         // TODO: Pass timeSlot to AdkharFeature
-        return .none
+        return .send(.adkhar(.becameActive))
+
+      // Handle navigation from Adkhar
+      case .adkhar(.navigateToJourneys):
+        state.selectedTab = .journeys
+        return .send(.journeys(.becameActive))
 
       // Handle auth state changes
       case .auth(.authSuccess(let user)):

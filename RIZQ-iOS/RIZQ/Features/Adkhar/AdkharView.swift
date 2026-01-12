@@ -9,7 +9,7 @@ struct AdkharView: View {
     NavigationStack {
       ZStack {
         ScrollView {
-          VStack(spacing: 24) {
+          VStack(spacing: RIZQSpacing.xxl) {
             // Header with greeting
             headerSection
 
@@ -70,11 +70,16 @@ struct AdkharView: View {
         // Loading overlay
         if store.isLoading {
           loadingOverlay
+        } else if let error = store.loadError {
+          errorOverlay(error: error)
         }
       }
     }
     .onAppear {
       store.send(.onAppear)
+    }
+    .refreshable {
+      store.send(.refreshData)
     }
     .sheet(isPresented: $store.showQuickPractice.sending(\.setShowQuickPractice)) {
       if let habit = store.selectedHabit {
@@ -97,7 +102,7 @@ struct AdkharView: View {
 
   // MARK: - Header Section
   private var headerSection: some View {
-    VStack(alignment: .leading, spacing: 4) {
+    VStack(alignment: .leading, spacing: RIZQSpacing.xs) {
       Text(getGreeting())
         .font(.rizqSans(.subheadline))
         .foregroundStyle(Color.rizqTextSecondary)
@@ -111,7 +116,7 @@ struct AdkharView: View {
 
   // MARK: - Progress Summary Card
   private var progressSummaryCard: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: RIZQSpacing.lg) {
       HStack {
         Text("Today's Progress")
           .font(.rizqSans(.subheadline))
@@ -120,28 +125,34 @@ struct AdkharView: View {
         Spacer()
 
         // Streak Badge
-        HStack(spacing: 6) {
+        HStack(spacing: RIZQSpacing.sm) {
           Image(systemName: "flame.fill")
             .foregroundStyle(Color.streakGlow)
+            .accessibilityHidden(true)
 
           Text("\(store.streak) day streak")
             .font(.rizqMono(.subheadline))
             .foregroundStyle(Color.rizqText)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(store.streak) day streak")
       }
 
       // Progress Bar
-      HStack(spacing: 16) {
+      HStack(spacing: RIZQSpacing.lg) {
         HabitProgressBar(
           progress: store.progressPercentage,
           color: Color.rizqPrimary
         )
         .frame(height: 10)
+        .accessibilityHidden(true)
 
         Text("\(store.completedCount)/\(store.totalHabits)")
           .font(.rizqMonoMedium(.subheadline))
           .foregroundStyle(Color.rizqText)
       }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("\(store.completedCount) of \(store.totalHabits) habits completed")
 
       // XP Earned
       if store.earnedXp > 0 {
@@ -151,13 +162,15 @@ struct AdkharView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
-    .padding(20)
+    .padding(RIZQSpacing.xl)
     .rizqCard()
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Today's progress")
   }
 
   // MARK: - Empty State
   private var emptyState: some View {
-    VStack(spacing: 16) {
+    VStack(spacing: RIZQSpacing.lg) {
       ZStack {
         Circle()
           .fill(Color.rizqPrimary.opacity(0.1))
@@ -167,27 +180,29 @@ struct AdkharView: View {
           .font(.system(size: 36))
           .foregroundStyle(Color.rizqPrimary)
       }
+      .accessibilityHidden(true)
 
-      Text("No habits yet")
+      Text("Begin Your Journey")
         .font(.rizqDisplaySemiBold(.title2))
         .foregroundStyle(Color.rizqText)
 
-      Text("Join a journey to start building your daily adhkar routine")
+      Text("Choose a themed collection of duas below to build your daily practice routine")
         .font(.rizqSans(.body))
         .foregroundStyle(Color.rizqTextSecondary)
         .multilineTextAlignment(.center)
         .padding(.horizontal, 32)
 
-      NavigationLink {
-        // TODO: Navigate to journeys
-        EmptyView()
+      Button {
+        store.send(.navigateToJourneys)
       } label: {
-        HStack(spacing: 8) {
+        HStack(spacing: RIZQSpacing.sm) {
           Text("Browse Journeys")
           Image(systemName: "chevron.right")
         }
         .rizqPrimaryButton()
       }
+      .accessibilityLabel("Browse Journeys")
+      .accessibilityHint("Explore dua collections to add to your daily routine")
     }
     .padding(.top, 40)
   }
@@ -197,7 +212,7 @@ struct AdkharView: View {
     ZStack {
       Color.rizqBackground.opacity(0.8)
 
-      VStack(spacing: 16) {
+      VStack(spacing: RIZQSpacing.lg) {
         ProgressView()
           .progressViewStyle(CircularProgressViewStyle(tint: Color.rizqPrimary))
           .scaleEffect(1.5)
@@ -206,8 +221,53 @@ struct AdkharView: View {
           .font(.rizqSans(.subheadline))
           .foregroundStyle(Color.rizqTextSecondary)
       }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("Loading your daily adkhar")
+      .accessibilityAddTraits(.isModal)
     }
     .ignoresSafeArea()
+  }
+
+  // MARK: - Error Overlay
+  private func errorOverlay(error: String) -> some View {
+    VStack(spacing: RIZQSpacing.lg) {
+      Image(systemName: "exclamationmark.triangle")
+        .font(.system(size: 48))
+        .foregroundStyle(Color.rizqPrimary)
+        .accessibilityHidden(true)
+
+      Text("Something went wrong")
+        .font(.rizqDisplayMedium(.headline))
+        .foregroundStyle(Color.rizqText)
+
+      Text(error)
+        .font(.rizqSans(.caption))
+        .foregroundStyle(Color.rizqTextSecondary)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, RIZQSpacing.xl)
+
+      Button {
+        store.send(.refreshData)
+      } label: {
+        HStack(spacing: RIZQSpacing.sm) {
+          Image(systemName: "arrow.clockwise")
+          Text("Try Again")
+        }
+        .font(.rizqSansMedium(.subheadline))
+        .foregroundStyle(.white)
+        .padding(.horizontal, RIZQSpacing.xl)
+        .padding(.vertical, RIZQSpacing.md)
+        .background(Color.rizqPrimary)
+        .clipShape(Capsule())
+      }
+      .accessibilityLabel("Try again")
+      .accessibilityHint("Reload your daily adkhar")
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color.rizqBackground.opacity(0.95))
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("Error: Something went wrong. \(error)")
+    .accessibilityAddTraits(.isModal)
   }
 }
 

@@ -37,6 +37,13 @@ struct LibraryView: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
     }
+    .sheet(
+      item: $store.scope(state: \.practiceSheet, action: \.practiceSheet)
+    ) { sheetStore in
+      PracticeSheetView(store: sheetStore)
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
   }
 
   // MARK: - Header (matches React BookOpen icon + title)
@@ -126,13 +133,15 @@ struct LibraryView: View {
         emptyState
       } else {
         LazyVStack(spacing: RIZQSpacing.md) {
-          ForEach(store.filteredDuas) { dua in
+          ForEach(Array(store.filteredDuas.enumerated()), id: \.element.id) { index, dua in
             DuaListCardView(
               dua: dua,
               isActive: store.activeHabitDuaIds.contains(dua.id),
+              isCompleted: store.completedTodayDuaIds.contains(dua.id),
               onTap: { store.send(.duaTapped(dua)) },
               onAddToAdkhar: { store.send(.addToAdkharTapped(dua)) }
             )
+            .modifier(StaggeredItemModifier(index: index))
           }
         }
 
@@ -321,6 +330,154 @@ struct AddToAdkharSheetView: View {
   }
 }
 
+// MARK: - Practice Sheet View
+
+struct PracticeSheetView: View {
+  let store: StoreOf<PracticeSheetFeature>
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: RIZQSpacing.xxl) {
+        // Dua content
+        ScrollView {
+          VStack(spacing: RIZQSpacing.xl) {
+            // Arabic text
+            Text(store.dua.arabicText)
+              .font(.rizqArabic(.title))
+              .foregroundStyle(Color.rizqText)
+              .multilineTextAlignment(.center)
+              .environment(\.layoutDirection, .rightToLeft)
+              .padding(.top, RIZQSpacing.lg)
+
+            // Transliteration
+            if let transliteration = store.dua.transliteration {
+              Text(transliteration)
+                .font(.rizqSans(.body))
+                .foregroundStyle(Color.rizqTextSecondary)
+                .italic()
+                .multilineTextAlignment(.center)
+            }
+
+            // Translation
+            Text(store.dua.translationEn)
+              .font(.rizqSans(.body))
+              .foregroundStyle(Color.rizqText)
+              .multilineTextAlignment(.center)
+          }
+          .padding(.horizontal, RIZQSpacing.lg)
+        }
+
+        Spacer()
+
+        // Counter section
+        VStack(spacing: RIZQSpacing.lg) {
+          // Progress ring
+          ZStack {
+            Circle()
+              .stroke(Color.rizqMuted.opacity(0.3), lineWidth: 8)
+              .frame(width: 120, height: 120)
+
+            Circle()
+              .trim(from: 0, to: store.progress)
+              .stroke(
+                store.isComplete ? Color.tealSuccess : Color.rizqPrimary,
+                style: StrokeStyle(lineWidth: 8, lineCap: .round)
+              )
+              .frame(width: 120, height: 120)
+              .rotationEffect(.degrees(-90))
+              .animation(.easeOut(duration: 0.3), value: store.progress)
+
+            VStack(spacing: 4) {
+              Text("\(store.currentCount)")
+                .font(.rizqMonoMedium(.largeTitle))
+                .foregroundStyle(Color.rizqText)
+
+              Text("of \(store.targetCount)")
+                .font(.rizqSans(.caption))
+                .foregroundStyle(Color.rizqTextSecondary)
+            }
+          }
+
+          // Tap to count button
+          Button {
+            store.send(.incrementTapped)
+          } label: {
+            Text(store.isComplete ? "Complete!" : "Tap to count")
+              .font(.rizqSansMedium(.headline))
+              .foregroundStyle(.white)
+              .frame(maxWidth: .infinity)
+              .padding(.vertical, RIZQSpacing.md)
+              .background(store.isComplete ? Color.tealSuccess : Color.rizqPrimary)
+              .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.btn))
+          }
+          .disabled(store.isComplete)
+          .padding(.horizontal, RIZQSpacing.lg)
+
+          // Done button (when complete)
+          if store.isComplete {
+            Button {
+              store.send(.completeTapped)
+            } label: {
+              HStack(spacing: RIZQSpacing.sm) {
+                if store.isSaving {
+                  ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: Color.rizqPrimary))
+                    .scaleEffect(0.8)
+                }
+                Text(store.isSaving ? "Saving..." : "Done (+\(store.dua.xpValue) XP)")
+              }
+              .font(.rizqSansMedium(.headline))
+              .foregroundStyle(Color.rizqPrimary)
+            }
+            .disabled(store.isSaving)
+          }
+        }
+        .padding(.bottom, RIZQSpacing.xxl)
+      }
+      .rizqPageBackground()
+      .navigationTitle(store.dua.titleEn)
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button {
+            store.send(.closeTapped)
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .font(.title2)
+              .foregroundStyle(Color.rizqMuted)
+          }
+        }
+      }
+    }
+  }
+}
+
+// MARK: - Staggered Animation Modifier
+
+/// Modifier for staggered entry animations (matches Framer Motion staggerChildren)
+struct StaggeredItemModifier: ViewModifier {
+  let index: Int
+  @State private var isVisible: Bool = false
+
+  private var delay: Double {
+    0.05 * Double(min(index, 10))  // Cap delay to prevent too long waits
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .opacity(isVisible ? 1 : 0)
+      .offset(y: isVisible ? 0 : 15)
+      .onAppear {
+        withAnimation(
+          .easeOut(duration: 0.3)
+          .delay(delay)
+        ) {
+          isVisible = true
+        }
+      }
+  }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -330,6 +487,17 @@ struct AddToAdkharSheetView: View {
       allDuas: Dua.demoData
     )) {
       LibraryFeature()
+    }
+  )
+}
+
+#Preview("Practice Sheet") {
+  PracticeSheetView(
+    store: Store(initialState: PracticeSheetFeature.State(
+      dua: Dua.demoData[0],
+      userId: "test-user"
+    )) {
+      PracticeSheetFeature()
     }
   )
 }

@@ -36,6 +36,7 @@ struct JourneysFeature {
 
   enum Action {
     case onAppear
+    case becameActive  // Called when tab becomes active via programmatic navigation
     case journeysLoaded(Result<[Journey], Error>)
     case loadSubscribedIds
     case subscribedIdsLoaded(Set<Int>)
@@ -47,6 +48,7 @@ struct JourneysFeature {
   }
 
   @Dependency(\.journeyService) var journeyService
+  @Dependency(\.habitStorage) var habitStorage
   @Dependency(\.continuousClock) var clock
 
   var body: some ReducerOf<Self> {
@@ -73,6 +75,28 @@ struct JourneysFeature {
           .send(.loadSubscribedIds)
         )
 
+      case .becameActive:
+        // Triggered when tab becomes active via programmatic navigation
+        // Load journeys if not already loaded
+        let journeyCount = state.journeys.count
+        journeyLogger.info("becameActive received, journeys.count: \(journeyCount, privacy: .public)")
+        guard state.journeys.isEmpty && !state.isLoading else {
+          return .none
+        }
+        state.isLoading = true
+        journeyLogger.info("Loading journeys on becameActive...")
+        return .merge(
+          .run { [journeyService] send in
+            do {
+              let journeys = try await journeyService.fetchJourneys()
+              await send(.journeysLoaded(.success(journeys)))
+            } catch {
+              await send(.journeysLoaded(.failure(error)))
+            }
+          },
+          .send(.loadSubscribedIds)
+        )
+
       case .journeysLoaded(.success(let journeys)):
         journeyLogger.info("journeysLoaded success: \(journeys.count, privacy: .public) journeys")
         state.isLoading = false
@@ -86,9 +110,16 @@ struct JourneysFeature {
         return .none
 
       case .loadSubscribedIds:
-        // Load from UserDefaults or persistent storage
-        let ids = loadSubscribedJourneyIds()
-        return .send(.subscribedIdsLoaded(ids))
+        // Load from HabitStorage (shared with AdkharFeature)
+        return .run { [habitStorage] send in
+          do {
+            let ids = try await habitStorage.getActiveJourneyIds()
+            await send(.subscribedIdsLoaded(Set(ids)))
+          } catch {
+            journeyLogger.error("Failed to load subscribed IDs: \(error.localizedDescription, privacy: .public)")
+            await send(.subscribedIdsLoaded([]))
+          }
+        }
 
       case .subscribedIdsLoaded(let ids):
         state.subscribedJourneyIds = ids
@@ -118,13 +149,27 @@ struct JourneysFeature {
 
       case .subscribeToggled(let journey):
         let isCurrentlySubscribed = state.subscribedJourneyIds.contains(journey.id)
+        let journeyId = journey.id
         if isCurrentlySubscribed {
           state.subscribedJourneyIds.remove(journey.id)
         } else {
           state.subscribedJourneyIds.insert(journey.id)
         }
-        saveSubscribedJourneyIds(state.subscribedJourneyIds)
-        return .send(.subscriptionUpdated(journeyId: journey.id, isSubscribed: !isCurrentlySubscribed))
+        // Persist to HabitStorage (shared with AdkharFeature)
+        return .run { [habitStorage] send in
+          do {
+            if isCurrentlySubscribed {
+              try await habitStorage.removeJourney(journeyId)
+              journeyLogger.info("Removed journey \(journeyId, privacy: .public) from subscriptions")
+            } else {
+              try await habitStorage.addJourney(journeyId)
+              journeyLogger.info("Added journey \(journeyId, privacy: .public) to subscriptions")
+            }
+          } catch {
+            journeyLogger.error("Failed to update subscription: \(error.localizedDescription, privacy: .public)")
+          }
+          await send(.subscriptionUpdated(journeyId: journeyId, isSubscribed: !isCurrentlySubscribed))
+        }
 
       case .subscriptionUpdated:
         return .none
@@ -133,8 +178,10 @@ struct JourneysFeature {
         // Handle subscription toggle from detail view
         guard let detailState = state.detail else { return .none }
         let journey = detailState.journeyWithDuas.journey
+        let journeyId = journey.id
+        let wasSubscribed = detailState.isSubscribed
 
-        if detailState.isSubscribed {
+        if wasSubscribed {
           state.subscribedJourneyIds.remove(journey.id)
           let newCount = state.subscribedJourneyIds.count
           state.detail?.isSubscribed = false
@@ -145,8 +192,20 @@ struct JourneysFeature {
           state.detail?.isSubscribed = true
           state.detail?.activeJourneysCount = newCount
         }
-        saveSubscribedJourneyIds(state.subscribedJourneyIds)
-        return .none
+        // Persist to HabitStorage (shared with AdkharFeature)
+        return .run { [habitStorage] _ in
+          do {
+            if wasSubscribed {
+              try await habitStorage.removeJourney(journeyId)
+              journeyLogger.info("Removed journey \(journeyId, privacy: .public) from subscriptions (detail)")
+            } else {
+              try await habitStorage.addJourney(journeyId)
+              journeyLogger.info("Added journey \(journeyId, privacy: .public) to subscriptions (detail)")
+            }
+          } catch {
+            journeyLogger.error("Failed to update subscription from detail: \(error.localizedDescription, privacy: .public)")
+          }
+        }
 
       case .detail(.presented(.dismiss)):
         state.detail = nil
@@ -172,20 +231,6 @@ struct JourneysFeature {
     }
   }
 
-  // MARK: - Persistence Helpers
-
-  private func loadSubscribedJourneyIds() -> Set<Int> {
-    guard let data = UserDefaults.standard.data(forKey: "subscribedJourneyIds"),
-          let ids = try? JSONDecoder().decode(Set<Int>.self, from: data) else {
-      return []
-    }
-    return ids
-  }
-
-  private func saveSubscribedJourneyIds(_ ids: Set<Int>) {
-    guard let data = try? JSONEncoder().encode(ids) else { return }
-    UserDefaults.standard.set(data, forKey: "subscribedJourneyIds")
-  }
 }
 
 // MARK: - Journey Service Client
@@ -197,14 +242,16 @@ struct JourneyServiceClient: Sendable {
 
 extension JourneyServiceClient: DependencyKey {
   static let liveValue: JourneyServiceClient = {
-    JourneyServiceClient(
+    // Use FirestoreContentService for content data (duas, journeys)
+    // This replaces the deprecated neonService which returns MockNeonService
+    let firestoreContentService = FirestoreContentService()
+
+    return JourneyServiceClient(
       fetchJourneys: {
-        journeyLogger.info("Fetching journeys from Neon...")
-        let neonService = ServiceContainer.shared.neonService
-        journeyLogger.info("NeonService type: \(String(describing: type(of: neonService)), privacy: .public)")
+        journeyLogger.info("Fetching journeys from Firestore...")
         do {
-          let journeys = try await neonService.fetchAllJourneys()
-          journeyLogger.info("Fetched \(journeys.count, privacy: .public) journeys")
+          let journeys = try await firestoreContentService.fetchAllJourneys()
+          journeyLogger.info("Fetched \(journeys.count, privacy: .public) journeys from Firestore")
           for journey in journeys {
             journeyLogger.info("  Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public))")
           }
@@ -215,12 +262,20 @@ extension JourneyServiceClient: DependencyKey {
         }
       },
       fetchJourneyDuas: { journeyId in
-        journeyLogger.info("Fetching duas for journey \(journeyId, privacy: .public)...")
-        let neonService = ServiceContainer.shared.neonService
+        journeyLogger.info("Fetching duas for journey \(journeyId, privacy: .public) from Firestore...")
         do {
-          let duas = try await neonService.fetchJourneyDuas(journeyId: journeyId)
-          journeyLogger.info("Fetched \(duas.count, privacy: .public) duas for journey \(journeyId, privacy: .public)")
-          return duas
+          // Fetch journey duas and all duas, then combine them
+          let journeyDuas = try await firestoreContentService.fetchJourneyDuas(journeyId)
+          let allDuas = try await firestoreContentService.fetchAllDuas()
+          let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
+
+          let fullDuas = journeyDuas.compactMap { journeyDua -> JourneyDuaFull? in
+            guard let dua = duasCache[journeyDua.duaId] else { return nil }
+            return JourneyDuaFull(journeyDua: journeyDua, dua: dua)
+          }
+
+          journeyLogger.info("Fetched \(fullDuas.count, privacy: .public) duas for journey \(journeyId, privacy: .public)")
+          return fullDuas
         } catch {
           journeyLogger.error("Error fetching journey duas: \(error.localizedDescription, privacy: .public)")
           throw error
@@ -243,5 +298,20 @@ extension DependencyValues {
   var journeyService: JourneyServiceClient {
     get { self[JourneyServiceClient.self] }
     set { self[JourneyServiceClient.self] = newValue }
+  }
+}
+
+// MARK: - Habit Storage Dependency
+
+extension HabitStorage: DependencyKey {
+  public static let liveValue: HabitStorage = ServiceContainer.shared.habitStorage
+  public static let testValue: HabitStorage = .shared
+  public static let previewValue: HabitStorage = .shared
+}
+
+extension DependencyValues {
+  var habitStorage: HabitStorage {
+    get { self[HabitStorage.self] }
+    set { self[HabitStorage.self] = newValue }
   }
 }

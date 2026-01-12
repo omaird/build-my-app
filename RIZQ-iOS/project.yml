@@ -72,6 +72,7 @@ targets:
     resources:
       - path: RIZQ/Resources
       - path: RIZQ/Assets.xcassets
+      - path: RIZQ/PrivacyInfo.xcprivacy
     dependencies:
       - package: ComposableArchitecture
       - package: Dependencies
@@ -124,25 +125,14 @@ targets:
     platform: iOS
     sources:
       - path: RIZQTests
-      - path: RIZQ
-        excludes:
-          - "**/*.md"
-          - "Resources/**"
-          - "Assets.xcassets"
-          - "Info.plist"
-          - "RIZQ.entitlements"
-          - "Preview Content/**"
     dependencies:
-      - target: RIZQKit
-      - package: ComposableArchitecture
-      - package: Dependencies
-      - package: CasePaths
-      - package: Clocks
-      - package: Nuke
+      - target: RIZQ
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rizq.app.tests
         GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/RIZQ.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RIZQ"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
   RIZQSnapshotTests:
     type: bundle.unit-test

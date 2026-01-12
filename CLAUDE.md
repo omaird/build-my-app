@@ -6,6 +6,10 @@ This document contains conventions and patterns that Claude should follow when w
 
 RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. Users practice authentic duas, build daily routines through "Journeys," earn XP, level up, and track streaks. The app features a warm, luxury Islamic aesthetic with smooth animations.
 
+**Platforms:**
+- **Web App**: React 18 + TypeScript + Vite
+- **iOS App**: Swift 5.9 + SwiftUI + The Composable Architecture (TCA)
+
 ### Core Features
 - **Landing Page**: Public marketing page with feature showcase for unauthenticated users
 - **Dua Practice**: Practice duas with Arabic text, transliteration, translation, and repetition counter
@@ -13,10 +17,13 @@ RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. U
 - **Daily Adkhar**: Habit system with morning/anytime/evening time slots
 - **Quick Practice**: Bottom sheet for rapid dua practice without leaving the current page
 - **Gamification**: XP, levels, streaks, and celebratory animations
-- **Authentication**: Social login (Google, GitHub) via Better Auth + Neon Auth
+- **Authentication**: Social login (Google, GitHub) via Firebase Authentication
 - **Admin Panel**: Full CRUD management for duas, journeys, categories, collections, and users
+- **iOS Widget**: Home screen widget for daily reminders (iOS only)
 
 ## Tech Stack
+
+### Web App
 
 | Layer | Technology | Notes |
 |-------|------------|-------|
@@ -26,10 +33,38 @@ RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. U
 | State (Server) | TanStack React Query v5 | Data fetching and caching |
 | State (Client) | React Context + localStorage | Auth state, habit completions |
 | Database | Neon PostgreSQL (serverless) | Direct browser queries via `@neondatabase/serverless` |
-| Auth | Better Auth + Neon Auth | Managed auth service |
+| Auth | Better Auth + Neon Auth | OAuth providers (Google, GitHub) |
 | Testing | Playwright | E2E tests |
 
+### iOS App
+
+| Layer | Technology | Notes |
+|-------|------------|-------|
+| Language | Swift 5.9 | iOS 17+ |
+| UI | SwiftUI | Declarative UI |
+| Architecture | TCA (Composable Architecture) 1.17 | Unidirectional data flow |
+| Database | Firebase Firestore | Real-time sync, offline support |
+| Auth | Firebase Auth + Google Sign-In | Social OAuth |
+| Images | Nuke 12.8 | Image loading and caching |
+| Testing | XCTest + swift-snapshot-testing | Unit + snapshot tests |
+| Build | XcodeGen + Fastlane | CI/CD automation |
+
+### Database Strategy
+
+**Content Data (duas, journeys, categories):**
+- **Web**: Neon PostgreSQL (legacy, still operational)
+- **iOS**: Firebase Firestore exclusively (fully migrated January 2026)
+- **Seeding**: `scripts/seed-firestore.cjs` syncs content to Firestore
+
+**User Data (profiles, activity, progress):**
+- **Web**: Neon PostgreSQL `user_profiles`, `user_activity` tables
+- **iOS**: Firebase Firestore `user_profiles`, `user_activity` collections
+
+> **Migration Note (January 2026)**: The iOS app has been **fully migrated** from Neon PostgreSQL to Firebase Firestore. Neon-related code is deprecated but preserved for potential rollback. See `RIZQ-iOS/CLAUDE.md` for the rollback procedure.
+
 ## Project Structure
+
+### Web App (`src/`)
 
 ```
 src/
@@ -87,6 +122,48 @@ src/
 ├── data/
 │   └── duaLibrary.ts        # Fallback/demo dua data
 └── App.tsx                  # Router + providers
+```
+
+### iOS App (`RIZQ-iOS/`)
+
+```
+RIZQ-iOS/
+├── RIZQ/                        # Main app target
+│   ├── App/
+│   │   ├── RIZQApp.swift            # App entry point + Firebase config
+│   │   ├── AppFeature.swift         # Root TCA reducer
+│   │   └── AppView.swift            # Root view with tab navigation
+│   ├── Features/                    # TCA feature modules
+│   │   ├── Adkhar/                  # Daily habits
+│   │   ├── Auth/                    # Firebase Authentication
+│   │   ├── Home/                    # Dashboard
+│   │   ├── Journeys/                # Journey browsing & detail
+│   │   ├── Library/                 # Dua library with search/filter
+│   │   ├── Practice/                # Dua practice with counter
+│   │   ├── Settings/                # User settings
+│   │   └── Admin/                   # Admin panel
+│   ├── Views/Components/            # Reusable SwiftUI components
+│   │   ├── Animations/              # Celebration, ripple, sparkles
+│   │   ├── GamificationViews/       # XP, level, streak badges
+│   │   ├── HabitViews/              # Habit cards, progress bars
+│   │   ├── JourneyViews/            # Journey cards, headers
+│   │   └── DuaViews/                # Dua cards, list items
+│   ├── Dependencies/                # TCA dependency clients
+│   └── Resources/                   # GoogleService-Info.plist, fonts
+├── RIZQKit/                     # Shared framework
+│   ├── Models/                      # Domain models (Dua, Journey, User)
+│   ├── Design/                      # Colors, Typography, Spacing
+│   └── Services/
+│       ├── API/                     # Legacy Neon API client
+│       ├── Auth/                    # FirebaseAuthService
+│       ├── Firebase/                # FirestoreContentService
+│       └── Persistence/             # HabitStorage, CacheService
+├── RIZQTests/                   # Unit tests
+├── RIZQSnapshotTests/           # Snapshot tests
+├── RIZQWidget/                  # Home screen widget
+├── fastlane/                    # Build automation
+├── docs/                        # Implementation docs
+└── project.yml                  # XcodeGen spec
 ```
 
 ## Code Conventions
@@ -187,7 +264,7 @@ WHERE user_id = ${userId}::uuid
 
 ## Database Schema
 
-### Core Tables (public schema)
+### Neon PostgreSQL Tables (Web App)
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
@@ -196,12 +273,36 @@ WHERE user_id = ${userId}::uuid
 | `duas` | Main dua content | `id`, `category_id`, `collection_id`, `title_en`, `arabic_text`, `transliteration`, `translation_en`, `source`, `repetitions`, `best_time`, `difficulty`, `rizq_benefit`, `context`, `prophetic_context`, `xp_value` |
 | `journeys` | Themed dua collections | `id`, `name`, `slug`, `description`, `emoji`, `estimated_minutes`, `daily_xp`, `is_premium`, `is_featured`, `sort_order` |
 | `journey_duas` | Journey-dua mapping | `journey_id`, `dua_id`, `time_slot`, `sort_order` |
-| `user_profiles` | User stats | `user_id` (uuid), `display_name`, `streak`, `total_xp`, `level`, `last_active_date` |
+| `user_profiles` | User stats | `user_id` (uuid), `display_name`, `streak`, `total_xp`, `level`, `last_active_date`, `is_admin` |
 | `user_activity` | Daily tracking | `user_id`, `date`, `duas_completed[]`, `xp_earned` |
 | `user_progress` | Per-dua progress | `user_id`, `dua_id`, `completed_count`, `last_completed` |
 
 ### Auth Tables (neon_auth schema)
 Managed by Neon Auth. Key table: `neon_auth.user` with `id`, `email`, `name`, `image`.
+
+### Firebase Firestore Collections (iOS App)
+
+| Collection | Purpose | Key Fields |
+|------------|---------|------------|
+| `duas` | Main dua content | `id`, `categoryId`, `titleEn`, `arabicText`, `transliteration`, `translationEn`, `source`, `repetitions`, `bestTime`, `difficulty`, `rizqBenefit`, `propheticContext`, `xpValue` |
+| `categories` | Dua categories | `id`, `name`, `slug`, `description` |
+| `collections` | Content tiers | `id`, `name`, `slug`, `isPremium` |
+| `journeys` | Themed collections | `id`, `name`, `slug`, `description`, `emoji`, `estimatedMinutes`, `dailyXp`, `isPremium`, `isFeatured`, `sortOrder` |
+| `journey_duas` | Journey-dua mapping | `journeyId`, `duaId`, `timeSlot`, `sortOrder` |
+| `user_profiles/{userId}` | User stats | `displayName`, `streak`, `totalXp`, `level`, `lastActiveDate` |
+| `user_activity/{userId}/dates/{date}` | Daily tracking | `duasCompleted[]`, `xpEarned` |
+
+**Firestore Field Naming**: Uses camelCase (not snake_case like Neon).
+
+### Firestore Security Rules
+
+Content collections (`duas`, `journeys`, `categories`, `collections`) are **publicly readable** but **write-restricted** to Admin SDK only. User data collections use owner-based access control:
+
+```javascript
+match /user_profiles/{userId} {
+  allow read, write: if request.auth.uid == userId;
+}
+```
 
 ### Time Slots
 Values: `"morning"` | `"anytime"` | `"evening"` (matches Islamic prayer structure)
@@ -346,6 +447,8 @@ const itemVariants = {
 
 ## Key Files Reference
 
+### Web App
+
 | Purpose | File |
 |---------|------|
 | Router + Providers | `src/App.tsx` |
@@ -359,6 +462,32 @@ const itemVariants = {
 | Admin Components Index | `src/components/admin/index.ts` |
 | Design Tokens | `tailwind.config.ts` |
 | CSS Variables | `src/index.css` |
+
+### iOS App
+
+| Purpose | File |
+|---------|------|
+| App Entry | `RIZQ-iOS/RIZQ/App/RIZQApp.swift` |
+| Root Feature | `RIZQ-iOS/RIZQ/App/AppFeature.swift` |
+| Root View | `RIZQ-iOS/RIZQ/App/AppView.swift` |
+| Firestore Content Service | `RIZQ-iOS/RIZQKit/Services/Firebase/FirestoreContentService.swift` |
+| Firebase Auth Service | `RIZQ-iOS/RIZQKit/Services/Auth/FirebaseAuthService.swift` |
+| Models | `RIZQ-iOS/RIZQKit/Models/` |
+| Design Tokens | `RIZQ-iOS/RIZQKit/Design/` |
+| TCA Dependencies | `RIZQ-iOS/RIZQKit/Services/Dependencies.swift` |
+| XcodeGen Spec | `RIZQ-iOS/project.yml` |
+| Fastlane Config | `RIZQ-iOS/fastlane/Fastfile` |
+
+### Firebase Configuration
+
+| Purpose | File |
+|---------|------|
+| Firestore Rules | `firestore.rules` |
+| Firestore Indexes | `firestore.indexes.json` |
+| Firebase Config | `firebase.json` |
+| Firebase Project | `.firebaserc` |
+| iOS Firebase Config | `RIZQ-iOS/RIZQ/Resources/GoogleService-Info.plist` |
+| Firestore Seeder | `scripts/seed-firestore.cjs` |
 
 ## Required Patterns
 
@@ -546,14 +675,109 @@ const calculateLevel = (xp: number): number => {
 
 ## Environment Variables
 
-Required in `.env`:
+### Web App (.env)
+
+```bash
+# Neon PostgreSQL (for web content + user data)
+VITE_DATABASE_URL=postgresql://...     # Neon connection string
+
+# Neon Auth (for web authentication)
+VITE_AUTH_URL=https://...              # Neon Auth endpoint
+
+# Firebase (optional, for future web migration)
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
 ```
-VITE_DATABASE_URL=postgresql://...  # Neon connection string
-VITE_AUTH_URL=https://...           # Neon Auth endpoint
+
+### iOS App
+
+Firebase configuration is in `RIZQ-iOS/RIZQ/Resources/GoogleService-Info.plist` (generated from Firebase Console).
+
+### Firebase Project
+
+| Service | Status |
+|---------|--------|
+| Firebase Auth | ✅ Active (Google Sign-In) |
+| Firestore | ✅ Active (content + user data) |
+| Firebase Hosting | Not used |
+| Firebase Storage | Not used |
+
+## iOS App Development
+
+For detailed iOS conventions, see `RIZQ-iOS/CLAUDE.md`. Key points:
+
+### TCA Feature Pattern
+
+```swift
+@Reducer
+struct MyFeature {
+  @ObservableState
+  struct State: Equatable {
+    var items: [Item] = []
+    var isLoading = false
+  }
+
+  enum Action {
+    case onAppear
+    case itemsLoaded(Result<[Item], Error>)
+  }
+
+  @Dependency(\.firestoreClient) var firestoreClient
+
+  var body: some ReducerOf<Self> {
+    Reduce { state, action in
+      switch action {
+      case .onAppear:
+        state.isLoading = true
+        return .run { send in
+          let items = try await firestoreClient.fetchItems()
+          await send(.itemsLoaded(.success(items)))
+        }
+      // ...
+      }
+    }
+  }
+}
 ```
+
+### Firestore Service Pattern (iOS)
+
+```swift
+// FirestoreContentService handles all content queries
+public func fetchAllDuas() async throws -> [Dua] {
+  let snapshot = try await db.collection("duas")
+    .order(by: "id")
+    .getDocuments()
+
+  return snapshot.documents.compactMap { doc -> Dua? in
+    try? mapDocumentToDua(doc.data(), documentId: doc.documentID)
+  }
+}
+```
+
+### Build Verification (iOS)
+
+Always verify the iOS build after changes:
+
+```bash
+cd RIZQ-iOS && xcodebuild -scheme RIZQ \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  build 2>&1 | grep -E "(error:|BUILD SUCCEEDED|BUILD FAILED)"
+```
+
+### iOS Project Commands
+
+| Command | Purpose |
+|---------|---------|
+| `bundle exec fastlane test` | Run all tests |
+| `bundle exec fastlane build` | Build release IPA |
+| `bundle exec fastlane beta` | Upload to TestFlight |
+| `xcodegen generate` | Regenerate Xcode project |
 
 ## Don't
 
+### Web App
 - Don't modify files in `src/components/ui/` (shadcn/ui primitives)
 - Don't hardcode colors (use CSS variables or Tailwind classes)
 - Don't skip loading/empty states
@@ -563,8 +787,22 @@ VITE_AUTH_URL=https://...           # Neon Auth endpoint
 - Don't query neon_auth tables directly (except for profile picture sync)
 - Don't store passwords or sensitive data in localStorage
 
+### iOS App
+- Don't put business logic in SwiftUI views (use TCA reducers)
+- Don't use `@State` for domain data (use TCA `@ObservableState`)
+- Don't access TCA dependencies outside reducers
+- Don't use `@DependencyClient` macro (use manual struct registration)
+- Don't skip build verification after changes
+- Don't assume property types—verify in model files first
+
+### Firebase
+- Don't write to content collections (`duas`, `journeys`) from client—use Admin SDK
+- Don't expose Firestore in security rules without auth checks for user data
+- Don't use raw Firestore timestamps—convert to Swift `Date` or JS `Date`
+
 ## Do
 
+### Web App
 - Use Framer Motion for all animations
 - Use `cn()` for conditional class merging
 - Map DB snake_case to frontend camelCase with explicit functions
@@ -572,3 +810,18 @@ VITE_AUTH_URL=https://...           # Neon Auth endpoint
 - Use template literals for SQL (auto-parameterized)
 - Provide prophetic context for duas when available
 - Test on mobile viewport (app is mobile-first)
+
+### iOS App
+- Use `@ObservableState` for all TCA state
+- Use `@Bindable var store` for binding support
+- Extract subviews for complex views
+- Test reducer logic with `TestStore`
+- Use `.run` effects for async work
+- Capture state values before entering `.run` blocks
+- Run build verification after every change
+
+### Firebase
+- Use `scripts/seed-firestore.cjs` to sync content to Firestore
+- Use camelCase for Firestore field names
+- Use Firestore security rules for user data access control
+- Check `firestore.rules` before deploying rule changes

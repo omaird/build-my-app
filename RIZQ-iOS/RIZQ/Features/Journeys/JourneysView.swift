@@ -77,7 +77,7 @@ struct JourneysView: View {
         count: store.activeJourneys.count
       )
 
-      ForEach(store.activeJourneys) { journey in
+      ForEach(Array(store.activeJourneys.enumerated()), id: \.element.id) { index, journey in
         JourneyCardView(
           journey: journey,
           isSubscribed: true,
@@ -85,6 +85,7 @@ struct JourneysView: View {
         ) {
           store.send(.journeyTapped(journey))
         }
+        .modifier(JourneyStaggeredItemModifier(index: index))
       }
     }
   }
@@ -96,7 +97,7 @@ struct JourneysView: View {
       sectionHeader(title: "Featured Journeys", showStar: true)
 
       // Vertical full-width cards (matching React app design)
-      ForEach(store.availableFeaturedJourneys) { journey in
+      ForEach(Array(store.availableFeaturedJourneys.enumerated()), id: \.element.id) { index, journey in
         JourneyCardView(
           journey: journey,
           isSubscribed: store.subscribedJourneyIds.contains(journey.id),
@@ -104,6 +105,7 @@ struct JourneysView: View {
         ) {
           store.send(.journeyTapped(journey))
         }
+        .modifier(JourneyStaggeredItemModifier(index: index))
       }
     }
   }
@@ -115,7 +117,7 @@ struct JourneysView: View {
       sectionHeader(title: "All Journeys")
 
       // Vertical full-width cards (matching React app design)
-      ForEach(store.availableJourneys) { journey in
+      ForEach(Array(store.availableJourneys.enumerated()), id: \.element.id) { index, journey in
         JourneyCardView(
           journey: journey,
           isSubscribed: store.subscribedJourneyIds.contains(journey.id),
@@ -123,6 +125,7 @@ struct JourneysView: View {
         ) {
           store.send(.journeyTapped(journey))
         }
+        .modifier(JourneyStaggeredItemModifier(index: index))
       }
     }
   }
@@ -172,6 +175,32 @@ struct JourneysView: View {
           .foregroundStyle(Color.rizqTextSecondary)
       }
     }
+  }
+}
+
+// MARK: - Staggered Animation Modifier
+
+/// Modifier for staggered entry animations (matches LibraryView and Framer Motion staggerChildren)
+struct JourneyStaggeredItemModifier: ViewModifier {
+  let index: Int
+  @State private var isVisible: Bool = false
+
+  private var delay: Double {
+    0.05 * Double(min(index, 10))  // Cap delay to prevent too long waits
+  }
+
+  func body(content: Content) -> some View {
+    content
+      .opacity(isVisible ? 1 : 0)
+      .offset(y: isVisible ? 0 : 15)
+      .onAppear {
+        withAnimation(
+          .easeOut(duration: 0.3)
+          .delay(delay)
+        ) {
+          isVisible = true
+        }
+      }
   }
 }
 

@@ -9,6 +9,8 @@ struct JourneyCardView: View {
   let isFeatured: Bool
   let onTap: () -> Void
 
+  @State private var isPressed = false
+
   var body: some View {
     Button(action: onTap) {
       VStack(spacing: 0) {
@@ -67,8 +69,15 @@ struct JourneyCardView: View {
       .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
       .overlay(cardOverlay)
       .shadowSoft()
+      .scaleEffect(isPressed ? 0.98 : 1.0)
+      .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
     }
     .buttonStyle(.plain)
+    .simultaneousGesture(
+      DragGesture(minimumDistance: 0)
+        .onChanged { _ in isPressed = true }
+        .onEnded { _ in isPressed = false }
+    )
     .overlay(alignment: .topTrailing) {
       // Featured badge (diagonal ribbon style)
       if isFeatured && !isSubscribed {

@@ -1,5 +1,12 @@
 import Foundation
 
+// MARK: - DEPRECATED: Admin Service (Neon-based)
+// ============================================================================
+// This file is DEPRECATED and kept for potential rollback.
+// Use FirebaseAdminService for all admin operations instead.
+// The TCA dependency now uses FirebaseAdminService as its liveValue.
+// ============================================================================
+
 // MARK: - Admin Service Protocol
 
 /// Protocol for admin CRUD operations
@@ -34,6 +41,7 @@ public protocol AdminServiceProtocol: Sendable {
   // Users
   func fetchAllUsersAdmin() async throws -> [UserProfile]
   func updateUserAdmin(userId: String, isAdmin: Bool) async throws -> UserProfile
+  func updateUserPremium(userId: String, isPremium: Bool) async throws -> UserProfile
   func deleteUserAdmin(userId: String) async throws
 }
 
@@ -283,6 +291,7 @@ public struct CategoryInput: Equatable, Sendable {
 
 // MARK: - Admin Service Implementation
 
+@available(*, deprecated, message: "Use FirebaseAdminService instead")
 public actor AdminService: AdminServiceProtocol {
   private let apiClient: APIClientProtocol
 
@@ -681,6 +690,25 @@ public actor AdminService: AdminServiceProtocol {
     return user
   }
 
+  public func updateUserPremium(userId: String, isPremium: Bool) async throws -> UserProfile {
+    let query = """
+      UPDATE user_profiles SET
+        is_premium = $2,
+        updated_at = NOW()
+      WHERE user_id = $1::uuid
+      RETURNING *
+    """
+
+    let results: [UserProfile] = try await apiClient.execute(query, params: [
+      .string(userId),
+      .bool(isPremium)
+    ])
+    guard let user = results.first else {
+      throw APIError.notFound
+    }
+    return user
+  }
+
   public func deleteUserAdmin(userId: String) async throws {
     // Delete user activity
     let deleteActivity = """
@@ -835,6 +863,10 @@ public actor MockAdminService: AdminServiceProtocol {
   }
 
   public func updateUserAdmin(userId: String, isAdmin: Bool) async throws -> UserProfile {
+    SampleData.userProfile
+  }
+
+  public func updateUserPremium(userId: String, isPremium: Bool) async throws -> UserProfile {
     SampleData.userProfile
   }
 

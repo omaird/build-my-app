@@ -1,14 +1,64 @@
-# App identifiers
+# ============================================================
+# RIZQ iOS - Fastlane Appfile Configuration
+# ============================================================
+#
+# SETUP INSTRUCTIONS:
+# 1. Get your Team ID from: https://developer.apple.com/account → Membership
+# 2. Uncomment and fill in apple_id and team_id below
+# 3. (Optional) Create an App Store Connect API key for automation
+#
+# For detailed setup, see the TestFlight deployment plan:
+# .agents/plans/testflight-deployment.md
+# ============================================================
+
+# App Bundle Identifier
 app_identifier("com.rizq.app")
 
-# Apple Developer account
-# Uncomment and fill in when ready:
-# apple_id("your-apple-id@example.com")
-# team_id("YOUR_TEAM_ID")
+# ============================================================
+# REQUIRED: Uncomment and fill in your Apple Developer details
+# ============================================================
 
-# For App Store Connect API (recommended for CI/CD)
-# Generate an API key at: https://appstoreconnect.apple.com/access/api
+# Your Apple ID email (the one you use to sign into developer.apple.com)
+apple_id("odg@hey.com")
+
+# Your Apple Developer Team ID (10-character alphanumeric)
+# Find at: https://developer.apple.com/account → Membership → Team ID
+team_id("5SA6M6679W")
+
+# ============================================================
+# OPTIONAL: App Store Connect API Key (recommended for CI/CD)
+# ============================================================
+#
+# Benefits:
+# - No 2FA prompts during builds
+# - Required for CI/CD pipelines
+# - More secure than username/password
+#
+# Setup:
+# 1. Go to: https://appstoreconnect.apple.com/access/api
+# 2. Click "+" to create a new key
+# 3. Name: "Fastlane CI", Role: "App Manager"
+# 4. Download the .p8 file (can only download ONCE!)
+# 5. Save to: fastlane/AuthKey_XXXXXX.p8
+# 6. Create fastlane/api_key.json (see below)
+# 7. Uncomment the json_key_file line
+#
+# api_key.json format:
+# {
+#   "key_id": "XXXXXXXXXX",
+#   "issuer_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+#   "key_filepath": "fastlane/AuthKey_XXXXXXXXXX.p8"
+# }
+#
 # json_key_file("./fastlane/api_key.json")
 
-# For match (code signing)
-# git_url("https://github.com/your-org/certificates")
+# ============================================================
+# For Team/Match Code Signing (Optional)
+# ============================================================
+#
+# If using fastlane match for team code signing:
+# 1. Create a private Git repo for certificates
+# 2. Configure Matchfile with your repo URL
+# 3. Uncomment git_url in Matchfile
+#
+# See: https://docs.fastlane.tools/actions/match/

@@ -1,0 +1,35 @@
+{
+  "name": "ralph-wiggum",
+  "version": "2.0.0",
+  "description": "Multi-persona iterative improvement loops for code quality. Supports both target-based and plan-driven execution.",
+  "skills": [
+    {
+      "name": "ralph-loop",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/ralph-loop.md",
+      "description": "Start Ralph Wiggum loop targeting specific files"
+    },
+    {
+      "name": "plan-loop",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/plan-loop.md",
+      "description": "Execute a plan file with multi-persona review on each feature"
+    }
+  ],
+  "commands": [
+    {
+      "name": "help",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/help.md",
+      "description": "Explain Ralph Wiggum technique and available commands"
+    },
+    {
+      "name": "cancel-ralph",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/cancel-ralph.md",
+      "description": "Cancel active Ralph Wiggum loop"
+    }
+  ],
+  "hooks": [
+    {
+      "event": "Stop",
+      "path": "${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh"
+    }
+  ]
+}

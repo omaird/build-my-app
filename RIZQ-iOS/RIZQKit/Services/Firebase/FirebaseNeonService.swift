@@ -1,12 +1,17 @@
 import Foundation
 
-// MARK: - Firebase Neon Service Adapter
+// MARK: - DEPRECATED: Firebase Neon Service Adapter
+// ============================================================================
+// This file is DEPRECATED and kept for potential rollback.
+// All operations should use FirestoreUserClient and FirestoreContentClient instead.
+// ============================================================================
 
 /// Adapter that implements NeonServiceProtocol using Firestore for user data
 /// while delegating content queries to the underlying NeonService.
 ///
 /// This enables a gradual migration from Neon-based user data to Firestore
 /// while keeping dua content queries unchanged.
+@available(*, deprecated, message: "Use FirestoreUserClient and FirestoreContentClient TCA dependencies instead")
 public actor FirebaseNeonService: NeonServiceProtocol {
   private let neonService: NeonService
   private let firestoreService: FirestoreService

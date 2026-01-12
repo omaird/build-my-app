@@ -11,7 +11,14 @@ service cloud.firestore {
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    
+
+    // Helper function to check if the authenticated user is an admin
+    // Reads the user's profile to check their isAdmin field
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/user_profiles/$(request.auth.uid)).data.isAdmin == true;
+    }
+
     // Content collections - publicly readable (no auth required)
     // Write access restricted to Admin SDK only
 
@@ -47,7 +54,10 @@ service cloud.firestore {
     }
 
     match /user_profiles/{userId} {
-      allow read, write: if isOwner(userId);
+      // Users can read/write their own profile
+      // Admins can read all profiles and update admin status
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     // User activity - users can read/write their own activity
@@ -57,7 +67,10 @@ service cloud.firestore {
     }
 
     match /user_activity/{userId}/dates/{dateId} {
-      allow read, write: if isOwner(userId);
+      // Users can read/write their own activity
+      // Admins can read all activity for stats
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
     }
 
     // User progress - users can read/write their own progress
