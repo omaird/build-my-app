@@ -162,13 +162,16 @@ struct AdkharFeature {
     Reduce { state, action in
       switch action {
       case .onAppear:
+        adkharLogger.info("📱 AdkharFeature.onAppear: Starting to load habits...")
         state.isLoading = true
         state.loadError = nil
 
         return .run { [adkharService] send in
           do {
             // Fetch all habits (journey + custom) from storage and database
+            adkharLogger.info("📱 Fetching all habits from service...")
             let habits = try await adkharService.fetchAllHabits()
+            adkharLogger.info("📱 Fetched habits - morning: \(habits.morning.count), anytime: \(habits.anytime.count), evening: \(habits.evening.count)")
 
             await send(.habitsLoaded(
               morning: habits.morning,
@@ -178,6 +181,7 @@ struct AdkharFeature {
 
             // Fetch streak and today's completions (requires auth)
             if let userId = adkharService.currentUserId() {
+              adkharLogger.info("📱 User logged in, fetching streak for: \(userId, privacy: .public)")
               let streak = try await adkharService.fetchStreak(userId)
               await send(.streakLoaded(streak))
 
@@ -187,10 +191,12 @@ struct AdkharFeature {
                 await send(.completionsRestored(completedIds))
               }
             } else {
+              adkharLogger.info("📱 No user logged in, setting streak to 0")
               await send(.streakLoaded(0))
             }
 
           } catch {
+            adkharLogger.error("📱 Error loading habits: \(error.localizedDescription, privacy: .public)")
             await send(.loadFailed(error.localizedDescription))
           }
         }
@@ -232,6 +238,8 @@ struct AdkharFeature {
         state.morningHabits = morning
         state.anytimeHabits = anytime
         state.eveningHabits = evening
+        let totalCount = morning.count + anytime.count + evening.count
+        adkharLogger.info("✅ habitsLoaded: isLoading=false, totalHabits=\(totalCount, privacy: .public) (empty state should show if 0)")
         return .none
 
       case .loadFailed(let error):
