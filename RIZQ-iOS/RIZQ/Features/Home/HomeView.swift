@@ -191,9 +191,11 @@ struct HomeView: View {
             .font(.rizqDisplayBold(.title2))
             .foregroundStyle(Color.rizqText)
 
-          Text(store.motivationalPhrase)
-            .font(.rizqSans(.subheadline))
+          Text(store.inspirationalQuote)
+            .font(.rizqSans(.caption))
             .foregroundStyle(Color.rizqPrimary.opacity(0.7))
+            .italic()
+            .lineLimit(2)
         }
       }
 
@@ -421,7 +423,7 @@ struct ScaleButtonStyle: ButtonStyle {
 #Preview("Home View - Default") {
   HomeView(
     store: Store(initialState: HomeFeature.State(
-      displayName: "Omair",
+      authUserName: "Omair Dawood",
       streak: 7,
       totalXp: 450,
       level: 3,
@@ -446,7 +448,6 @@ struct ScaleButtonStyle: ButtonStyle {
 #Preview("Home View - New User") {
   HomeView(
     store: Store(initialState: HomeFeature.State(
-      displayName: "",
       streak: 0,
       totalXp: 0,
       level: 1,
@@ -460,7 +461,7 @@ struct ScaleButtonStyle: ButtonStyle {
 #Preview("Home View - Streak Animation") {
   HomeView(
     store: Store(initialState: HomeFeature.State(
-      displayName: "Omair",
+      authUserName: "Omair Dawood",
       streak: 7,
       totalXp: 450,
       level: 3,

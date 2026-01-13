@@ -145,6 +145,8 @@ struct AuthClient: Sendable {
   var signInWithOAuth: @Sendable (AuthProvider) async throws -> AuthResponse
   var signOut: @Sendable () async throws -> Void
   var restoreSession: @Sendable () -> (AuthUser, AuthSession)?
+  var getCurrentUser: @Sendable () async throws -> AuthUser?
+  var getLinkedAccounts: @Sendable () async throws -> [LinkedAccount]
 }
 
 extension AuthClient: DependencyKey {
@@ -175,6 +177,14 @@ extension AuthClient: DependencyKey {
     restoreSession: {
       let service = ServiceContainer.shared.authService
       return service.restoreSession()
+    },
+    getCurrentUser: {
+      let service = ServiceContainer.shared.authService
+      return try await service.getCurrentUser()
+    },
+    getLinkedAccounts: {
+      let service = ServiceContainer.shared.authService
+      return try await service.getLinkedAccounts()
     }
   )
 
@@ -198,7 +208,13 @@ extension AuthClient: DependencyKey {
       )
     },
     signOut: { },
-    restoreSession: { nil }
+    restoreSession: { nil },
+    getCurrentUser: {
+      AuthUser(id: "preview", email: "preview@example.com", name: "Preview User")
+    },
+    getLinkedAccounts: {
+      [LinkedAccount(id: "preview-google", provider: .google, providerAccountId: "google-preview")]
+    }
   )
 
   static let testValue = AuthClient(
@@ -206,7 +222,9 @@ extension AuthClient: DependencyKey {
     signUp: unimplemented("\(Self.self).signUp"),
     signInWithOAuth: unimplemented("\(Self.self).signInWithOAuth"),
     signOut: unimplemented("\(Self.self).signOut"),
-    restoreSession: unimplemented("\(Self.self).restoreSession", placeholder: nil)
+    restoreSession: unimplemented("\(Self.self).restoreSession", placeholder: nil),
+    getCurrentUser: unimplemented("\(Self.self).getCurrentUser", placeholder: nil),
+    getLinkedAccounts: unimplemented("\(Self.self).getLinkedAccounts", placeholder: [])
   )
 }
 

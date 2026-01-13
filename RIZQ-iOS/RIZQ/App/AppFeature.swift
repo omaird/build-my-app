@@ -63,6 +63,7 @@ struct AppFeature {
     case auth(AuthFeature.Action)
     case authStateChanged(Bool)
     case userIdUpdated(String?)
+    case authUserUpdated(id: String, name: String?, imageURL: String?)
 
     // Admin Panel
     case admin(PresentationAction<AdminFeature.Action>)
@@ -92,8 +93,12 @@ struct AppFeature {
         return .none
 
       case .userIdUpdated(let userId):
-        // Pass user ID to child features that need it
+        // Pass user ID to child features that need it (legacy, use setAuthUser instead)
         return .send(.home(.setUserId(userId)))
+
+      case .authUserUpdated(let id, let name, let imageURL):
+        // Pass full auth user info to Home for display name and profile picture
+        return .send(.home(.setAuthUser(id: id, name: name, imageURL: imageURL)))
 
       // Handle navigation from Home
       case .home(.navigateToAdkhar):
@@ -134,8 +139,8 @@ struct AppFeature {
       // Handle auth state changes
       case .auth(.authSuccess(let user)):
         state.isAuthenticated = true
-        // Pass user ID to features that need it
-        return .send(.userIdUpdated(user.id))
+        // Pass full auth user info (name, photo) to Home for personalized display
+        return .send(.authUserUpdated(id: user.id, name: user.name, imageURL: user.image))
 
       case .settings(.signedOut):
         state.isAuthenticated = false

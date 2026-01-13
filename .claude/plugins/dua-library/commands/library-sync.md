@@ -1,11 +1,11 @@
 ---
 name: library-sync
-description: "Sync duas from the documentation (dua library.md) to the database"
+description: "Sync duas from the documentation (dua library.md) to Firebase Firestore"
 ---
 
 # Library Sync Command
 
-You are syncing the dua library from documentation to the database. This command reads `dua library.md` and identifies duas that need to be added.
+You are syncing the dua library from documentation to Firebase Firestore. This command reads `dua library.md` and identifies duas that need to be added.
 
 ## Step 1: Read Documentation
 
@@ -16,18 +16,17 @@ Read: dua library.md
 
 Parse the structured content to identify all documented duas.
 
-## Step 2: Check Current Database
+## Step 2: Check Current Firestore Data
 
-Query existing duas:
-```sql
-SELECT id, title_en, source FROM duas ORDER BY id;
-```
+Query the `duas` collection to get all existing duas:
+- List all documents
+- Note their IDs and titleEn values
 
 ## Step 3: Identify Gaps
 
-Compare documentation against database:
-- List duas in documentation but not in database
-- List duas in database but not in documentation (orphans)
+Compare documentation against Firestore:
+- List duas in documentation but not in Firestore
+- List duas in Firestore but not in documentation (orphans)
 - Identify any discrepancies
 
 Present a sync report:
@@ -36,7 +35,7 @@ Present a sync report:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Documentation: [X] duas documented
-Database: [Y] duas stored
+Firestore: [Y] duas stored
 Gap: [Z] duas to sync
 
 ✅ Already Synced:
@@ -44,12 +43,12 @@ Gap: [Z] duas to sync
 2. [Dua Title] (ID: [X])
 ...
 
-❌ Missing from Database:
+❌ Missing from Firestore:
 1. [Dua Title] - [Category]
 2. [Dua Title] - [Category]
 ...
 
-⚠️ In Database but Not Documented:
+⚠️ In Firestore but Not Documented:
 1. [Dua Title] (ID: [X])
 ...
 
@@ -63,43 +62,57 @@ Use AskUserQuestion:
 - Select specific duas to sync?
 - Review each dua before adding?
 
-## Step 5: Batch Population
+## Step 5: Prepare Firestore Documents
 
 For each dua to sync:
 
 1. Parse from documentation:
-   - Title
-   - Arabic text
+   - Title (titleEn)
+   - Arabic text (arabicText)
    - Transliteration
-   - Translation
+   - Translation (translationEn)
    - Source
-   - Category
+   - Category (categoryId)
    - Repetitions
-   - Best time
+   - Best time (bestTime)
 
-2. Validate data completeness
+2. Convert to Firestore schema (camelCase)
 
-3. Insert into database:
-```sql
-INSERT INTO duas (
-  category_id,
-  title_en,
-  arabic_text,
-  transliteration,
-  translation_en,
-  source,
-  repetitions,
-  best_time,
-  difficulty,
-  xp_value
-) VALUES (...) RETURNING id, title_en;
+3. Add to seed script:
+
+```javascript
+// In scripts/seed-firestore.cjs
+const duas = [
+  // ... existing duas ...
+  {
+    id: [next ID],
+    categoryId: [1-4],
+    titleEn: "[Title]",
+    arabicText: "[Arabic]",
+    transliteration: "[Translit]",
+    translationEn: "[Translation]",
+    source: "[Source]",
+    repetitions: [count],
+    bestTime: "[timing]",
+    difficulty: "[level]",
+    estDurationSec: [seconds],
+    rizqBenefit: "[benefit]",
+    propheticContext: "[context]",
+    xpValue: [value]
+  }
+];
 ```
 
-## Step 6: Progress Tracking
+## Step 6: Execute Sync
 
-Show progress during batch sync:
+Run the seed script:
+```bash
+node scripts/seed-firestore.cjs
 ```
-Syncing duas...
+
+Show progress:
+```
+Syncing duas to Firestore...
 
 [1/10] ✅ Ayatul Kursi - Added (ID: 11)
 [2/10] ✅ Morning Protection - Added (ID: 12)
@@ -117,16 +130,12 @@ Failed: 1 (missing data)
 
 ## Step 7: Post-Sync Verification
 
-```sql
--- Verify new count
-SELECT COUNT(*) as total_duas FROM duas;
+Query Firestore to verify:
+1. Total duas count
+2. Recently added documents
 
--- Show recently added
-SELECT id, title_en, created_at
-FROM duas
-WHERE created_at > NOW() - INTERVAL '5 minutes'
-ORDER BY id;
-```
+Check the Firestore console:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore/data/duas
 
 ## Error Recovery
 
@@ -151,3 +160,8 @@ The command expects duas in this format in `dua library.md`:
 **XP:** [Value]
 **Rizq Benefit:** [Description]
 ```
+
+## Firestore Console
+
+View synced data at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore

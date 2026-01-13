@@ -58,7 +58,18 @@ export default function HomePage() {
   const xpProgress = getXpProgress();
   const weekActivities = getWeekActivities();
   const todayActivity = getTodayActivity();
-  const displayName = profile?.displayName || user?.name || "Traveler";
+
+  // Get user's first name from Google account or profile
+  const getFirstName = () => {
+    // Prefer Google account name, then profile display name
+    const fullName = user?.name || profile?.displayName;
+    if (!fullName || fullName === "Traveler") return null;
+    // Extract first name (first word)
+    return fullName.split(" ")[0];
+  };
+
+  const firstName = getFirstName();
+  const displayName = firstName || "Traveler";
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -67,40 +78,26 @@ export default function HomePage() {
     return "Good evening";
   };
 
-  const getMotivationalPhrase = () => {
-    const hour = new Date().getHours();
-    const streak = profile?.streak ?? 0;
-    const isMorning = hour < 12;
-    const isAfternoon = hour >= 12 && hour < 17;
-    const isEvening = hour >= 17;
+  // Rotating inspirational Islamic quotes about beginning and Allah
+  const inspirationalQuotes = [
+    "Bismillah — In the name of Allah, begin your journey",
+    "Every good deed starts with intention and ends with gratitude",
+    "The journey of a thousand prayers begins with a single step",
+    "Trust in Allah, but tie your camel — begin with purpose",
+    "With Allah's name, nothing is impossible",
+    "Start each day remembering the One who gave it to you",
+    "Your rizq is written — walk towards it with faith",
+    "Begin with Bismillah, end with Alhamdulillah",
+    "The best provision for the journey is taqwa",
+    "When you call upon Allah, know that He hears you",
+    "Take the first step, and Allah will guide your path",
+    "Patience and prayer — your companions on this journey",
+  ];
 
-    // Morning phrases
-    if (isMorning) {
-      if (streak === 0) return "Start fresh today";
-      if (streak === 1) return "Keep the momentum!";
-      if (streak <= 2) return "Building strong habits";
-      if (streak <= 6) return "Morning momentum!";
-      if (streak < 30) return "Consistency is key";
-      return "Morning champion!";
-    }
-
-    // Afternoon phrases
-    if (isAfternoon) {
-      if (streak === 0) return "Make today count";
-      if (streak === 1) return "One day at a time";
-      if (streak <= 2) return "Keep going strong";
-      if (streak <= 6) return "Stay focused";
-      if (streak < 30) return "You're doing great";
-      return "Inspiring dedication!";
-    }
-
-    // Evening phrases
-    if (streak === 0) return "Tomorrow is a new day";
-    if (streak === 1) return "Great start today";
-    if (streak <= 2) return "Keep the rhythm going";
-    if (streak <= 6) return "Another day, another step";
-    if (streak < 30) return "Another great day!";
-    return "Epic consistency!";
+  const getInspirationalQuote = () => {
+    // Rotate quotes based on current minute for gentle variety
+    const minuteIndex = Math.floor(Date.now() / 60000) % inspirationalQuotes.length;
+    return inspirationalQuotes[minuteIndex];
   };
 
   return (
@@ -140,8 +137,8 @@ export default function HomePage() {
               <h1 className="font-display text-2xl font-bold text-foreground">
                 {displayName}
               </h1>
-              <p className="text-sm text-primary/70 mt-0.5">
-                {getMotivationalPhrase()}
+              <p className="text-sm text-primary/70 mt-0.5 italic">
+                {getInspirationalQuote()}
               </p>
             </div>
           </div>

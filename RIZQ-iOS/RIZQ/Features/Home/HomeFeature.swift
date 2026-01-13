@@ -56,12 +56,32 @@ struct HomeFeature {
     // User ID for fetching data (set by parent feature)
     var userId: String?
 
-    // User profile data
-    var displayName: String = ""
-    var profileImageURL: URL?
+    // Auth user data (from Firebase Auth - name and photo from Google)
+    var authUserName: String?
+    var authUserImageURL: URL?
+
+    // User profile data (from Firestore)
+    var profileDisplayName: String?
     var streak: Int = 0
     var totalXp: Int = 0
     var level: Int = 1
+
+    // Computed display name: prefer auth user name, then profile, then "Friend"
+    var displayName: String {
+      if let name = authUserName, !name.isEmpty {
+        // Extract first name from full name
+        return name.components(separatedBy: " ").first ?? name
+      }
+      if let profileName = profileDisplayName, !profileName.isEmpty, profileName != "Friend" {
+        return profileName.components(separatedBy: " ").first ?? profileName
+      }
+      return "Friend"
+    }
+
+    // Computed profile image: prefer auth user image
+    var profileImageURL: URL? {
+      authUserImageURL
+    }
 
     // Today's activity
     var todayActivity: UserActivity?
@@ -90,38 +110,9 @@ struct HomeFeature {
       return "Good evening"
     }
 
-    var motivationalPhrase: String {
-      let hour = Calendar.current.component(.hour, from: Date())
-      let isMorning = hour < 12
-      let isAfternoon = hour >= 12 && hour < 17
-
-      // Morning phrases
-      if isMorning {
-        if streak == 0 { return MotivationalPhrases.morningZeroStreak }
-        if streak == 1 { return MotivationalPhrases.morningEarlyStreak }
-        if streak <= 2 { return MotivationalPhrases.morningBuildingStreak }
-        if streak <= 6 { return MotivationalPhrases.morningGrowingStreak }
-        if streak < 30 { return MotivationalPhrases.morningStrongStreak }
-        return MotivationalPhrases.morningChampion
-      }
-
-      // Afternoon phrases
-      if isAfternoon {
-        if streak == 0 { return MotivationalPhrases.afternoonZeroStreak }
-        if streak == 1 { return MotivationalPhrases.afternoonEarlyStreak }
-        if streak <= 2 { return MotivationalPhrases.afternoonBuildingStreak }
-        if streak <= 6 { return MotivationalPhrases.afternoonGrowingStreak }
-        if streak < 30 { return MotivationalPhrases.afternoonStrongStreak }
-        return MotivationalPhrases.afternoonChampion
-      }
-
-      // Evening phrases
-      if streak == 0 { return MotivationalPhrases.eveningZeroStreak }
-      if streak == 1 { return MotivationalPhrases.eveningEarlyStreak }
-      if streak <= 2 { return MotivationalPhrases.eveningBuildingStreak }
-      if streak <= 6 { return MotivationalPhrases.eveningGrowingStreak }
-      if streak < 30 { return MotivationalPhrases.eveningStrongStreak }
-      return MotivationalPhrases.eveningChampion
+    /// Rotating inspirational Islamic quotes about beginning and Allah
+    var inspirationalQuote: String {
+      InspirationalQuotes.quoteForCurrentMinute()
     }
 
     var xpProgress: XPProgress {
@@ -158,6 +149,7 @@ struct HomeFeature {
     case onAppear
     case refreshData
     case setUserId(String?)
+    case setAuthUser(id: String, name: String?, imageURL: String?)
     case profileLoaded(UserProfile)
     case profileLoadFailed(String)
     case activityLoaded(UserActivity?)
@@ -271,11 +263,20 @@ struct HomeFeature {
         }
         return .none
 
+      case .setAuthUser(let id, let name, let imageURL):
+        state.userId = id
+        state.authUserName = name
+        if let urlString = imageURL, let url = URL(string: urlString) {
+          state.authUserImageURL = url
+        }
+        // Trigger data load
+        return .send(.onAppear)
+
       case .profileLoaded(let profile):
         let previousStreak = state.streak
         state.isLoading = false
         state.loadError = nil
-        state.displayName = profile.displayName ?? "Friend"
+        state.profileDisplayName = profile.displayName
         state.streak = profile.streak
         state.totalXp = profile.totalXp
         state.level = profile.level
@@ -386,38 +387,32 @@ struct HomeFeature {
   }
 }
 
-// MARK: - Motivational Phrases
+// MARK: - Inspirational Quotes
 
-/// Organized motivational phrases for different times and streak levels.
-/// Structured for easy maintenance and future localization support.
-enum MotivationalPhrases {
-  // Zero streak - action-oriented to guide new users
-  static let morningZeroStreak = "Begin your journey below"
-  static let afternoonZeroStreak = "Start with a journey below"
-  static let eveningZeroStreak = "Explore journeys to begin"
+/// Rotating inspirational Islamic quotes about beginning and Allah.
+/// Quotes rotate every minute for gentle variety.
+enum InspirationalQuotes {
+  static let quotes = [
+    "Bismillah — In the name of Allah, begin your journey",
+    "Every good deed starts with intention and ends with gratitude",
+    "The journey of a thousand prayers begins with a single step",
+    "Trust in Allah, but tie your camel — begin with purpose",
+    "With Allah's name, nothing is impossible",
+    "Start each day remembering the One who gave it to you",
+    "Your rizq is written — walk towards it with faith",
+    "Begin with Bismillah, end with Alhamdulillah",
+    "The best provision for the journey is taqwa",
+    "When you call upon Allah, know that He hears you",
+    "Take the first step, and Allah will guide your path",
+    "Patience and prayer — your companions on this journey",
+  ]
 
-  // Early streaks (1-2 days)
-  static let morningEarlyStreak = "Keep the momentum!"
-  static let morningBuildingStreak = "Building strong habits"
-  static let afternoonEarlyStreak = "One day at a time"
-  static let afternoonBuildingStreak = "Keep going strong"
-  static let eveningEarlyStreak = "Great start today"
-  static let eveningBuildingStreak = "Keep the rhythm going"
-
-  // Growing streaks (3-6 days)
-  static let morningGrowingStreak = "Morning momentum!"
-  static let afternoonGrowingStreak = "Stay focused"
-  static let eveningGrowingStreak = "Another day, another step"
-
-  // Strong streaks (7-29 days)
-  static let morningStrongStreak = "Consistency is key"
-  static let afternoonStrongStreak = "You're doing great"
-  static let eveningStrongStreak = "Another great day!"
-
-  // Champion streaks (30+ days)
-  static let morningChampion = "Morning champion!"
-  static let afternoonChampion = "Inspiring dedication!"
-  static let eveningChampion = "Epic consistency!"
+  /// Returns a quote that rotates every minute
+  static func quoteForCurrentMinute() -> String {
+    let minutesSinceEpoch = Int(Date().timeIntervalSince1970 / 60)
+    let index = minutesSinceEpoch % quotes.count
+    return quotes[index]
+  }
 }
 
 // MARK: - XP Progress Calculation

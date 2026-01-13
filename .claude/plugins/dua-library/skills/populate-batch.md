@@ -1,18 +1,18 @@
 ---
 name: populate-batch
-description: "Populate multiple duas from the dua library documentation into the database"
+description: "Populate multiple duas from the dua library documentation into Firebase Firestore"
 ---
 
 # Batch Populate Skill
 
-This skill handles bulk insertion of duas from `dua library.md` into the database.
+This skill handles bulk insertion of duas from `dua library.md` into Firebase Firestore.
 
 ## Workflow
 
 1. **Read documentation** - Parse `dua library.md`
 2. **Identify target duas** - Find documented but not-yet-inserted duas
 3. **Validate each** - Ensure required fields present
-4. **Batch insert** - Use transaction for atomicity
+4. **Batch insert** - Add to seed script and run
 5. **Report results** - Show success/failure count
 
 ## Documentation Format
@@ -32,58 +32,100 @@ Expected format in `dua library.md`:
 **Rizq Benefit:** [Description]
 ```
 
-## Parsing Logic
+## Firestore Schema (camelCase)
 
+Each dua document in Firestore:
 ```javascript
-// Regex patterns for extraction
-const patterns = {
-  title: /### \d+\. (.+)/,
-  arabic: /\*\*Arabic:\*\* (.+)/,
-  transliteration: /\*\*Transliteration:\*\* (.+)/,
-  translation: /\*\*Translation:\*\* "(.+)"/,
-  source: /\*\*Source:\*\* (.+)/,
-  bestTime: /\*\*When to Recite:\*\* (.+)/,
-  repetitions: /\*\*Repetitions:\*\* (\d+)x/,
-  difficulty: /\*\*Difficulty:\*\* (beginner|intermediate|advanced)/,
-  xp: /\*\*XP:\*\* (\d+)/,
-  rizqBenefit: /\*\*Rizq Benefit:\*\* (.+)/
-};
+{
+  id: number,
+  categoryId: number,
+  titleEn: string,
+  titleAr: string,
+  arabicText: string,
+  transliteration: string,
+  translationEn: string,
+  source: string,
+  repetitions: number,
+  bestTime: string,
+  difficulty: string,
+  estDurationSec: number,
+  rizqBenefit: string,
+  propheticContext: string,
+  xpValue: number
+}
 ```
 
 ## Category Mapping
 
 Map documented categories to IDs:
-```sql
-SELECT id, slug FROM categories;
--- morning → 1
--- evening → 2
--- rizq → 3
--- gratitude → 4
+- morning → categoryId: 1
+- evening → categoryId: 2
+- rizq → categoryId: 3
+- gratitude → categoryId: 4
+
+## Batch Insert Process
+
+### Step 1: Check Existing Duas
+
+Query Firestore to get current duas and their IDs to avoid duplicates.
+
+### Step 2: Parse Documentation
+
+Extract dua information from `dua library.md` and convert to Firestore format:
+- Map field names to camelCase
+- Calculate XP if not specified
+- Assign sequential IDs
+
+### Step 3: Add to Seed Script
+
+Edit `scripts/seed-firestore.cjs`:
+
+```javascript
+const duas = [
+  // ... existing duas ...
+  {
+    id: 11,
+    categoryId: 3,
+    titleEn: "Dua 1 Title",
+    arabicText: "Arabic 1",
+    transliteration: "Translit 1",
+    translationEn: "Translation 1",
+    source: "Source 1",
+    repetitions: 1,
+    bestTime: "After Fajr",
+    difficulty: "beginner",
+    estDurationSec: 10,
+    rizqBenefit: "Benefit 1",
+    propheticContext: "Context 1",
+    xpValue: 25
+  },
+  {
+    id: 12,
+    categoryId: 3,
+    titleEn: "Dua 2 Title",
+    // ... all fields
+  },
+  {
+    id: 13,
+    categoryId: 1,
+    titleEn: "Dua 3 Title",
+    // ... all fields
+  }
+];
 ```
 
-## Batch Insert SQL
+### Step 4: Run Seed Script
 
-```sql
-BEGIN;
-
-INSERT INTO duas (category_id, title_en, arabic_text, transliteration, translation_en, source, repetitions, best_time, difficulty, xp_value, rizq_benefit)
-VALUES
-  (3, 'Dua 1 Title', 'Arabic 1', 'Translit 1', 'Translation 1', 'Source 1', 1, 'After Fajr', 'beginner', 25, 'Benefit 1'),
-  (3, 'Dua 2 Title', 'Arabic 2', 'Translit 2', 'Translation 2', 'Source 2', 3, 'Anytime', 'intermediate', 35, 'Benefit 2'),
-  (1, 'Dua 3 Title', 'Arabic 3', 'Translit 3', 'Translation 3', 'Source 3', 1, 'Morning', 'beginner', 20, 'Benefit 3');
-
-COMMIT;
+```bash
+node scripts/seed-firestore.cjs
 ```
 
 ## Duplicate Prevention
 
-Before inserting, check for existing:
-```sql
-SELECT title_en FROM duas
-WHERE title_en IN ('Dua 1', 'Dua 2', 'Dua 3');
-```
-
-Skip any that already exist.
+Before adding, check for existing duas by querying Firestore:
+1. Get all duas from collection
+2. Compare titleEn values (case-insensitive)
+3. Skip any that already exist
 
 ## Progress Tracking
 
@@ -103,11 +145,39 @@ Details:
 ❌ Dua for Success - Missing Arabic text
 ```
 
-## Rollback on Error
+## Verification
 
-If critical error occurs:
-```sql
-ROLLBACK;
--- Report which dua caused the issue
--- Allow retry after fixing
-```
+After running the seed script, verify at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore/data/duas
+
+Query the collection to confirm:
+- New documents exist
+- All fields are populated correctly
+- IDs are sequential and unique
+
+## Error Handling
+
+If a dua fails validation:
+1. Log the specific error
+2. Skip that dua
+3. Continue with remaining duas
+4. Report failures at the end
+5. Suggest manual fixes for failed items
+
+## Field Name Conversion
+
+When parsing documentation (snake_case) to Firestore (camelCase):
+
+| Documentation | Firestore |
+|---------------|-----------|
+| title_en | titleEn |
+| title_ar | titleAr |
+| arabic_text | arabicText |
+| translation_en | translationEn |
+| category_id | categoryId |
+| collection_id | collectionId |
+| xp_value | xpValue |
+| best_time | bestTime |
+| rizq_benefit | rizqBenefit |
+| prophetic_context | propheticContext |
+| est_duration_sec | estDurationSec |

@@ -119,6 +119,8 @@ struct SettingsFeature {
   }
 
   @Dependency(\.continuousClock) var clock
+  @Dependency(\.authClient) var authClient
+  @Dependency(\.firestoreUserClient) var firestoreUserClient
 
   var body: some ReducerOf<Self> {
     BindingReducer()
@@ -135,39 +137,26 @@ struct SettingsFeature {
         state.isLoadingAccounts = true
         // Load persisted dark mode preference
         state.isDarkMode = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
-        // TODO: Load user data from AuthService
-        // For now, simulate loading with demo data
-        return .run { send in
-          try await clock.sleep(for: .milliseconds(500))
+        // Load real user data from AuthService and Firestore
+        return .run { [authClient, firestoreUserClient] send in
+          do {
+            // Fetch the current authenticated user from Firebase Auth
+            guard let user = try await authClient.getCurrentUser() else {
+              await send(.loadFailed("Not authenticated"))
+              return
+            }
+            await send(.userLoaded(user))
 
-          let demoUser = AuthUser(
-            id: "demo-user-001",
-            email: "omairdawood@gmail.com",
-            name: "Omar Dawood",
-            image: nil,
-            emailVerified: true
-          )
-          await send(.userLoaded(demoUser))
+            // Fetch the user profile from Firestore (or create if doesn't exist)
+            let profile = try await firestoreUserClient.getOrCreateUserProfile(user.id, user.name)
+            await send(.profileLoaded(profile))
 
-          let demoProfile = UserProfile(
-            id: "profile-001",
-            userId: "demo-user-001",
-            displayName: "Omar Dawood",
-            streak: 5,
-            totalXp: 350,
-            level: 2,
-            isAdmin: true  // Enable admin access for testing
-          )
-          await send(.profileLoaded(demoProfile))
-
-          let demoAccounts: [LinkedAccount] = [
-            LinkedAccount(
-              id: "account-001",
-              provider: .google,
-              providerAccountId: "google-123"
-            )
-          ]
-          await send(.linkedAccountsLoaded(demoAccounts))
+            // Fetch linked OAuth accounts from Firebase Auth
+            let accounts = try await authClient.getLinkedAccounts()
+            await send(.linkedAccountsLoaded(accounts))
+          } catch {
+            await send(.loadFailed(error.localizedDescription))
+          }
         }
 
       case .refreshData:

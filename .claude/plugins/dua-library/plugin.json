@@ -1,23 +1,23 @@
 {
   "name": "dua-library",
-  "version": "1.0.0",
-  "description": "Tools for building and managing the RIZQ App dua library - research, populate, validate, and organize authentic Islamic duas",
+  "version": "2.0.0",
+  "description": "Tools for building and managing the RIZQ App dua library with Firebase Firestore - research, populate, validate, and organize authentic Islamic duas",
   "author": "RIZQ App Team",
   "skills": [
     {
       "name": "add-dua",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/add-dua.md",
-      "description": "Add a single dua to the database with all required fields (Arabic text, transliteration, translation, source, etc.)"
+      "description": "Add a single dua to Firebase Firestore with all required fields (Arabic text, transliteration, translation, source, etc.)"
     },
     {
       "name": "create-journey",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/create-journey.md",
-      "description": "Create a new themed journey (collection of duas) with time-slot assignments"
+      "description": "Create a new themed journey (collection of duas) with time-slot assignments in Firestore"
     },
     {
       "name": "populate-batch",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/populate-batch.md",
-      "description": "Populate multiple duas from the dua library documentation into the database"
+      "description": "Populate multiple duas from the dua library documentation into Firebase Firestore"
     },
     {
       "name": "validate-library",
@@ -28,6 +28,11 @@
       "name": "library-status",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/library-status.md",
       "description": "Show current status of the dua library - counts, categories, journeys, and gaps"
+    },
+    {
+      "name": "dua-pipeline",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/dua-pipeline.md",
+      "description": "Complete dua processing pipeline - takes a dua through research, validation, population, and journey integration"
     }
   ],
   "commands": [
@@ -44,12 +49,27 @@
     {
       "name": "library-sync",
       "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-sync.md",
-      "description": "Sync duas from documentation to database"
+      "description": "Sync duas from documentation to Firebase Firestore"
     },
     {
       "name": "library-report",
       "path": "${CLAUDE_PLUGIN_ROOT}/commands/library-report.md",
       "description": "Generate a report of the current library status"
+    },
+    {
+      "name": "run-pipeline",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/run-pipeline.md",
+      "description": "Run the complete dua processing pipeline - research, validate, populate, curate, and integrate"
+    },
+    {
+      "name": "dua-pipeline-status",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/dua-pipeline-status.md",
+      "description": "Check the status of the current dua pipeline"
+    },
+    {
+      "name": "dua-pipeline-cancel",
+      "path": "${CLAUDE_PLUGIN_ROOT}/commands/dua-pipeline-cancel.md",
+      "description": "Cancel the current dua pipeline and reset state"
     }
   ],
   "agents": [
@@ -61,17 +81,17 @@
     {
       "name": "dua-populator",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/dua-populator.md",
-      "description": "Format and insert duas into the Neon database with proper validation"
+      "description": "Format and insert duas into Firebase Firestore with proper validation"
     },
     {
       "name": "journey-builder",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/journey-builder.md",
-      "description": "Design and create themed journeys by selecting and organizing duas"
+      "description": "Design and create themed journeys by selecting and organizing duas in Firestore"
     },
     {
       "name": "content-validator",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/content-validator.md",
-      "description": "Validate dua content for authenticity, completeness, and data quality"
+      "description": "Validate dua content for authenticity, completeness, and Firestore data quality"
     },
     {
       "name": "library-curator",

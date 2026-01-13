@@ -44,6 +44,7 @@ const categories = [
   { id: 2, name: "Evening", slug: "evening", description: "Adhkar for the evening", emoji: "🌙" },
   { id: 3, name: "Rizq", slug: "rizq", description: "Duas for sustenance and provision", emoji: "💫" },
   { id: 4, name: "Gratitude", slug: "gratitude", description: "Duas of thankfulness", emoji: "🤲" },
+  { id: 5, name: "Foundation", slug: "foundation", description: "Core adhkar for building your practice", emoji: "🌱" },
 ];
 
 const duas = [
@@ -226,6 +227,124 @@ const duas = [
     rizqBenefit: "Specifically for relief from debt and financial hardship",
     propheticContext: "The Prophet (ﷺ) taught various duas for seeking relief from debt",
     xpValue: 15
+  },
+  {
+    id: 11,
+    categoryId: 1,
+    collectionId: 1,
+    titleEn: "Tahleel - Declaration of Tawheed",
+    titleAr: "التهليل - كلمة التوحيد",
+    arabicText: "لَا إِلَٰهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ",
+    transliteration: "La ilaha illallah wahdahu la sharika lahu, lahul-mulku wa lahul-hamdu, wa huwa 'ala kulli shay'in qadir",
+    translationEn: "There is none worthy of worship except Allah alone, He has no partner. His is the dominion and His is the praise, and He is capable of all things.",
+    source: "Bukhari 6403, Muslim 2691",
+    repetitions: 100,
+    bestTime: "Morning",
+    difficulty: "intermediate",
+    estDurationSec: 600,
+    rizqBenefit: "An extremely powerful dhikr that covers all the good we need from Allah - brings protection, blessings, and erases sins",
+    propheticContext: "The Prophet (ﷺ) said: Whoever says this 100 times in a day will have the reward of freeing 10 slaves, 100 good deeds recorded, 100 bad deeds erased, and protection from Shaytan until evening. No one can do better except one who does more.",
+    xpValue: 50
+  },
+
+  // ============================================
+  // NEW BEGINNINGS JOURNEY - Foundational Duas
+  // For returning Muslims reconnecting with faith
+  // ============================================
+  {
+    id: 12,
+    categoryId: 5,
+    collectionId: 1,
+    titleEn: "Bismillah - In Allah's Name",
+    titleAr: "بِسْمِ اللَّهِ",
+    arabicText: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
+    transliteration: "Bismillahir-Rahmanir-Raheem",
+    translationEn: "In the name of Allah, the Most Gracious, the Most Merciful",
+    source: "Quran 1:1",
+    repetitions: 3,
+    bestTime: "Anytime",
+    difficulty: "beginner",
+    estDurationSec: 15,
+    rizqBenefit: "Every good deed begun with Bismillah carries blessings. Start everything in Allah's name.",
+    propheticContext: "The Prophet (ﷺ) said: Any important matter that does not begin with Bismillah is devoid of blessing.",
+    xpValue: 10,
+    encouragementMessage: "This is where every journey begins. One simple phrase, infinite blessings."
+  },
+  {
+    id: 13,
+    categoryId: 5,
+    collectionId: 1,
+    titleEn: "Alhamdulillah - All Praise to Allah",
+    titleAr: "الْحَمْدُ لِلَّهِ",
+    arabicText: "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+    transliteration: "Alhamdulillahi Rabbil-'Aalameen",
+    translationEn: "All praise is due to Allah, Lord of all the worlds",
+    source: "Quran 1:2",
+    repetitions: 3,
+    bestTime: "Anytime",
+    difficulty: "beginner",
+    estDurationSec: 15,
+    rizqBenefit: "Gratitude multiplies blessings. Those who thank Allah are given more.",
+    propheticContext: "The Prophet (ﷺ) said: Allah is pleased with His servant who says Alhamdulillah after eating or drinking.",
+    xpValue: 10,
+    encouragementMessage: "Gratitude transforms the heart. Even on hard days, there's always something to be thankful for."
+  },
+  {
+    id: 14,
+    categoryId: 5,
+    collectionId: 1,
+    titleEn: "SubhanAllah - Glory to Allah",
+    titleAr: "سُبْحَانَ اللَّهِ",
+    arabicText: "سُبْحَانَ اللَّهِ",
+    transliteration: "SubhanAllah",
+    translationEn: "Glory be to Allah (He is free from any imperfection)",
+    source: "Bukhari, Muslim",
+    repetitions: 10,
+    bestTime: "Anytime",
+    difficulty: "beginner",
+    estDurationSec: 30,
+    rizqBenefit: "SubhanAllah plants trees in Paradise for you. Each utterance is a seed of eternal reward.",
+    propheticContext: "The Prophet (ﷺ) said: Is any one of you unable to earn a thousand good deeds each day? Say SubhanAllah 100 times.",
+    xpValue: 15,
+    encouragementMessage: "Just one word, said with presence, connects you to the infinite. You're doing beautifully."
+  },
+  {
+    id: 15,
+    categoryId: 5,
+    collectionId: 1,
+    titleEn: "La ilaha illallah - Declaration of Faith",
+    titleAr: "لَا إِلَٰهَ إِلَّا اللَّهُ",
+    arabicText: "لَا إِلَٰهَ إِلَّا اللَّهُ",
+    transliteration: "La ilaha illallah",
+    translationEn: "There is no god but Allah",
+    source: "Bukhari, Muslim",
+    repetitions: 10,
+    bestTime: "Anytime",
+    difficulty: "beginner",
+    estDurationSec: 30,
+    rizqBenefit: "The best dhikr. This declaration is the foundation of our faith and the key to Paradise.",
+    propheticContext: "The Prophet (ﷺ) said: The best dhikr is La ilaha illallah, and the best dua is Alhamdulillah.",
+    xpValue: 20,
+    encouragementMessage: "These words are the most beloved to Allah. Speaking them is returning home."
+  },
+  {
+    id: 16,
+    categoryId: 5,
+    collectionId: 1,
+    titleEn: "Astaghfirullah - Seeking Forgiveness",
+    titleAr: "أَسْتَغْفِرُ اللَّهَ",
+    arabicText: "أَسْتَغْفِرُ اللَّهَ",
+    transliteration: "Astaghfirullah",
+    translationEn: "I seek forgiveness from Allah",
+    source: "Bukhari, Muslim",
+    repetitions: 10,
+    bestTime: "Anytime",
+    difficulty: "beginner",
+    estDurationSec: 30,
+    rizqBenefit: "Istighfar opens doors that seemed closed. It brings relief, provision, and peace.",
+    propheticContext: "The Prophet (ﷺ) used to seek forgiveness 100 times a day, teaching us that forgiveness is for everyone.",
+    xpValue: 15,
+    encouragementMessage: "There is no sin too great for Allah's mercy. Every moment is a fresh start."
   }
 ];
 
@@ -248,8 +367,8 @@ const journeys = [
     slug: "morning-warrior",
     description: "Start your day with powerful duas for protection and blessings.",
     emoji: "🌅",
-    estimatedMinutes: 12,
-    dailyXp: 250,
+    estimatedMinutes: 22,
+    dailyXp: 300,
     isPremium: false,
     isFeatured: true,
     sortOrder: 1
@@ -289,6 +408,23 @@ const journeys = [
     isPremium: false,
     isFeatured: false,
     sortOrder: 4
+  },
+  {
+    id: 6,
+    name: "New Beginnings",
+    slug: "new-beginnings",
+    description: "A gentle reintroduction to daily remembrance. Perfect for those reconnecting with their faith — no pressure, just peace.",
+    emoji: "🌱",
+    estimatedMinutes: 5,
+    dailyXp: 70,
+    isPremium: false,
+    isFeatured: true,
+    sortOrder: 5,
+    // New Beginnings specific fields
+    personaTarget: "returning",
+    welcomeMessage: "Welcome back. Every journey begins with a single step. There's no judgment here — only growth.",
+    missedDayMessage: "It's okay. Every moment is a chance to reconnect. Pick up where you left off.",
+    streakRestorationFree: true
   }
 ];
 
@@ -302,6 +438,7 @@ const journeyDuas = [
   { journeyId: 2, duaId: 1, timeSlot: "morning", sortOrder: 1 },
   { journeyId: 2, duaId: 2, timeSlot: "morning", sortOrder: 2 },
   { journeyId: 2, duaId: 8, timeSlot: "morning", sortOrder: 3 },
+  { journeyId: 2, duaId: 11, timeSlot: "morning", sortOrder: 4 },
 
   // Debt Freedom (Journey 3)
   { journeyId: 3, duaId: 10, timeSlot: "anytime", sortOrder: 1 },
@@ -315,6 +452,13 @@ const journeyDuas = [
   // Gratitude Builder (Journey 5)
   { journeyId: 5, duaId: 4, timeSlot: "morning", sortOrder: 1 },
   { journeyId: 5, duaId: 9, timeSlot: "anytime", sortOrder: 2 },
+
+  // New Beginnings (Journey 6) - Foundational duas for returning Muslims
+  { journeyId: 6, duaId: 12, timeSlot: "anytime", sortOrder: 1 },  // Bismillah
+  { journeyId: 6, duaId: 13, timeSlot: "anytime", sortOrder: 2 },  // Alhamdulillah
+  { journeyId: 6, duaId: 14, timeSlot: "anytime", sortOrder: 3 },  // SubhanAllah
+  { journeyId: 6, duaId: 15, timeSlot: "anytime", sortOrder: 4 },  // La ilaha illallah
+  { journeyId: 6, duaId: 16, timeSlot: "anytime", sortOrder: 5 },  // Astaghfirullah
 ];
 
 // ============================================

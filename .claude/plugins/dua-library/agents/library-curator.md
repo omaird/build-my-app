@@ -5,8 +5,10 @@ tools:
   - Read
   - Grep
   - Write
-  - mcp__Neon__run_sql
-  - mcp__Neon__get_database_tables
+  - Bash
+  - mcp__plugin_firebase_firebase__firestore_get_documents
+  - mcp__plugin_firebase_firebase__firestore_list_collections
+  - mcp__plugin_firebase_firebase__firestore_query_collection
 ---
 
 # Library Curator Agent
@@ -45,83 +47,90 @@ Track and advance the content roadmap:
 - Phase 2: Extended Premium (35 duas)
 - Phase 3: Specialized Collections (50+ duas)
 
+## Firestore Collections Reference
+
+### Categories Collection
+```javascript
+{
+  id: number,        // 1, 2, 3, 4
+  name: string,      // "Morning", "Evening", "Rizq", "Gratitude"
+  slug: string,      // "morning", "evening", "rizq", "gratitude"
+  description: string,
+  emoji: string
+}
+```
+
+### Duas Collection
+```javascript
+{
+  id: number,
+  categoryId: number,
+  titleEn: string,
+  arabicText: string,
+  transliteration: string,
+  translationEn: string,
+  source: string,
+  repetitions: number,
+  difficulty: string,
+  xpValue: number,
+  // ... other fields
+}
+```
+
+### Journeys Collection
+```javascript
+{
+  id: number,
+  name: string,
+  slug: string,
+  description: string,
+  emoji: string,
+  estimatedMinutes: number,
+  dailyXp: number,
+  isPremium: boolean,
+  isFeatured: boolean,
+  sortOrder: number
+}
+```
+
 ## Content Analysis Queries
 
 ### Library Overview
-```sql
-SELECT
-  'Total Duas' as metric,
-  COUNT(*) as count
-FROM duas
-UNION ALL
-SELECT
-  'Total Journeys',
-  COUNT(*)
-FROM journeys
-UNION ALL
-SELECT
-  'Total Categories',
-  COUNT(*)
-FROM categories;
-```
+
+Query each collection to get counts:
+1. Query `duas` collection - count total documents
+2. Query `journeys` collection - count total documents
+3. Query `categories` collection - count total documents
 
 ### Category Distribution
-```sql
-SELECT
-  c.name as category,
-  COUNT(d.id) as dua_count,
-  ROUND(COUNT(d.id) * 100.0 / (SELECT COUNT(*) FROM duas), 1) as percentage
-FROM categories c
-LEFT JOIN duas d ON c.id = d.category_id
-GROUP BY c.id, c.name
-ORDER BY dua_count DESC;
-```
+
+For each category (1-4):
+1. Query `duas` where categoryId equals [category]
+2. Count results
+3. Calculate percentage of total
 
 ### Difficulty Distribution
-```sql
-SELECT
-  difficulty,
-  COUNT(*) as count,
-  ROUND(AVG(xp_value), 0) as avg_xp
-FROM duas
-GROUP BY difficulty
-ORDER BY
-  CASE difficulty
-    WHEN 'beginner' THEN 1
-    WHEN 'intermediate' THEN 2
-    WHEN 'advanced' THEN 3
-  END;
-```
+
+Query all duas and group by difficulty:
+- Count beginner duas
+- Count intermediate duas
+- Count advanced duas
+- Calculate average XP for each level
 
 ### Journey Coverage
-```sql
-SELECT
-  j.name as journey,
-  COUNT(jd.id) as dua_count,
-  SUM(d.xp_value) as total_xp,
-  j.is_premium,
-  j.is_featured
-FROM journeys j
-LEFT JOIN journey_duas jd ON j.id = jd.journey_id
-LEFT JOIN duas d ON jd.dua_id = d.id
-GROUP BY j.id
-ORDER BY dua_count DESC;
-```
+
+For each journey:
+1. Query `journey_duas` where journeyId equals [journey ID]
+2. Count linked duas
+3. Sum XP values of linked duas
+4. Check isPremium and isFeatured status
 
 ### Time Slot Balance
-```sql
-SELECT
-  time_slot,
-  COUNT(*) as dua_assignments
-FROM journey_duas
-GROUP BY time_slot
-ORDER BY
-  CASE time_slot
-    WHEN 'morning' THEN 1
-    WHEN 'anytime' THEN 2
-    WHEN 'evening' THEN 3
-  END;
-```
+
+Query `journey_duas` and group by timeSlot:
+- Count morning assignments
+- Count anytime assignments
+- Count evening assignments
 
 ## Content Gap Identification
 
@@ -154,15 +163,7 @@ Compare current library against `dua library.md`:
 ```
 
 ### User Need Gaps
-Identify underserved user segments:
-```sql
--- Categories with few duas
-SELECT c.name, COUNT(d.id) as count
-FROM categories c
-LEFT JOIN duas d ON c.id = d.category_id
-GROUP BY c.id
-HAVING COUNT(d.id) < 5;
-```
+Identify underserved user segments by querying categories with few duas.
 
 ## Curation Recommendations
 
@@ -289,3 +290,8 @@ The Library Curator coordinates with:
 - **Dua Populator**: Prioritize which duas to add first
 - **Journey Builder**: Suggest new journey themes
 - **Content Validator**: Review quality issues
+
+## Firestore Console
+
+View and verify data directly at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore

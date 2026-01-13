@@ -1,168 +1,158 @@
 import SwiftUI
 import RIZQKit
 
-/// A horizontal card view for displaying a dua in the library list
-/// Redesigned to match JourneyCardView layout with icon, content, and chevron
+/// A horizontal card view for displaying a dua in the Library.
+/// Redesigned for reference/discovery (not practice):
+/// - Shows Arabic preview, source, and difficulty
+/// - Removes XP, repetitions, completion state (those belong in Adkhar)
 struct DuaListCardView: View {
   let dua: Dua
-  let isActive: Bool       // In user's daily habits
-  let isCompleted: Bool    // Completed today
+  let isActive: Bool       // In user's daily habits (shown subtly)
   let onTap: () -> Void
   let onAddToAdkhar: () -> Void
 
-  @State private var isPressed = false
-
-  // Convenience init for backward compatibility
+  // Legacy init for backward compatibility - isCompleted is now ignored
   init(
     dua: Dua,
     isActive: Bool,
-    isCompleted: Bool = false,
+    isCompleted: Bool = false,  // Ignored - Library doesn't track completion
     onTap: @escaping () -> Void,
     onAddToAdkhar: @escaping () -> Void
   ) {
     self.dua = dua
     self.isActive = isActive
-    self.isCompleted = isCompleted
     self.onTap = onTap
     self.onAddToAdkhar = onAddToAdkhar
   }
 
   var body: some View {
     Button(action: onTap) {
-      HStack(spacing: RIZQSpacing.lg) {
-        // Category icon (matching JourneyCardView icon placement)
-        categoryIconView
+      HStack(spacing: RIZQSpacing.md) {
+        // Arabic text preview snippet (left side visual)
+        arabicPreviewView
 
         // Main content
         VStack(alignment: .leading, spacing: RIZQSpacing.sm) {
-          // Title row with checkmark (if completed today)
-          HStack(spacing: RIZQSpacing.sm) {
-            Text(dua.titleEn)
-              .font(.rizqDisplayMedium(.headline))  // Changed from .title3 to match Journeys
-              .foregroundStyle(Color.rizqText)
-              .lineLimit(1)
-
-            // Checkmark for completed duas
-            if isCompleted {
-              Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 18))
-                .foregroundStyle(Color.tealSuccess)
-            }
-          }
-
-          // Metadata row: XP + Repetitions + Active badge
-          HStack(spacing: RIZQSpacing.sm) {
-            // XP value with sparkles (gold color)
-            HStack(spacing: 4) {
-              Image(systemName: "sparkles")
-                .font(.system(size: 12))
-              Text("+\(dua.xpValue)")
-                .font(.rizqMonoMedium(.caption))
-            }
-            .foregroundStyle(Color.rizqPrimary)
-
-            // Separator dot
-            Text("•")
-              .font(.rizqSans(.caption))
-              .foregroundStyle(Color.rizqMuted)
-
-            // Repetitions
-            Text("\(dua.repetitions)×")
-              .font(.rizqMono(.caption))
-              .foregroundStyle(Color.rizqTextSecondary)
-
-            // Active badge (if in habits)
-            if isActive {
-              activeBadge
-            }
-
-            Spacer()
-          }
-
-          // Arabic preview (single line, matches Journey description placement)
-          Text(dua.arabicText)
-            .font(.rizqArabic(.caption))
-            .foregroundStyle(Color.rizqTextSecondary)
+          // Title
+          Text(dua.titleEn)
+            .font(.rizqDisplayMedium(.headline))
+            .foregroundStyle(Color.rizqText)
             .lineLimit(1)
-            .environment(\.layoutDirection, .rightToLeft)
+
+          // Category + Source row
+          HStack(spacing: RIZQSpacing.sm) {
+            // Category emoji
+            Text(categoryEmoji(for: dua.categoryId))
+              .font(.system(size: 12))
+
+            // Category name
+            Text(categoryName(for: dua.categoryId).uppercased())
+              .font(.rizqSans(.caption2))
+              .foregroundStyle(Color.rizqPrimary)
+              .tracking(0.5)
+
+            // Source (if available)
+            if let source = dua.source {
+              Text("•")
+                .font(.rizqSans(.caption2))
+                .foregroundStyle(Color.rizqMuted)
+
+              Text(source)
+                .font(.rizqSans(.caption))
+                .foregroundStyle(Color.rizqTextSecondary)
+                .lineLimit(1)
+            }
+          }
+
+          // Translation excerpt
+          Text(dua.translationEn)
+            .font(.rizqSans(.caption))
+            .foregroundStyle(Color.rizqTextSecondary)
+            .lineLimit(2)
+            .multilineTextAlignment(.leading)
+
+          // Difficulty indicator (subtle footer)
+          if let difficulty = dua.difficulty {
+            HStack(spacing: 6) {
+              Circle()
+                .fill(difficultyColor(for: difficulty))
+                .frame(width: 6, height: 6)
+              Text(difficultyLabel(for: difficulty))
+                .font(.rizqSans(.caption2))
+                .foregroundStyle(Color.rizqMuted)
+            }
+            .padding(.top, 2)
+          }
         }
 
         Spacer(minLength: 0)
 
-        // Right side: Add button (if not in habits) or Chevron (if in habits)
-        if !isActive {
-          // Add to Adkhar button
-          Button {
-            onAddToAdkhar()
-          } label: {
-            ZStack {
-              Circle()
-                .fill(Color.rizqPrimary.opacity(0.1))
-                .frame(width: 36, height: 36)
-
-              Image(systemName: "plus")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(Color.rizqPrimary)
-            }
-          }
-          .buttonStyle(.plain)
-        } else {
-          // Chevron indicator (matching JourneyCardView)
-          Image(systemName: "chevron.right")
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(Color.rizqMuted)
-        }
+        // Right side: Add button (always show for quick add)
+        addButton
       }
       .padding(RIZQSpacing.lg)
-      .background(cardBackground)
+      .background(Color.rizqCard)
       .clipShape(RoundedRectangle(cornerRadius: RIZQRadius.islamic))
       .overlay(cardBorderOverlay)
-      .shadowSoft()  // Changed from direct .shadow() to use modifier
-      .scaleEffect(isPressed ? 0.98 : 1.0)
-      .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+      .shadowSoft()
     }
     .buttonStyle(.plain)
-    .simultaneousGesture(
-      DragGesture(minimumDistance: 0)
-        .onChanged { _ in isPressed = true }
-        .onEnded { _ in isPressed = false }
+  }
+
+  // MARK: - Arabic Preview (Left side visual element)
+
+  private var arabicPreviewView: some View {
+    // Show first few words of Arabic text as a visual preview
+    let preview = String(dua.arabicText.prefix(20))
+
+    return VStack {
+      Text(preview)
+        .font(.rizqArabic(.caption))
+        .foregroundStyle(Color.rizqText.opacity(0.8))
+        .multilineTextAlignment(.center)
+        .lineLimit(2)
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+    .frame(width: 56, height: 56)
+    .background(
+      RoundedRectangle(cornerRadius: RIZQRadius.md)
+        .fill(Color.cream)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: RIZQRadius.md)
+        .stroke(Color.goldSoft.opacity(0.4), lineWidth: 1)
     )
   }
 
-  // MARK: - Category Icon (Matching JourneyIconView style)
+  // MARK: - Add Button
 
-  private var categoryIconView: some View {
-    let emoji = categoryEmoji(for: dua.categoryId)
-    let icon = categoryIcon(for: dua.categoryId)
+  private var addButton: some View {
+    Button {
+      onAddToAdkhar()
+    } label: {
+      ZStack {
+        Circle()
+          .fill(isActive ? Color.tealSuccess.opacity(0.1) : Color.rizqPrimary.opacity(0.1))
+          .frame(width: 36, height: 36)
 
-    return ZStack {
-      // Background circle with subtle gradient
-      Circle()
-        .fill(
-          LinearGradient(
-            colors: [Color.cream, Color.creamWarm],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-          )
-        )
-        .frame(width: 48, height: 48)
-
-      // Border
-      Circle()
-        .stroke(Color.rizqBorder, lineWidth: 1.5)
-        .frame(width: 48, height: 48)
-
-      // Icon or emoji
-      if !emoji.isEmpty {
-        Text(emoji)
-          .font(.system(size: 22))
-      } else {
-        Image(systemName: icon)
-          .font(.system(size: 20))
-          .foregroundStyle(Color.rizqPrimary)
+        Image(systemName: isActive ? "checkmark" : "plus")
+          .font(.system(size: 14, weight: .medium))
+          .foregroundStyle(isActive ? Color.tealSuccess : Color.rizqPrimary)
       }
     }
+    .buttonStyle(.plain)
+    .disabled(isActive)
+    .accessibilityLabel(isActive ? "Already in Daily Adkhar" : "Add to Daily Adkhar")
   }
+
+  // MARK: - Card Border Overlay
+
+  private var cardBorderOverlay: some View {
+    RoundedRectangle(cornerRadius: RIZQRadius.islamic)
+      .stroke(Color.rizqBorder.opacity(0.5), lineWidth: 1)
+  }
+
+  // MARK: - Helpers
 
   private func categoryEmoji(for categoryId: Int?) -> String {
     switch categoryId {
@@ -174,62 +164,39 @@ struct DuaListCardView: View {
     }
   }
 
-  private func categoryIcon(for categoryId: Int?) -> String {
+  private func categoryName(for categoryId: Int?) -> String {
     switch categoryId {
-    case 1: return "sun.max.fill"
-    case 2: return "moon.fill"
-    case 3: return "sparkles"
-    case 4: return "heart.fill"
-    default: return "book.fill"
+    case 1: return "Morning"
+    case 2: return "Evening"
+    case 3: return "Rizq"
+    case 4: return "Gratitude"
+    default: return "Dua"
     }
   }
 
-  // MARK: - Card Background
-
-  private var cardBackground: some View {
-    Group {
-      if isCompleted {
-        Color.tealSuccess.opacity(0.05)
-      } else {
-        Color.rizqCard
-      }
+  private func difficultyColor(for difficulty: DuaDifficulty) -> Color {
+    switch difficulty {
+    case .beginner: return Color.tealSuccess
+    case .intermediate: return Color.sandWarm
+    case .advanced: return Color.rizqPrimary
     }
   }
 
-  // MARK: - Card Border Overlay
-
-  private var cardBorderOverlay: some View {
-    RoundedRectangle(cornerRadius: RIZQRadius.islamic)
-      .stroke(
-        isCompleted ? Color.tealSuccess.opacity(0.3) :
-          (isActive ? Color.rizqPrimary.opacity(0.2) : Color.clear),
-        lineWidth: 1
-      )
-  }
-
-  // MARK: - Active Badge (Matches JourneyCardView style)
-
-  private var activeBadge: some View {
-    HStack(spacing: 4) {
-      Image(systemName: "sparkles")
-        .font(.system(size: 10))
-      Text("Active")
-        .font(.rizqSansMedium(.caption))
+  private func difficultyLabel(for difficulty: DuaDifficulty) -> String {
+    switch difficulty {
+    case .beginner: return "Beginner-friendly"
+    case .intermediate: return "Intermediate"
+    case .advanced: return "Advanced"
     }
-    .foregroundStyle(Color.sandWarm)
-    .padding(.horizontal, RIZQSpacing.sm)
-    .padding(.vertical, 4)
-    .background(Color.sandWarm.opacity(0.12))
-    .clipShape(Capsule())
   }
 }
 
 // MARK: - Preview
 
-#Preview("All States") {
+#Preview("Library Cards") {
   ScrollView {
     VStack(spacing: RIZQSpacing.md) {
-      // Not in habits - shows add button
+      // Not in habits - shows + button
       Text("Not in Adkhar (shows + button)")
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -238,13 +205,12 @@ struct DuaListCardView: View {
       DuaListCardView(
         dua: Dua.demoData[0],
         isActive: false,
-        isCompleted: false,
         onTap: {},
         onAddToAdkhar: {}
       )
 
-      // In habits, not completed - shows chevron
-      Text("In Adkhar, not completed (shows chevron)")
+      // Already in habits - shows checkmark
+      Text("Already in Adkhar (shows ✓)")
         .font(.caption)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -253,13 +219,12 @@ struct DuaListCardView: View {
       DuaListCardView(
         dua: Dua.demoData[1],
         isActive: true,
-        isCompleted: false,
         onTap: {},
         onAddToAdkhar: {}
       )
 
-      // In habits and completed - shows checkmark + accent
-      Text("In Adkhar, completed today (teal styling)")
+      // With source and difficulty
+      Text("With source and difficulty")
         .font(.caption)
         .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -267,8 +232,7 @@ struct DuaListCardView: View {
 
       DuaListCardView(
         dua: Dua.demoData[2],
-        isActive: true,
-        isCompleted: true,
+        isActive: false,
         onTap: {},
         onAddToAdkhar: {}
       )

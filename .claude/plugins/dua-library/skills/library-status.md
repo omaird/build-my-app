@@ -1,71 +1,49 @@
 ---
 name: library-status
-description: "Show current status of the dua library - counts, categories, journeys, and gaps"
+description: "Show current status of the dua library in Firebase Firestore - counts, categories, journeys, and gaps"
 ---
 
 # Library Status Skill
 
-Quick overview of the dua library's current state.
+Quick overview of the dua library's current state in Firebase Firestore.
 
-## Quick Stats Query
+## Data Collection
 
-```sql
-SELECT
-  'Duas' as metric, COUNT(*)::text as value FROM duas
-UNION ALL SELECT
-  'Journeys', COUNT(*)::text FROM journeys
-UNION ALL SELECT
-  'Categories', COUNT(*)::text FROM categories
-UNION ALL SELECT
-  'Avg XP', ROUND(AVG(xp_value))::text FROM duas
-UNION ALL SELECT
-  'Total XP', SUM(xp_value)::text FROM duas;
-```
+Query the following Firestore collections:
 
-## Category Breakdown
+### 1. Overall Counts
+- Query `duas` collection - count documents
+- Query `journeys` collection - count documents
+- Query `categories` collection - count documents
 
-```sql
-SELECT
-  c.name,
-  COUNT(d.id) as count,
-  ROUND(COUNT(d.id) * 100.0 / (SELECT COUNT(*) FROM duas)) as pct
-FROM categories c
-LEFT JOIN duas d ON c.id = d.category_id
-GROUP BY c.id
-ORDER BY count DESC;
-```
+### 2. Category Breakdown
+For each category (1-4):
+- Query `duas` where `categoryId` equals category
+- Count results
+- Calculate percentage of total
 
-## Journey Summary
+Categories:
+- 1: Morning (🌅)
+- 2: Evening (🌙)
+- 3: Rizq (💫)
+- 4: Gratitude (🤲)
 
-```sql
-SELECT
-  j.emoji || ' ' || j.name as journey,
-  COUNT(jd.id) as duas,
-  j.daily_xp as xp
-FROM journeys j
-LEFT JOIN journey_duas jd ON j.id = jd.journey_id
-GROUP BY j.id
-ORDER BY j.is_featured DESC, j.name;
-```
+### 3. Journey Summary
+For each journey:
+- Get journey name and emoji
+- Query `journey_duas` where `journeyId` matches
+- Count linked duas
+- Get `dailyXp` value
 
-## Roadmap Progress
+### 4. XP Statistics
+- Sum all `xpValue` fields from `duas` collection
+- Calculate average XP per dua
 
-Compare against targets:
+### 5. Roadmap Progress
+Compare current count against targets:
 - Phase 1 (MVP): 15 duas
 - Phase 2 (Extended): 35 duas
 - Phase 3 (Specialized): 50+ duas
-
-```sql
-SELECT
-  COUNT(*) as current,
-  15 as phase1_target,
-  35 as phase2_target,
-  50 as phase3_target,
-  ROUND(COUNT(*) * 100.0 / 15) as phase1_pct,
-  ROUND(COUNT(*) * 100.0 / 35) as phase2_pct,
-  ROUND(COUNT(*) * 100.0 / 50) as phase3_pct
-FROM duas;
-```
 
 ## Status Display Format
 
@@ -81,15 +59,15 @@ FROM duas;
 📂 By Category
    🌅 Morning:   [X]
    🌙 Evening:   [X]
-   💰 Rizq:      [X]
-   🙏 Gratitude: [X]
+   💫 Rizq:      [X]
+   🤲 Gratitude: [X]
 
 🗺️ Journeys
    💰 Rizq Seeker      [X] duas
    🌅 Morning Warrior  [X] duas
-   💳 Debt Freedom     [X] duas
+   🔓 Debt Freedom     [X] duas
    🌙 Evening Peace    [X] duas
-   🙏 Gratitude Builder [X] duas
+   🤲 Gratitude Builder [X] duas
 
 📈 Roadmap
    Phase 1: [██████░░░░] [X]/15
@@ -106,3 +84,9 @@ After showing status, suggest:
 2. `/journey-create` - Create a new journey
 3. `/library-sync` - Sync from documentation
 4. `/library-report` - Full detailed report
+5. `/dua-pipeline` - Process a new dua through full pipeline
+
+## Firestore Console
+
+View data directly at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore

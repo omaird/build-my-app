@@ -1,13 +1,14 @@
 ---
 name: content-validator
-description: "Use this agent to validate dua content for authenticity, completeness, and data quality. It checks Arabic text, verifies hadith sources, and ensures database integrity."
+description: "Use this agent to validate dua content for authenticity, completeness, and data quality. It checks Arabic text, verifies hadith sources, and ensures Firestore data integrity."
 tools:
   - Read
   - Grep
   - WebSearch
-  - mcp__Neon__run_sql
-  - mcp__Neon__get_database_tables
-  - mcp__Neon__describe_table_schema
+  - Bash
+  - mcp__plugin_firebase_firebase__firestore_get_documents
+  - mcp__plugin_firebase_firebase__firestore_list_collections
+  - mcp__plugin_firebase_firebase__firestore_query_collection
 ---
 
 # Content Validator Agent
@@ -20,7 +21,7 @@ You are a quality assurance specialist for the RIZQ App dua library. Your role i
 Verify that duas are from authentic Islamic sources:
 - Hadith grade (Sahih, Hasan acceptable; Da'if needs disclosure)
 - Quran verse accuracy
-- Proper attribution to Prophet Muhammad ﷺ or companions
+- Proper attribution to Prophet Muhammad (ﷺ) or companions
 
 ### 2. Completeness Validation
 Ensure all required fields are populated:
@@ -44,87 +45,79 @@ Ensure uniformity across the library:
 - XP value calculations
 - Difficulty ratings
 
+## Firestore Schema Reference
+
+### Duas Collection Fields (camelCase)
+```javascript
+{
+  id: number,
+  categoryId: number,
+  titleEn: string,
+  titleAr: string,
+  arabicText: string,      // Required
+  transliteration: string, // Required
+  translationEn: string,   // Required
+  source: string,          // Required
+  repetitions: number,
+  bestTime: string,
+  difficulty: string,
+  xpValue: number,
+  rizqBenefit: string,
+  propheticContext: string
+}
+```
+
 ## Validation Queries
 
 ### Check for Missing Data
-```sql
--- Duas with missing required fields
-SELECT
-  id,
-  title_en,
-  CASE WHEN arabic_text IS NULL OR arabic_text = '' THEN 'Missing Arabic' ELSE NULL END as arabic_issue,
-  CASE WHEN transliteration IS NULL OR transliteration = '' THEN 'Missing Transliteration' ELSE NULL END as translit_issue,
-  CASE WHEN translation_en IS NULL OR translation_en = '' THEN 'Missing Translation' ELSE NULL END as translation_issue,
-  CASE WHEN source IS NULL OR source = '' THEN 'Missing Source' ELSE NULL END as source_issue
-FROM duas
-WHERE
-  arabic_text IS NULL OR arabic_text = '' OR
-  transliteration IS NULL OR transliteration = '' OR
-  translation_en IS NULL OR translation_en = '' OR
-  source IS NULL OR source = '';
-```
+
+Query the `duas` collection and examine documents for:
+- Missing `arabicText`
+- Missing `transliteration`
+- Missing `translationEn`
+- Missing `source`
+
+Use the Firestore query tool to list all duas and inspect each document.
 
 ### Check for Orphaned Data
-```sql
--- Duas not in any journey
-SELECT d.id, d.title_en
-FROM duas d
-LEFT JOIN journey_duas jd ON d.id = jd.dua_id
-WHERE jd.id IS NULL;
 
--- Journeys with no duas
-SELECT j.id, j.name
-FROM journeys j
-LEFT JOIN journey_duas jd ON j.id = jd.journey_id
-WHERE jd.id IS NULL;
-```
+**Duas not in any journey:**
+1. Query `duas` collection to get all dua IDs
+2. Query `journey_duas` collection to get all referenced duaIds
+3. Compare lists to find orphans
+
+**Journeys with no duas:**
+1. Query `journeys` collection to get all journey IDs
+2. Query `journey_duas` collection to get all referenced journeyIds
+3. Compare lists to find empty journeys
 
 ### Check for Invalid References
-```sql
--- Duas with invalid category references
-SELECT d.id, d.title_en, d.category_id
-FROM duas d
-LEFT JOIN categories c ON d.category_id = c.id
-WHERE d.category_id IS NOT NULL AND c.id IS NULL;
 
--- Journey duas with invalid references
-SELECT jd.*
-FROM journey_duas jd
-LEFT JOIN journeys j ON jd.journey_id = j.id
-LEFT JOIN duas d ON jd.dua_id = d.id
-WHERE j.id IS NULL OR d.id IS NULL;
-```
+**Duas with invalid category references:**
+1. Query `duas` collection
+2. Check that `categoryId` values are 1, 2, 3, or 4
+3. Flag any documents with invalid categoryId
+
+**Journey duas with invalid references:**
+1. Query `journey_duas` collection
+2. Verify each `journeyId` exists in `journeys` collection
+3. Verify each `duaId` exists in `duas` collection
 
 ### Check XP Consistency
-```sql
--- Journeys where daily_xp doesn't match sum of dua XPs
-SELECT
-  j.id,
-  j.name,
-  j.daily_xp as stated_xp,
-  COALESCE(SUM(d.xp_value), 0) as calculated_xp,
-  j.daily_xp - COALESCE(SUM(d.xp_value), 0) as difference
-FROM journeys j
-LEFT JOIN journey_duas jd ON j.id = jd.journey_id
-LEFT JOIN duas d ON jd.dua_id = d.id
-GROUP BY j.id
-HAVING j.daily_xp != COALESCE(SUM(d.xp_value), 0);
-```
+
+**Journeys where dailyXp doesn't match sum of dua XPs:**
+1. For each journey, get its duas from `journey_duas`
+2. Sum the `xpValue` of all linked duas
+3. Compare to journey's `dailyXp` field
+4. Flag discrepancies
 
 ### Check for Duplicates
-```sql
--- Potential duplicate duas (similar titles)
-SELECT
-  d1.id as id1,
-  d1.title_en as title1,
-  d2.id as id2,
-  d2.title_en as title2
-FROM duas d1
-JOIN duas d2 ON d1.id < d2.id
-WHERE
-  LOWER(d1.title_en) = LOWER(d2.title_en) OR
-  d1.arabic_text = d2.arabic_text;
-```
+
+**Potential duplicate duas:**
+1. Query all duas
+2. Check for matching `titleEn` values (case-insensitive)
+3. Check for matching `arabicText` values
+4. Report potential duplicates
 
 ## Source Verification Process
 
@@ -153,7 +146,7 @@ Check against multiple sources:
 **Title:** [Dua Title]
 **Cited Source:** [Source from database]
 
-### Verification Status: ✅ VERIFIED / ⚠️ NEEDS REVIEW / ❌ INCORRECT
+### Verification Status: VERIFIED / NEEDS REVIEW / INCORRECT
 
 **Findings:**
 - Source found: [Yes/No]
@@ -173,16 +166,6 @@ Check for consistency in transliteration:
 | 'alayka | alaikha, alaika |
 | Muhammad | Muhammed, Mohammad |
 | Subhan | Subhaan, Sobhan |
-
-### Automated Check Pattern
-```javascript
-// Patterns that should be consistent
-const standardPatterns = {
-  'Allāh': /Allah|Allaah|Allāh/gi,
-  'Muhammad': /Muhammad|Muhammed|Mohammad/gi,
-  // Add more patterns
-};
-```
 
 ## Difficulty Rating Validation
 
@@ -206,24 +189,12 @@ Verify difficulty ratings match actual complexity:
 - 7+ repetitions or specific conditions
 - Complex Arabic constructions
 
-```sql
--- Flag potential misrated duas
-SELECT
-  id,
-  title_en,
-  difficulty,
-  LENGTH(arabic_text) as arabic_length,
-  repetitions,
-  CASE
-    WHEN LENGTH(arabic_text) < 50 AND difficulty != 'beginner' THEN 'May be too easy for ' || difficulty
-    WHEN LENGTH(arabic_text) > 200 AND difficulty = 'beginner' THEN 'May be too hard for beginner'
-    ELSE 'OK'
-  END as rating_check
-FROM duas
-WHERE
-  (LENGTH(arabic_text) < 50 AND difficulty != 'beginner') OR
-  (LENGTH(arabic_text) > 200 AND difficulty = 'beginner');
-```
+### Difficulty Check
+For each dua:
+1. Count Arabic text length
+2. Check repetitions
+3. Verify difficulty matches criteria
+4. Flag potential misratings
 
 ## Validation Report Template
 
@@ -240,15 +211,15 @@ WHERE
 
 ## Issues by Category
 
-### ❌ Critical Issues (Must Fix)
+### Critical Issues (Must Fix)
 1. [Issue description with dua ID]
 2. [Issue description with dua ID]
 
-### ⚠️ Warnings (Should Fix)
+### Warnings (Should Fix)
 1. [Warning description]
 2. [Warning description]
 
-### ℹ️ Suggestions (Nice to Have)
+### Suggestions (Nice to Have)
 1. [Suggestion]
 2. [Suggestion]
 
@@ -275,3 +246,8 @@ Set up these checks to run:
 - After batch imports
 - Weekly automated check
 - On user-reported issues
+
+## Firestore Console
+
+View and verify data directly at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore

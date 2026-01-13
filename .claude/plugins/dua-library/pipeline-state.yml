@@ -1,0 +1,41 @@
+# Dua Pipeline State
+# This file tracks the current state of any running dua pipeline
+
+pipeline:
+  status: idle  # idle, in_progress, completed, failed
+  current_stage: null
+  dua_title: null
+
+  input:
+    raw: null
+
+  stages:
+    research:
+      status: pending
+      data: null
+
+    validate:
+      status: pending
+      checks:
+        arabic: pending
+        transliteration: pending
+        translation: pending
+        source: pending
+        duplicate: pending
+
+    populate:
+      status: pending
+      dua_id: null
+
+    curate:
+      status: pending
+      recommendations: []
+
+    journey_build:
+      status: pending
+      assignments: []
+
+  timestamps:
+    started: null
+    updated: null
+    completed: null

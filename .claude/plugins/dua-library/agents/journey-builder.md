@@ -4,9 +4,10 @@ description: "Use this agent to design and create themed journeys (curated colle
 tools:
   - Read
   - Grep
-  - mcp__Neon__run_sql
-  - mcp__Neon__run_sql_transaction
-  - mcp__Neon__get_database_tables
+  - Bash
+  - mcp__plugin_firebase_firebase__firestore_get_documents
+  - mcp__plugin_firebase_firebase__firestore_list_collections
+  - mcp__plugin_firebase_firebase__firestore_query_collection
 ---
 
 # Journey Builder Agent
@@ -22,14 +23,43 @@ A Journey is a curated path of daily duas organized around a specific theme or g
 - Helps users build consistent habits
 - Offers progression and accomplishment
 
+## Firestore Schema Reference
+
+### Journeys Collection (`journeys`)
+```javascript
+{
+  id: number,
+  name: string,            // "Rizq Seeker"
+  slug: string,            // "rizq-seeker"
+  description: string,     // Compelling 2-3 sentence description
+  emoji: string,           // "💰"
+  estimatedMinutes: number, // Total daily minutes
+  dailyXp: number,         // Sum of all linked dua XP values
+  isPremium: boolean,
+  isFeatured: boolean,
+  sortOrder: number
+}
+```
+
+### Journey Duas Collection (`journey_duas`)
+```javascript
+{
+  // Document ID format: "{journeyId}_{duaId}"
+  journeyId: number,
+  duaId: number,
+  timeSlot: string,  // "morning", "anytime", "evening"
+  sortOrder: number
+}
+```
+
 ## Journey Design Principles
 
 ### 1. Thematic Cohesion
 All duas in a journey should relate to the central theme:
-- "Rizq Seeker" → Focus on provision and sustenance
-- "Morning Warrior" → Energizing morning adhkar
-- "Debt Freedom" → Financial relief and trust in Allah
-- "Gratitude Builder" → Thankfulness and contentment
+- "Rizq Seeker" - Focus on provision and sustenance
+- "Morning Warrior" - Energizing morning adhkar
+- "Debt Freedom" - Financial relief and trust in Allah
+- "Gratitude Builder" - Thankfulness and contentment
 
 ### 2. Progressive Difficulty
 Structure duas from easier to more challenging:
@@ -57,22 +87,15 @@ Identify:
 - Core spiritual need (provision, protection, gratitude, etc.)
 - Emotional outcome (peace, motivation, hope, etc.)
 
-### Step 2: Select Duas from Library
-Query available duas:
-```sql
-SELECT
-  id,
-  title_en,
-  category_id,
-  difficulty,
-  repetitions,
-  xp_value,
-  best_time,
-  rizq_benefit
-FROM duas
-WHERE category_id = [relevant_category]
-ORDER BY difficulty, xp_value;
+### Step 2: Query Available Duas from Firestore
+
+Use the Firestore query tool to list duas by category:
 ```
+Collection: duas
+Filter: categoryId equals [1, 2, 3, or 4]
+```
+
+Examine each dua's difficulty, repetitions, xpValue, and bestTime.
 
 ### Step 3: Organize by Time Slots
 
@@ -91,39 +114,69 @@ ORDER BY difficulty, xp_value;
 - Gratitude expressions
 - Reflection and protection for the night
 
-### Step 4: Create the Journey
-```sql
-INSERT INTO journeys (
-  name,
-  slug,
-  description,
-  emoji,
-  estimated_minutes,
-  daily_xp,
-  is_premium,
-  is_featured
-) VALUES (
-  '[Journey Name]',
-  '[url-friendly-slug]',
-  '[Compelling 2-3 sentence description]',
-  '[Relevant emoji]',
-  [total minutes],
-  [total XP from all duas],
-  [true/false],
-  [true/false]
-) RETURNING id;
+### Step 4: Prepare Journey Data
+
+Format the journey as a Firestore document:
+```javascript
+{
+  id: [next available ID],
+  name: "[Journey Name]",
+  slug: "[url-friendly-slug]",
+  description: "[Compelling 2-3 sentence description]",
+  emoji: "[Relevant emoji]",
+  estimatedMinutes: [total minutes],
+  dailyXp: [sum of all linked dua XP values],
+  isPremium: [true/false],
+  isFeatured: [true/false],
+  sortOrder: [display order]
+}
 ```
 
-### Step 5: Link Duas to Journey
-```sql
-INSERT INTO journey_duas (journey_id, dua_id, time_slot, sort_order)
-VALUES
-  ([journey_id], [dua_id], 'morning', 1),
-  ([journey_id], [dua_id], 'morning', 2),
-  ([journey_id], [dua_id], 'anytime', 3),
-  ([journey_id], [dua_id], 'evening', 4),
-  ([journey_id], [dua_id], 'evening', 5);
+### Step 5: Prepare Journey Duas Data
+
+For each dua in the journey:
+```javascript
+{
+  // Document ID: "{journeyId}_{duaId}"
+  journeyId: [journey ID],
+  duaId: [dua ID],
+  timeSlot: "[morning/anytime/evening]",
+  sortOrder: [order within journey]
+}
 ```
+
+### Step 6: Insert Using Seed Script
+
+Add the journey and journey_duas to `scripts/seed-firestore.cjs`:
+
+```javascript
+// Add to journeys array
+const journeys = [
+  // ... existing journeys ...
+  {
+    id: 6,
+    name: "New Journey",
+    slug: "new-journey",
+    description: "Description here",
+    emoji: "✨",
+    estimatedMinutes: 10,
+    dailyXp: 150,
+    isPremium: false,
+    isFeatured: true,
+    sortOrder: 5
+  }
+];
+
+// Add to journeyDuas array
+const journeyDuas = [
+  // ... existing mappings ...
+  { journeyId: 6, duaId: 1, timeSlot: "morning", sortOrder: 1 },
+  { journeyId: 6, duaId: 3, timeSlot: "anytime", sortOrder: 2 },
+  { journeyId: 6, duaId: 5, timeSlot: "evening", sortOrder: 3 }
+];
+```
+
+Then run: `node scripts/seed-firestore.cjs`
 
 ## Journey Templates
 
@@ -150,20 +203,18 @@ VALUES
 
 ## Existing Journeys Reference
 
-Check what journeys already exist:
-```sql
-SELECT
-  j.id,
-  j.name,
-  j.emoji,
-  j.estimated_minutes,
-  j.daily_xp,
-  COUNT(jd.id) as dua_count
-FROM journeys j
-LEFT JOIN journey_duas jd ON j.id = jd.journey_id
-GROUP BY j.id
-ORDER BY j.id;
+Query Firestore to check existing journeys:
 ```
+Collection: journeys
+Order by: sortOrder
+```
+
+Current journeys in the app:
+1. Rizq Seeker (💰) - Provision focus
+2. Morning Warrior (🌅) - Morning adhkar
+3. Debt Freedom (🔓) - Financial relief
+4. Evening Peace (🌙) - Evening adhkar
+5. Gratitude Builder (🤲) - Thankfulness
 
 ## Journey Ideas by Category
 
@@ -207,36 +258,20 @@ Choose emojis that represent the journey theme:
 
 ## Verification Checklist
 
-After creating a journey, verify:
+After creating a journey, verify by querying Firestore:
 
-```sql
--- Check journey details
-SELECT * FROM journeys WHERE id = [new_journey_id];
+1. **Check journey details:**
+   - Query `journeys` collection for the new document
+   - Verify all fields are populated
 
--- Check linked duas with time slots
-SELECT
-  jd.time_slot,
-  jd.sort_order,
-  d.title_en,
-  d.difficulty,
-  d.xp_value
-FROM journey_duas jd
-JOIN duas d ON jd.dua_id = d.id
-WHERE jd.journey_id = [new_journey_id]
-ORDER BY
-  CASE jd.time_slot
-    WHEN 'morning' THEN 1
-    WHEN 'anytime' THEN 2
-    WHEN 'evening' THEN 3
-  END,
-  jd.sort_order;
+2. **Check linked duas:**
+   - Query `journey_duas` where journeyId equals new journey ID
+   - Verify all time slots and sort orders
 
--- Verify total XP matches journey.daily_xp
-SELECT SUM(d.xp_value) as calculated_xp
-FROM journey_duas jd
-JOIN duas d ON jd.dua_id = d.id
-WHERE jd.journey_id = [new_journey_id];
-```
+3. **Verify XP calculation:**
+   - Get all linked duas
+   - Sum their xpValue fields
+   - Compare to journey's dailyXp
 
 ## User Input Opportunities
 
@@ -246,3 +281,8 @@ When building journeys, consider asking the user about:
 - Difficulty preference (starting out or advanced?)
 - Premium vs. free designation
 - Featured status
+
+## Firestore Console
+
+View and verify data directly at:
+https://console.firebase.google.com/project/rizq-app-c6468/firestore
