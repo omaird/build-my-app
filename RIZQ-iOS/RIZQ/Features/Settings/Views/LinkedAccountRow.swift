@@ -66,8 +66,8 @@ struct LinkedAccountRow: View {
   private var providerBackgroundColor: Color {
     switch provider {
     case .google: return Color(hex: "4285F4")
-    case .apple: return Color.black
-    case .github: return Color(hex: "333333")
+    case .apple: return Color.primary // Adapts to dark mode
+    case .github: return Color.primary // Adapts to dark mode
     case .email: return Color.rizqPrimary
     }
   }
@@ -93,13 +93,13 @@ struct LinkedAccountRow: View {
   private var appleIcon: some View {
     Image(systemName: "apple.logo")
       .font(.system(size: 20))
-      .foregroundStyle(.black)
+      .foregroundStyle(.primary) // Adapts to dark mode
   }
 
   private var githubIcon: some View {
     Image(systemName: "chevron.left.forwardslash.chevron.right")
       .font(.system(size: 16, weight: .semibold))
-      .foregroundStyle(Color(hex: "333333"))
+      .foregroundStyle(.primary) // Adapts to dark mode
   }
 
   private var emailIcon: some View {

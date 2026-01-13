@@ -12,9 +12,9 @@ extension TimeSlot {
 
   var backgroundColor: Color {
     switch self {
-    case .morning: return Color(hex: "FEF3C7") // amber-100
-    case .anytime: return Color(hex: "DBEAFE") // blue-100
-    case .evening: return Color(hex: "E0E7FF") // indigo-100
+    case .morning: return Color("timeSlotMorningBg", bundle: .main)
+    case .anytime: return Color("timeSlotAnytimeBg", bundle: .main)
+    case .evening: return Color("timeSlotEveningBg", bundle: .main)
     }
   }
 }

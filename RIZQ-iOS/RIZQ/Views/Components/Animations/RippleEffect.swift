@@ -1,9 +1,10 @@
 import SwiftUI
+import RIZQKit
 
 /// A ripple effect that emanates from touch points
 /// Matches the React RippleEffect component with expanding circle animation
 struct RippleEffect: ViewModifier {
-  var rippleColor: Color = Color(hex: "D4A574").opacity(0.35) // Primary sand color
+  var rippleColor: Color = Color.rizqPrimary.opacity(0.35) // Adaptive primary color
   var isDisabled: Bool = false
 
   @State private var ripples: [Ripple] = []
@@ -74,7 +75,7 @@ private struct RippleCircle: View {
 extension View {
   /// Adds a ripple effect on tap
   func rippleEffect(
-    color: Color = Color(hex: "D4A574").opacity(0.35),
+    color: Color = Color.rizqPrimary.opacity(0.35),
     isDisabled: Bool = false
   ) -> some View {
     modifier(RippleEffect(rippleColor: color, isDisabled: isDisabled))

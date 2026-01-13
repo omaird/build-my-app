@@ -2,17 +2,44 @@ import WidgetKit
 import SwiftUI
 import RIZQKit
 
-// MARK: - Design Tokens (Widget-specific, matching main app)
-private enum WidgetColors {
-  static let background = Color(hex: "F5EFE7")    // Warm cream
-  static let cardBg = Color(hex: "FFFCF7")        // Warm white
-  static let primary = Color(hex: "D4A574")       // Warm sand
-  static let accent = Color(hex: "6B4423")        // Deep mocha
-  static let streakGlow = Color(hex: "E6A23C")    // Streak gold
-  static let goldSoft = Color(hex: "E6C79C")      // Soft gold
-  static let textPrimary = Color(hex: "2C2416")   // Deep text
-  static let textSecondary = Color(hex: "8B7355") // Muted text
-  static let success = Color(hex: "6B9B7C")       // Teal success
+// MARK: - Design Tokens (Widget-specific, adaptive for dark mode)
+private struct WidgetColors {
+  let colorScheme: ColorScheme
+
+  // Backgrounds
+  var background: Color {
+    colorScheme == .dark ? Color(hex: "121212") : Color(hex: "F5EFE7")
+  }
+  var cardBg: Color {
+    colorScheme == .dark ? Color(hex: "1E1E1E") : Color(hex: "FFFCF7")
+  }
+
+  // Accents (brightened in dark mode)
+  var primary: Color {
+    colorScheme == .dark ? Color(hex: "E6B886") : Color(hex: "D4A574")
+  }
+  var accent: Color {
+    colorScheme == .dark ? Color(hex: "8B6B4A") : Color(hex: "6B4423")
+  }
+  var streakGlow: Color {
+    colorScheme == .dark ? Color(hex: "FFB84D") : Color(hex: "E6A23C")
+  }
+  var goldSoft: Color {
+    colorScheme == .dark ? Color(hex: "F0C896") : Color(hex: "E6C79C")
+  }
+
+  // Text
+  var textPrimary: Color {
+    colorScheme == .dark ? Color(hex: "F5F0EB") : Color(hex: "2C2416")
+  }
+  var textSecondary: Color {
+    colorScheme == .dark ? Color(hex: "B8A898") : Color(hex: "8B7355")
+  }
+
+  // Status
+  var success: Color {
+    colorScheme == .dark ? Color(hex: "7FBBA0") : Color(hex: "6B9B7C")
+  }
 }
 
 // MARK: - Daily Progress Entry
@@ -87,6 +114,9 @@ struct DailyProgressProvider: TimelineProvider {
 struct DailyProgressWidgetView: View {
   var entry: DailyProgressEntry
   @Environment(\.widgetFamily) var family
+  @Environment(\.colorScheme) var colorScheme
+
+  private var colors: WidgetColors { WidgetColors(colorScheme: colorScheme) }
 
   var body: some View {
     switch family {
@@ -110,14 +140,14 @@ struct DailyProgressWidgetView: View {
       HStack {
         Image(systemName: "flame.fill")
           .font(.system(size: 14, weight: .semibold))
-          .foregroundStyle(WidgetColors.streakGlow)
+          .foregroundStyle(colors.streakGlow)
         Text("\(entry.streak)")
           .font(.system(size: 14, weight: .bold, design: .rounded))
-          .foregroundStyle(WidgetColors.textPrimary)
+          .foregroundStyle(colors.textPrimary)
         Spacer()
         Text("Level \(entry.level)")
           .font(.system(size: 10, weight: .medium))
-          .foregroundStyle(WidgetColors.textSecondary)
+          .foregroundStyle(colors.textSecondary)
       }
 
       Spacer()
@@ -125,12 +155,12 @@ struct DailyProgressWidgetView: View {
       // Progress circle
       ZStack {
         Circle()
-          .stroke(WidgetColors.primary.opacity(0.2), lineWidth: 6)
+          .stroke(colors.primary.opacity(0.2), lineWidth: 6)
 
         Circle()
           .trim(from: 0, to: entry.progress)
           .stroke(
-            WidgetColors.primary,
+            colors.primary,
             style: StrokeStyle(lineWidth: 6, lineCap: .round)
           )
           .rotationEffect(.degrees(-90))
@@ -138,10 +168,10 @@ struct DailyProgressWidgetView: View {
         VStack(spacing: 2) {
           Text("\(entry.completedCount)")
             .font(.system(size: 24, weight: .bold, design: .rounded))
-            .foregroundStyle(WidgetColors.textPrimary)
+            .foregroundStyle(colors.textPrimary)
           Text("of \(entry.totalCount)")
             .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(WidgetColors.textSecondary)
+            .foregroundStyle(colors.textSecondary)
         }
       }
       .frame(width: 80, height: 80)
@@ -151,11 +181,11 @@ struct DailyProgressWidgetView: View {
       // Label
       Text("Today's Adkhar")
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(WidgetColors.textSecondary)
+        .foregroundStyle(colors.textSecondary)
     }
     .padding(16)
     .containerBackground(for: .widget) {
-      WidgetColors.background
+      colors.background
     }
   }
 
@@ -167,28 +197,28 @@ struct DailyProgressWidgetView: View {
         // Title
         Text("Today's Progress")
           .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(WidgetColors.textSecondary)
+          .foregroundStyle(colors.textSecondary)
 
         // Count
         HStack(alignment: .firstTextBaseline, spacing: 4) {
           Text("\(entry.completedCount)")
             .font(.system(size: 36, weight: .bold, design: .rounded))
-            .foregroundStyle(WidgetColors.textPrimary)
+            .foregroundStyle(colors.textPrimary)
           Text("/ \(entry.totalCount)")
             .font(.system(size: 18, weight: .medium, design: .rounded))
-            .foregroundStyle(WidgetColors.textSecondary)
+            .foregroundStyle(colors.textSecondary)
         }
 
         // Progress bar
         GeometryReader { geometry in
           ZStack(alignment: .leading) {
             Capsule()
-              .fill(WidgetColors.primary.opacity(0.2))
+              .fill(colors.primary.opacity(0.2))
 
             Capsule()
               .fill(
                 LinearGradient(
-                  colors: [WidgetColors.primary, WidgetColors.goldSoft],
+                  colors: [colors.primary, colors.goldSoft],
                   startPoint: .leading,
                   endPoint: .trailing
                 )
@@ -203,7 +233,7 @@ struct DailyProgressWidgetView: View {
 
       // Divider
       Rectangle()
-        .fill(WidgetColors.primary.opacity(0.2))
+        .fill(colors.primary.opacity(0.2))
         .frame(width: 1)
         .padding(.vertical, 8)
 
@@ -214,14 +244,14 @@ struct DailyProgressWidgetView: View {
           HStack(spacing: 4) {
             Image(systemName: "flame.fill")
               .font(.system(size: 16))
-              .foregroundStyle(WidgetColors.streakGlow)
+              .foregroundStyle(colors.streakGlow)
             Text("\(entry.streak)")
               .font(.system(size: 22, weight: .bold, design: .rounded))
-              .foregroundStyle(WidgetColors.textPrimary)
+              .foregroundStyle(colors.textPrimary)
           }
           Text("day streak")
             .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(WidgetColors.textSecondary)
+            .foregroundStyle(colors.textSecondary)
         }
 
         // Level badge
@@ -229,21 +259,21 @@ struct DailyProgressWidgetView: View {
           HStack(spacing: 4) {
             Image(systemName: "star.fill")
               .font(.system(size: 14))
-              .foregroundStyle(WidgetColors.accent)
+              .foregroundStyle(colors.accent)
             Text("Lvl \(entry.level)")
               .font(.system(size: 16, weight: .bold, design: .rounded))
-              .foregroundStyle(WidgetColors.textPrimary)
+              .foregroundStyle(colors.textPrimary)
           }
           Text("\(entry.currentXp)/\(entry.xpToNextLevel) XP")
             .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(WidgetColors.textSecondary)
+            .foregroundStyle(colors.textSecondary)
         }
       }
       .frame(width: 80)
     }
     .padding(16)
     .containerBackground(for: .widget) {
-      WidgetColors.background
+      colors.background
     }
   }
 
@@ -324,6 +354,9 @@ struct StreakProvider: TimelineProvider {
 struct StreakWidgetView: View {
   var entry: StreakEntry
   @Environment(\.widgetFamily) var family
+  @Environment(\.colorScheme) var colorScheme
+
+  private var colors: WidgetColors { WidgetColors(colorScheme: colorScheme) }
 
   var body: some View {
     switch family {
@@ -345,7 +378,7 @@ struct StreakWidgetView: View {
         // Glow
         Image(systemName: "flame.fill")
           .font(.system(size: 44))
-          .foregroundStyle(WidgetColors.streakGlow.opacity(0.3))
+          .foregroundStyle(colors.streakGlow.opacity(0.3))
           .blur(radius: 8)
 
         // Main flame
@@ -353,7 +386,7 @@ struct StreakWidgetView: View {
           .font(.system(size: 44))
           .foregroundStyle(
             LinearGradient(
-              colors: [WidgetColors.streakGlow, Color.orange],
+              colors: [colors.streakGlow, Color.orange],
               startPoint: .top,
               endPoint: .bottom
             )
@@ -363,11 +396,11 @@ struct StreakWidgetView: View {
       // Streak count
       Text("\(entry.streak)")
         .font(.system(size: 32, weight: .bold, design: .rounded))
-        .foregroundStyle(WidgetColors.textPrimary)
+        .foregroundStyle(colors.textPrimary)
 
       Text("day streak")
         .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(WidgetColors.textSecondary)
+        .foregroundStyle(colors.textSecondary)
 
       Spacer()
 
@@ -375,15 +408,15 @@ struct StreakWidgetView: View {
       HStack(spacing: 4) {
         Image(systemName: "trophy.fill")
           .font(.system(size: 10))
-          .foregroundStyle(WidgetColors.goldSoft)
+          .foregroundStyle(colors.goldSoft)
         Text("Best: \(entry.bestStreak)")
           .font(.system(size: 10, weight: .medium))
-          .foregroundStyle(WidgetColors.textSecondary)
+          .foregroundStyle(colors.textSecondary)
       }
     }
     .padding(16)
     .containerBackground(for: .widget) {
-      WidgetColors.background
+      colors.background
     }
   }
 

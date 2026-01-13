@@ -59,9 +59,9 @@ private struct SparkleView: View {
 
   var body: some View {
     Circle()
-      .fill(Color(hex: "FDE68A")) // amber-200
+      .fill(Color.gradientStreakStart) // Adaptive amber/gold
       .frame(width: sparkle.size, height: sparkle.size)
-      .shadow(color: Color(hex: "FBBF24").opacity(0.6), radius: 4, x: 0, y: 0) // amber glow
+      .shadow(color: Color.streakGlow.opacity(0.6), radius: 4, x: 0, y: 0) // Adaptive glow
       .opacity(opacity)
       .scaleEffect(scale)
       .onAppear {

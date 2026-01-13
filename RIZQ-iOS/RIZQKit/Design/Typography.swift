@@ -42,12 +42,14 @@ public extension Font {
   }
 
   // MARK: - Arabic Font
-  // Amiri - Traditional Arabic typeface
+  // Amiri Quran - Quranic Arabic typeface optimized for religious text
+  // See: https://fonts.google.com/specimen/Amiri+Quran
   static func rizqArabic(_ style: Font.TextStyle) -> Font {
     // Arabic text needs larger size for readability
-    .custom("Amiri-Regular", size: style.defaultSize * 1.3, relativeTo: style)
+    .custom("AmiriQuran-Regular", size: style.defaultSize * 1.3, relativeTo: style)
   }
 
+  // Fallback to Amiri Bold for bold Arabic (Amiri Quran only has Regular weight)
   static func rizqArabicBold(_ style: Font.TextStyle) -> Font {
     .custom("Amiri-Bold", size: style.defaultSize * 1.3, relativeTo: style)
   }

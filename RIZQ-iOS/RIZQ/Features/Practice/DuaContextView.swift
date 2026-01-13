@@ -13,7 +13,7 @@ struct DuaContextView: View {
         icon: "book.fill",
         label: "Source",
         value: source,
-        color: Color(hex: "D97706") // Amber
+        color: .badgeMorning // Adaptive amber
       ))
     }
 
@@ -22,7 +22,7 @@ struct DuaContextView: View {
         icon: "sparkles",
         label: "Benefits & Virtues",
         value: rizqBenefit,
-        color: Color(hex: "059669") // Emerald
+        color: .badgeRizq // Adaptive emerald
       ))
     }
 
@@ -31,7 +31,7 @@ struct DuaContextView: View {
         icon: "clock.fill",
         label: "Best Time to Recite",
         value: bestTime,
-        color: Color(hex: "2563EB") // Blue
+        color: .badgeEvening // Adaptive indigo
       ))
     }
 
@@ -40,7 +40,7 @@ struct DuaContextView: View {
         icon: "quote.opening",
         label: "Prophetic Guidance",
         value: propheticContext,
-        color: Color(hex: "DB2777") // Rose
+        color: .badgeGratitude // Adaptive rose
       ))
     }
 

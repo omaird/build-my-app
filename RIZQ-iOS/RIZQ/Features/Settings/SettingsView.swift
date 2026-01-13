@@ -379,16 +379,19 @@ extension View {
 
 struct ShimmerModifier: ViewModifier {
   @State private var isAnimating = false
+  @Environment(\.colorScheme) private var colorScheme
 
   func body(content: Content) -> some View {
     content
       .overlay {
         GeometryReader { geometry in
+          // Use adaptive shimmer color: white for light mode, lighter gray for dark mode
+          let shimmerColor = colorScheme == .dark ? Color.gray : Color.white
           LinearGradient(
             colors: [
-              Color.white.opacity(0),
-              Color.white.opacity(0.3),
-              Color.white.opacity(0)
+              shimmerColor.opacity(0),
+              shimmerColor.opacity(0.3),
+              shimmerColor.opacity(0)
             ],
             startPoint: .leading,
             endPoint: .trailing

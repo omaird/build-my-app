@@ -28,10 +28,7 @@ struct DuaListCardView: View {
   var body: some View {
     Button(action: onTap) {
       HStack(spacing: RIZQSpacing.md) {
-        // Arabic text preview snippet (left side visual)
-        arabicPreviewView
-
-        // Main content
+        // Main content (no Arabic preview - matches React app design)
         VStack(alignment: .leading, spacing: RIZQSpacing.sm) {
           // Title
           Text(dua.titleEn)
@@ -97,31 +94,6 @@ struct DuaListCardView: View {
       .shadowSoft()
     }
     .buttonStyle(.plain)
-  }
-
-  // MARK: - Arabic Preview (Left side visual element)
-
-  private var arabicPreviewView: some View {
-    // Show first few words of Arabic text as a visual preview
-    let preview = String(dua.arabicText.prefix(20))
-
-    return VStack {
-      Text(preview)
-        .font(.rizqArabic(.caption))
-        .foregroundStyle(Color.rizqText.opacity(0.8))
-        .multilineTextAlignment(.center)
-        .lineLimit(2)
-        .environment(\.layoutDirection, .rightToLeft)
-    }
-    .frame(width: 56, height: 56)
-    .background(
-      RoundedRectangle(cornerRadius: RIZQRadius.md)
-        .fill(Color.cream)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: RIZQRadius.md)
-        .stroke(Color.goldSoft.opacity(0.4), lineWidth: 1)
-    )
   }
 
   // MARK: - Add Button

@@ -170,26 +170,26 @@ struct DuaCardView: View {
     }
   }
 
-  // MARK: - Difficulty Colors
+  // MARK: - Difficulty Colors (Adaptive for dark mode)
   private var difficultyTextColor: Color {
     switch dua.difficulty ?? .beginner {
     case .beginner:
-      return Color(hex: "15803D") // Green-700
+      return Color("difficultyBeginnerText", bundle: .main)
     case .intermediate:
-      return Color(hex: "B45309") // Amber-700
+      return Color("difficultyIntermediateText", bundle: .main)
     case .advanced:
-      return Color(hex: "B91C1C") // Red-700
+      return Color("difficultyAdvancedText", bundle: .main)
     }
   }
 
   private var difficultyBackgroundColor: Color {
     switch dua.difficulty ?? .beginner {
     case .beginner:
-      return Color(hex: "DCFCE7") // Green-100
+      return Color("difficultyBeginnerBg", bundle: .main)
     case .intermediate:
-      return Color(hex: "FEF3C7") // Amber-100
+      return Color("difficultyIntermediateBg", bundle: .main)
     case .advanced:
-      return Color(hex: "FEE2E2") // Red-100
+      return Color("difficultyAdvancedBg", bundle: .main)
     }
   }
 }
