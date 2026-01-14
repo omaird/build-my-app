@@ -152,7 +152,7 @@ struct DuaReferenceSheetView: View {
     VStack(spacing: 0) {
       Text(store.dua.arabicText)
         .font(.rizqArabic(.title))
-        .foregroundStyle(Color.rizqText)
+        .foregroundStyle(Color.mochaDeep)  // Dark color on static cream background
         .multilineTextAlignment(.center)
         .lineSpacing(16)
         .padding(.vertical, 28)
