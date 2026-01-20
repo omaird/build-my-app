@@ -1,5 +1,8 @@
 import UIKit
 import CoreHaptics
+import os.log
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "HapticManager")
 
 /// Manages haptic feedback throughout the app
 /// Provides both UIKit impact/notification feedback and CoreHaptics for custom patterns
@@ -26,15 +29,15 @@ public final class HapticManager: @unchecked Sendable {
         do {
           try self?.engine?.start()
         } catch {
-          print("Failed to restart haptic engine: \(error)")
+          logger.error("Failed to restart haptic engine: \(error.localizedDescription, privacy: .public)")
         }
       }
       engine?.stoppedHandler = { reason in
-        print("Haptic engine stopped: \(reason)")
+        logger.debug("Haptic engine stopped: \(String(describing: reason), privacy: .public)")
       }
       try engine?.start()
     } catch {
-      print("Failed to create haptic engine: \(error)")
+      logger.error("Failed to create haptic engine: \(error.localizedDescription, privacy: .public)")
     }
   }
 

@@ -1,6 +1,9 @@
 import ComposableArchitecture
 import Foundation
+import os.log
 import RIZQKit
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "PracticeFeature")
 
 @Reducer
 struct PracticeFeature {
@@ -203,7 +206,7 @@ struct PracticeFeature {
       case .completionSaveFailed(let error):
         state.isSavingCompletion = false
         // Log error but don't show to user - completion still counts locally
-        print("[PracticeFeature] Failed to save completion: \(error)")
+        logger.error("Failed to save completion: \(error, privacy: .public)")
         return .none
 
       case .dismissCelebration:

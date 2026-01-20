@@ -221,8 +221,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         WHERE id = ${user.id}::uuid AND (image IS NULL OR image = '')
       `;
 
-      console.log("Synced Google profile picture to user record");
-
       // Reload the page to refresh the session with the new image
       window.location.reload();
     } catch (error) {

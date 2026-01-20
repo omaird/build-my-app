@@ -1,5 +1,8 @@
 import Foundation
+import os.log
 import WidgetKit
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "WidgetDataManager")
 
 /// Manages shared data between the main app and widget extensions via App Group
 /// Both the main app and widgets use this to read/write shared state
@@ -44,7 +47,7 @@ public final class WidgetDataManager: @unchecked Sendable {
     level: Int
   ) {
     guard let defaults = sharedDefaults else {
-      print("⚠️ WidgetDataManager: Could not access App Group UserDefaults")
+      logger.warning("Could not access App Group UserDefaults")
       return
     }
 

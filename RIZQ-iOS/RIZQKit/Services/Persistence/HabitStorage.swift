@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "HabitStorage")
 
 // MARK: - Habit Storage Protocol
 
@@ -81,7 +84,7 @@ public actor HabitStorage: HabitStorageProtocol {
       }
     } catch {
       // If decoding fails, return default storage
-      print("HabitStorage: Failed to decode storage, returning default: \(error)")
+      logger.warning("Failed to decode storage, returning default: \(error.localizedDescription, privacy: .public)")
     }
 
     // Default: empty storage (web app defaults to journey 1 active)

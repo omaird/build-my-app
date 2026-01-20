@@ -666,7 +666,7 @@ struct AchievementBadgesRow: View {
   )
 
   AchievementUnlockOverlay(achievement: unlockedAchievement) {
-    print("Dismissed")
+    // Dismissed
   }
 }
 
@@ -702,7 +702,7 @@ struct AchievementBadgesRow: View {
     achievement: achievement,
     size: .large,
     showDetails: true,
-    onTap: { print("Badge tapped!") }
+    onTap: { }
   )
   .padding()
   .background(Color.rizqBackground)

@@ -1,5 +1,8 @@
 import Foundation
 import AuthenticationServices
+import os.log
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "AuthService")
 
 // MARK: - Auth Service Protocol
 
@@ -64,7 +67,7 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.networkError("Invalid response")
     }
 
-    print("[AuthService] Sign in response status: \(httpResponse.statusCode)")
+    logger.info("Sign in response status: \(httpResponse.statusCode, privacy: .public)")
 
     switch httpResponse.statusCode {
     case 200, 201:
@@ -75,8 +78,8 @@ public actor AuthService: AuthServiceProtocol {
       } catch {
         // Log the raw response for debugging
         let rawResponse = String(data: data, encoding: .utf8) ?? "Unable to decode"
-        print("[AuthService] Failed to decode response: \(error)")
-        print("[AuthService] Raw response: \(rawResponse)")
+        logger.error("Failed to decode response: \(error.localizedDescription, privacy: .public)")
+        logger.debug("Raw response: \(rawResponse, privacy: .private)")
         throw error
       }
 
@@ -86,7 +89,7 @@ public actor AuthService: AuthServiceProtocol {
     case 403:
       // Parse error message from response
       let errorMessage = String(data: data, encoding: .utf8) ?? "Access forbidden"
-      print("[AuthService] Sign in 403 error: \(errorMessage)")
+      logger.error("Sign in 403 error: \(errorMessage, privacy: .public)")
       throw AuthError.networkError(errorMessage)
 
     case 404:
@@ -94,7 +97,7 @@ public actor AuthService: AuthServiceProtocol {
 
     default:
       let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-      print("[AuthService] Sign in error (\(httpResponse.statusCode)): \(errorMessage)")
+      logger.error("Sign in error (\(httpResponse.statusCode, privacy: .public)): \(errorMessage, privacy: .public)")
       throw AuthError.networkError(errorMessage)
     }
   }
@@ -119,7 +122,7 @@ public actor AuthService: AuthServiceProtocol {
       throw AuthError.networkError("Invalid response")
     }
 
-    print("[AuthService] Sign up response status: \(httpResponse.statusCode)")
+    logger.info("Sign up response status: \(httpResponse.statusCode, privacy: .public)")
 
     switch httpResponse.statusCode {
     case 200, 201:
@@ -132,7 +135,7 @@ public actor AuthService: AuthServiceProtocol {
 
     default:
       let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-      print("[AuthService] Sign up error: \(errorMessage)")
+      logger.error("Sign up error: \(errorMessage, privacy: .public)")
       throw AuthError.networkError(errorMessage)
     }
   }
