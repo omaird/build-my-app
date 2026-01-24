@@ -102,6 +102,12 @@ struct HomeFeature {
     var showWelcomeSheet: Bool = false
     var loadError: String?
 
+    // Share sheet state - text to share (nil when not showing)
+    var shareText: String?
+
+    // Achievement detail sheet state
+    var selectedAchievement: Achievement?
+
     // Computed properties
     var greeting: String {
       let hour = Calendar.current.component(.hour, from: Date())
@@ -166,8 +172,10 @@ struct HomeFeature {
 
     // New component actions
     case shareQuoteTapped
+    case dismissShare
     case motivationActionTapped
     case achievementTapped(Achievement)
+    case dismissAchievementDetail
   }
 
   @Dependency(\.continuousClock) var clock
@@ -360,8 +368,13 @@ struct HomeFeature {
       // MARK: - New Component Actions
 
       case .shareQuoteTapped:
-        // TODO: Implement share sheet for quote
-        // For now, haptic feedback is handled by the view
+        // Set share text to trigger share sheet in the view
+        let quote = state.dailyQuote
+        state.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from RIZQ App"
+        return .none
+
+      case .dismissShare:
+        state.shareText = nil
         return .none
 
       case .motivationActionTapped:
@@ -378,9 +391,13 @@ struct HomeFeature {
           return .none
         }
 
-      case .achievementTapped:
-        // TODO: Show achievement detail sheet
-        // For now, haptic feedback is handled by the view
+      case .achievementTapped(let achievement):
+        // Show achievement detail sheet
+        state.selectedAchievement = achievement
+        return .none
+
+      case .dismissAchievementDetail:
+        state.selectedAchievement = nil
         return .none
       }
     }

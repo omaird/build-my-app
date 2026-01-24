@@ -115,6 +115,22 @@ struct HomeView: View {
     .onAppear {
       store.send(.onAppear)
     }
+    .sheet(isPresented: Binding(
+      get: { store.shareText != nil },
+      set: { if !$0 { store.send(.dismissShare) } }
+    )) {
+      if let shareText = store.shareText {
+        ShareSheet(items: [shareText])
+      }
+    }
+    .sheet(isPresented: Binding(
+      get: { store.selectedAchievement != nil },
+      set: { if !$0 { store.send(.dismissAchievementDetail) } }
+    )) {
+      if let achievement = store.selectedAchievement {
+        AchievementDetailSheet(achievement: achievement)
+      }
+    }
   }
 
   // MARK: - Error Overlay
@@ -456,6 +472,82 @@ struct ScaleButtonStyle: ButtonStyle {
       HomeFeature()
     }
   )
+}
+
+// MARK: - ShareSheet
+
+/// UIKit wrapper for UIActivityViewController to enable sharing from SwiftUI
+struct ShareSheet: UIViewControllerRepresentable {
+  let items: [Any]
+
+  func makeUIViewController(context: Context) -> UIActivityViewController {
+    UIActivityViewController(activityItems: items, applicationActivities: nil)
+  }
+
+  func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - AchievementDetailSheet
+
+/// Detail sheet showing achievement information
+struct AchievementDetailSheet: View {
+  let achievement: Achievement
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      VStack(spacing: RIZQSpacing.xl) {
+        // Achievement icon
+        ZStack {
+          Circle()
+            .fill(achievement.isUnlocked ? Color.rizqPrimary.opacity(0.15) : Color.rizqMuted.opacity(0.3))
+            .frame(width: 100, height: 100)
+
+          Image(systemName: achievement.category.iconName)
+            .font(.system(size: 44))
+            .foregroundStyle(achievement.isUnlocked ? Color.rizqPrimary : Color.rizqTextSecondary)
+        }
+        .padding(.top, RIZQSpacing.xxl)
+
+        // Achievement name
+        Text(achievement.name)
+          .font(.rizqDisplayBold(.title2))
+          .foregroundStyle(Color.rizqText)
+          .multilineTextAlignment(.center)
+
+        // Achievement description
+        Text(achievement.description)
+          .font(.rizqSans(.body))
+          .foregroundStyle(Color.rizqTextSecondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal, RIZQSpacing.xl)
+
+        // Status
+        HStack(spacing: RIZQSpacing.sm) {
+          Image(systemName: achievement.isUnlocked ? "checkmark.circle.fill" : "lock.fill")
+            .foregroundStyle(achievement.isUnlocked ? Color.tealSuccess : Color.rizqTextSecondary)
+
+          Text(achievement.isUnlocked ? "Unlocked" : "Locked")
+            .font(.rizqSansMedium(.subheadline))
+            .foregroundStyle(achievement.isUnlocked ? Color.tealSuccess : Color.rizqTextSecondary)
+        }
+        .padding(.top, RIZQSpacing.md)
+
+        Spacer()
+      }
+      .navigationTitle("Achievement")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Done") {
+            dismiss()
+          }
+          .font(.rizqSansMedium(.body))
+          .foregroundStyle(Color.rizqPrimary)
+        }
+      }
+    }
+  }
 }
 
 #Preview("Home View - Streak Animation") {

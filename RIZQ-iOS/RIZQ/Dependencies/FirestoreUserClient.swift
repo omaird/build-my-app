@@ -16,6 +16,9 @@ struct FirestoreUserClient: Sendable {
   /// Update an existing user profile.
   var updateUserProfile: @Sendable (_ profile: UserProfile) async throws -> UserProfile
 
+  /// Update just the display name for a user.
+  var updateDisplayName: @Sendable (_ userId: String, _ displayName: String) async throws -> UserProfile
+
   /// Get or create a user profile (fetches if exists, creates if not).
   var getOrCreateUserProfile: @Sendable (_ userId: String, _ displayName: String?) async throws -> UserProfile
 
@@ -37,6 +40,9 @@ struct FirestoreUserClient: Sendable {
 
   /// Record a complete practice session (activity + progress + XP).
   var recordPracticeCompletion: @Sendable (_ userId: String, _ duaId: Int, _ xp: Int) async throws -> UserProfile
+
+  /// Reset all user progress (XP, level, streak, activity, progress).
+  var resetUserProgress: @Sendable (_ userId: String) async throws -> UserProfile
 }
 
 // MARK: - Dependency Key
@@ -49,12 +55,14 @@ extension FirestoreUserClient: DependencyKey {
       fetchUserProfile: { try await service.fetchUserProfile(userId: $0) },
       createUserProfile: { try await service.createUserProfile(userId: $0, displayName: $1) },
       updateUserProfile: { try await service.updateUserProfile($0) },
+      updateDisplayName: { try await service.updateDisplayName(userId: $0, displayName: $1) },
       getOrCreateUserProfile: { try await service.getOrCreateUserProfile(userId: $0, displayName: $1) },
       addXp: { try await service.addXp(userId: $0, amount: $1) },
       fetchUserActivity: { try await service.fetchUserActivity(userId: $0, date: $1) },
       fetchWeekActivities: { try await service.fetchWeekActivities(userId: $0) },
       recordDuaCompletion: { try await service.recordDuaCompletion(userId: $0, duaId: $1, xpEarned: $2) },
-      recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) }
+      recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) },
+      resetUserProgress: { try await service.resetUserProgress(userId: $0) }
     )
   }()
 
@@ -65,12 +73,14 @@ extension FirestoreUserClient: DependencyKey {
       fetchUserProfile: { try await service.fetchUserProfile(userId: $0) },
       createUserProfile: { try await service.createUserProfile(userId: $0, displayName: $1) },
       updateUserProfile: { try await service.updateUserProfile($0) },
+      updateDisplayName: { try await service.updateDisplayName(userId: $0, displayName: $1) },
       getOrCreateUserProfile: { try await service.getOrCreateUserProfile(userId: $0, displayName: $1) },
       addXp: { try await service.addXp(userId: $0, amount: $1) },
       fetchUserActivity: { try await service.fetchUserActivity(userId: $0, date: $1) },
       fetchWeekActivities: { try await service.fetchWeekActivities(userId: $0) },
       recordDuaCompletion: { try await service.recordDuaCompletion(userId: $0, duaId: $1, xpEarned: $2) },
-      recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) }
+      recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) },
+      resetUserProgress: { try await service.resetUserProgress(userId: $0) }
     )
   }()
 
@@ -92,6 +102,20 @@ extension FirestoreUserClient: DependencyKey {
       )
     },
     updateUserProfile: { $0 },
+    updateDisplayName: { userId, displayName in
+      UserProfile(
+        id: userId,
+        userId: userId,
+        displayName: displayName,
+        streak: 0,
+        totalXp: 0,
+        level: 1,
+        lastActiveDate: nil,
+        isAdmin: false,
+        createdAt: Date(),
+        updatedAt: Date()
+      )
+    },
     getOrCreateUserProfile: { userId, displayName in
       UserProfile(
         id: userId,
@@ -132,6 +156,20 @@ extension FirestoreUserClient: DependencyKey {
         totalXp: xp,
         level: 1,
         lastActiveDate: Date(),
+        isAdmin: false,
+        createdAt: Date(),
+        updatedAt: Date()
+      )
+    },
+    resetUserProgress: { userId in
+      UserProfile(
+        id: userId,
+        userId: userId,
+        displayName: nil,
+        streak: 0,
+        totalXp: 0,
+        level: 1,
+        lastActiveDate: nil,
         isAdmin: false,
         createdAt: Date(),
         updatedAt: Date()

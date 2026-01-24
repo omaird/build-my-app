@@ -139,12 +139,34 @@ export interface JourneyFormInput {
   sortOrder: number;
 }
 
-// Journey dua assignment for drag-and-drop
+// Database row type for journey-dua assignments
+export interface JourneyDuaAssignmentRow {
+  id: number;
+  journey_id: number;
+  dua_id: number;
+  time_slot: string;
+  sort_order: number;
+  // Joined fields
+  dua_title?: string;
+  dua_arabic?: string;
+}
+
+// Frontend type for journey-dua assignment
 export interface JourneyDuaAssignment {
+  id: number;
   journeyId: number;
   duaId: number;
   timeSlot: TimeSlot;
   sortOrder: number;
+  duaTitle?: string;
+  duaArabic?: string;
+}
+
+// Form input for assigning a dua to a journey
+export interface AssignDuaInput {
+  journeyId: number;
+  duaId: number;
+  timeSlot: TimeSlot;
 }
 
 // =============================================================================

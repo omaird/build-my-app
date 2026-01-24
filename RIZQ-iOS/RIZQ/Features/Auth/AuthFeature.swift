@@ -147,6 +147,8 @@ struct AuthClient: Sendable {
   var restoreSession: @Sendable () -> (AuthUser, AuthSession)?
   var getCurrentUser: @Sendable () async throws -> AuthUser?
   var getLinkedAccounts: @Sendable () async throws -> [LinkedAccount]
+  var linkAccount: @Sendable (AuthProvider) async throws -> LinkedAccount
+  var unlinkAccount: @Sendable (AuthProvider) async throws -> Void
 }
 
 extension AuthClient: DependencyKey {
@@ -185,6 +187,20 @@ extension AuthClient: DependencyKey {
     getLinkedAccounts: {
       let service = ServiceContainer.shared.authService
       return try await service.getLinkedAccounts()
+    },
+    linkAccount: { provider in
+      let service = ServiceContainer.shared.authService
+      let presentingWindow = await MainActor.run {
+        UIApplication.shared.connectedScenes
+          .compactMap { $0 as? UIWindowScene }
+          .flatMap { $0.windows }
+          .first { $0.isKeyWindow }
+      }
+      return try await service.linkAccount(provider: provider, presentingWindow: presentingWindow)
+    },
+    unlinkAccount: { provider in
+      let service = ServiceContainer.shared.authService
+      try await service.unlinkAccount(provider: provider)
     }
   )
 
@@ -214,7 +230,11 @@ extension AuthClient: DependencyKey {
     },
     getLinkedAccounts: {
       [LinkedAccount(id: "preview-google", provider: .google, providerAccountId: "google-preview")]
-    }
+    },
+    linkAccount: { provider in
+      LinkedAccount(id: "preview-\(provider.rawValue)", provider: provider, providerAccountId: "\(provider.rawValue)-preview")
+    },
+    unlinkAccount: { _ in }
   )
 
   static let testValue = AuthClient(
@@ -224,7 +244,9 @@ extension AuthClient: DependencyKey {
     signOut: unimplemented("\(Self.self).signOut"),
     restoreSession: unimplemented("\(Self.self).restoreSession", placeholder: nil),
     getCurrentUser: unimplemented("\(Self.self).getCurrentUser", placeholder: nil),
-    getLinkedAccounts: unimplemented("\(Self.self).getLinkedAccounts", placeholder: [])
+    getLinkedAccounts: unimplemented("\(Self.self).getLinkedAccounts", placeholder: []),
+    linkAccount: unimplemented("\(Self.self).linkAccount"),
+    unlinkAccount: unimplemented("\(Self.self).unlinkAccount")
   )
 }
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -251,6 +252,12 @@ export default function JourneysManagerPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link to={`/admin/journeys/${journey.id}/duas`}>
+                                  <BookOpen className="h-4 w-4 mr-2" />
+                                  Manage Duas
+                                </Link>
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleEditClick(journey)}>
                                 <Pencil className="h-4 w-4 mr-2" />
                                 Edit

@@ -120,8 +120,11 @@ struct AppFeature {
       case .home(.navigateToPractice(let timeSlot)):
         // Navigate to Adkhar with specific time slot filter
         state.selectedTab = .adkhar
-        // TODO: Pass timeSlot to AdkharFeature
-        return .send(.adkhar(.becameActive))
+        // First refresh the data, then set the filter for auto-scroll
+        return .merge(
+          .send(.adkhar(.becameActive)),
+          .send(.adkhar(.filterByTimeSlot(timeSlot)))
+        )
 
       // Handle navigation from Adkhar
       case .adkhar(.navigateToJourneys):

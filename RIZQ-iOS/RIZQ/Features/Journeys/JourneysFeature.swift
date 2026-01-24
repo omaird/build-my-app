@@ -16,6 +16,7 @@ struct JourneysFeature {
     var isLoading: Bool = false
     var errorMessage: String? = nil
     @Presents var detail: JourneyDetailFeature.State?
+    @Presents var practice: PracticeFeature.State?
 
     var featuredJourneys: [Journey] {
       journeys.filter { $0.isFeatured }
@@ -47,6 +48,7 @@ struct JourneysFeature {
     case subscribeToggled(Journey)
     case subscriptionUpdated(journeyId: Int, isSubscribed: Bool)
     case detail(PresentationAction<JourneyDetailFeature.Action>)
+    case practice(PresentationAction<PracticeFeature.Action>)
     case dismissError
   }
 
@@ -235,14 +237,29 @@ struct JourneysFeature {
         state.detail = nil
         return .none
 
-      case .detail(.presented(.duaTapped)):
-        // TODO: Navigate to dua practice
+      case .detail(.presented(.duaTapped(let dua))):
+        // Present practice sheet with the selected dua
+        state.practice = PracticeFeature.State(dua: dua, targetCount: dua.repetitions)
+        journeyLogger.info("Presenting practice for dua: \(dua.titleEn, privacy: .public)")
         return .none
 
       case .detail(.dismiss):
         return .none
 
       case .detail:
+        return .none
+
+      case .practice(.presented(.navigateBack)):
+        // Dismiss practice sheet when back is tapped
+        state.practice = nil
+        return .none
+
+      case .practice(.presented(.navigateToNext)):
+        // Dismiss practice sheet when done is tapped
+        state.practice = nil
+        return .none
+
+      case .practice:
         return .none
 
       case .dismissError:
@@ -252,6 +269,9 @@ struct JourneysFeature {
     }
     .ifLet(\.$detail, action: \.detail) {
       JourneyDetailFeature()
+    }
+    .ifLet(\.$practice, action: \.practice) {
+      PracticeFeature()
     }
   }
 

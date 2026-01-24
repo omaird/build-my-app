@@ -20,6 +20,9 @@ public protocol FirebaseUserServiceProtocol: Sendable {
   /// Update an existing user profile.
   func updateUserProfile(_ profile: UserProfile) async throws -> UserProfile
 
+  /// Update just the display name for a user profile.
+  func updateDisplayName(userId: String, displayName: String) async throws -> UserProfile
+
   /// Get or create a user profile (fetches if exists, creates if not).
   func getOrCreateUserProfile(userId: String, displayName: String?) async throws -> UserProfile
 
@@ -55,6 +58,9 @@ public protocol FirebaseUserServiceProtocol: Sendable {
 
   /// Record a complete practice session (activity + progress + XP).
   func recordPracticeCompletion(userId: String, duaId: Int, xp: Int) async throws -> UserProfile
+
+  /// Reset all user progress (XP, level, streak, activity, progress).
+  func resetUserProgress(userId: String) async throws -> UserProfile
 }
 
 // MARK: - Firebase User Service Implementation
@@ -150,6 +156,23 @@ public actor FirebaseUserService: FirebaseUserServiceProtocol {
 
     logger.debug("Updated user profile for userId: \(profile.userId)")
     return updatedProfile
+  }
+
+  public func updateDisplayName(userId: String, displayName: String) async throws -> UserProfile {
+    logger.debug("Updating display name for userId: \(userId)")
+
+    let docRef = db.collection(userProfilesCollection).document(userId)
+    try await docRef.updateData([
+      "displayName": displayName,
+      "updatedAt": FieldValue.serverTimestamp()
+    ])
+
+    guard let profile = try await fetchUserProfile(userId: userId) else {
+      throw FirebaseUserError.userNotFound(userId)
+    }
+
+    logger.info("Updated display name for userId: \(userId)")
+    return profile
   }
 
   public func getOrCreateUserProfile(userId: String, displayName: String?) async throws -> UserProfile {
@@ -417,6 +440,45 @@ public actor FirebaseUserService: FirebaseUserServiceProtocol {
     return try await addXp(userId: userId, amount: xp)
   }
 
+  public func resetUserProgress(userId: String) async throws -> UserProfile {
+    logger.info("Resetting all progress for userId: \(userId)")
+
+    // Reset profile stats
+    let profileRef = db.collection(userProfilesCollection).document(userId)
+    try await profileRef.updateData([
+      "totalXp": 0,
+      "level": 1,
+      "streak": 0,
+      "lastActiveDate": FieldValue.delete(),
+      "updatedAt": FieldValue.serverTimestamp()
+    ])
+
+    // Delete all activity documents
+    let activityRef = db.collection(userActivityCollection)
+      .document(userId)
+      .collection("dates")
+    let activityDocs = try await activityRef.getDocuments()
+    for doc in activityDocs.documents {
+      try await doc.reference.delete()
+    }
+
+    // Delete all progress documents
+    let progressRef = db.collection(userProgressCollection)
+      .document(userId)
+      .collection("duas")
+    let progressDocs = try await progressRef.getDocuments()
+    for doc in progressDocs.documents {
+      try await doc.reference.delete()
+    }
+
+    guard let profile = try await fetchUserProfile(userId: userId) else {
+      throw FirebaseUserError.userNotFound(userId)
+    }
+
+    logger.info("Reset all progress for userId: \(userId)")
+    return profile
+  }
+
   // MARK: - Helper Methods
 
   private func mapDocumentToUserProfile(_ data: [String: Any], userId: String) throws -> UserProfile {
@@ -513,6 +575,26 @@ public actor MockFirebaseUserService: FirebaseUserServiceProtocol {
   public func updateUserProfile(_ profile: UserProfile) async throws -> UserProfile {
     profiles[profile.userId] = profile
     return profile
+  }
+
+  public func updateDisplayName(userId: String, displayName: String) async throws -> UserProfile {
+    guard var profile = profiles[userId] else {
+      throw FirebaseUserError.userNotFound(userId)
+    }
+    let updated = UserProfile(
+      id: profile.id,
+      userId: profile.userId,
+      displayName: displayName,
+      streak: profile.streak,
+      totalXp: profile.totalXp,
+      level: profile.level,
+      lastActiveDate: profile.lastActiveDate,
+      isAdmin: profile.isAdmin,
+      createdAt: profile.createdAt,
+      updatedAt: Date()
+    )
+    profiles[userId] = updated
+    return updated
   }
 
   public func getOrCreateUserProfile(userId: String, displayName: String?) async throws -> UserProfile {
@@ -636,5 +718,29 @@ public actor MockFirebaseUserService: FirebaseUserServiceProtocol {
     try await recordDuaCompletion(userId: userId, duaId: duaId, xpEarned: xp)
     try await updateDuaProgress(userId: userId, duaId: duaId)
     return try await addXp(userId: userId, amount: xp)
+  }
+
+  public func resetUserProgress(userId: String) async throws -> UserProfile {
+    guard var profile = profiles[userId] else {
+      throw FirebaseUserError.userNotFound(userId)
+    }
+    // Reset profile
+    let updated = UserProfile(
+      id: profile.id,
+      userId: profile.userId,
+      displayName: profile.displayName,
+      streak: 0,
+      totalXp: 0,
+      level: 1,
+      lastActiveDate: nil,
+      isAdmin: profile.isAdmin,
+      createdAt: profile.createdAt,
+      updatedAt: Date()
+    )
+    profiles[userId] = updated
+    // Clear activities and progress
+    activities[userId] = [:]
+    progress[userId] = [:]
+    return updated
   }
 }

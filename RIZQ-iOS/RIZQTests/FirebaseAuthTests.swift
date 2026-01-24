@@ -338,7 +338,11 @@ final class AuthClientTests: XCTestCase {
         )
       },
       signOut: { },
-      restoreSession: { nil }
+      restoreSession: { nil },
+      getCurrentUser: { nil },
+      getLinkedAccounts: { [] },
+      linkAccount: { _ in throw RIZQAuthError.unknown("Not implemented") },
+      unlinkAccount: { _ in }
     )
 
     // When: Sign in
@@ -367,16 +371,20 @@ final class AuthClientTests: XCTestCase {
         signUp: unimplemented("signUp"),
         signInWithOAuth: unimplemented("signInWithOAuth"),
         signOut: { },
-        restoreSession: { nil }
+        restoreSession: { nil },
+        getCurrentUser: { nil },
+        getLinkedAccounts: { [] },
+        linkAccount: unimplemented("linkAccount"),
+        unlinkAccount: unimplemented("unlinkAccount")
       )
     }
 
     // When: Set credentials and sign in
-    await store.send(.set(\.email, "test@example.com")) {
+    await store.send(.binding(.set(\.email, "test@example.com"))) {
       $0.email = "test@example.com"
     }
 
-    await store.send(.set(\.password, "password123")) {
+    await store.send(.binding(.set(\.password, "password123"))) {
       $0.password = "password123"
     }
 
@@ -390,7 +398,7 @@ final class AuthClientTests: XCTestCase {
     }
 
     await store.receive(\.authSuccess) { _ in
-      // authSuccess passes the user to parent but doesn't modify state
+      // authSuccess sets user (already set by authResponse, no state change)
     }
   }
 
@@ -407,16 +415,20 @@ final class AuthClientTests: XCTestCase {
         signUp: unimplemented("signUp"),
         signInWithOAuth: unimplemented("signInWithOAuth"),
         signOut: { },
-        restoreSession: { nil }
+        restoreSession: { nil },
+        getCurrentUser: { nil },
+        getLinkedAccounts: { [] },
+        linkAccount: unimplemented("linkAccount"),
+        unlinkAccount: unimplemented("unlinkAccount")
       )
     }
 
     // When: Set credentials and sign in
-    await store.send(.set(\.email, "wrong@example.com")) {
+    await store.send(.binding(.set(\.email, "wrong@example.com"))) {
       $0.email = "wrong@example.com"
     }
 
-    await store.send(.set(\.password, "wrongpassword")) {
+    await store.send(.binding(.set(\.password, "wrongpassword"))) {
       $0.password = "wrongpassword"
     }
 

@@ -61,6 +61,11 @@ struct AdkharFeature {
     /// Error message from failed data load, nil when no error
     var loadError: String?
 
+    // MARK: - Filter State
+
+    /// Optional time slot filter - when set, auto-scrolls to that section
+    var selectedTimeSlotFilter: TimeSlot?
+
     // MARK: - Quick Practice Sheet State
 
     /// Currently selected habit for quick practice
@@ -152,6 +157,10 @@ struct AdkharFeature {
 
     // Tab became active (called by parent when tab is selected)
     case becameActive
+
+    // Time slot filtering (called by parent when navigating with time slot)
+    case filterByTimeSlot(TimeSlot?)
+    case clearTimeSlotFilter
   }
 
   @Dependency(\.continuousClock) var clock
@@ -404,6 +413,16 @@ struct AdkharFeature {
         let currentlyLoading = state.isLoading
         adkharLogger.info("becameActive: Refreshing habits, isLoading: \(currentlyLoading, privacy: .public)")
         return .send(.refreshData)
+
+      case .filterByTimeSlot(let timeSlot):
+        // Set the filter - the view will respond by scrolling to this section
+        state.selectedTimeSlotFilter = timeSlot
+        adkharLogger.info("filterByTimeSlot: Set filter to \(timeSlot?.rawValue ?? "nil", privacy: .public)")
+        return .none
+
+      case .clearTimeSlotFilter:
+        state.selectedTimeSlotFilter = nil
+        return .none
       }
     }
   }

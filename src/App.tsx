@@ -26,6 +26,7 @@ import { AdminLayout } from "@/components/admin/AdminLayout";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import DuasManagerPage from "./pages/admin/DuasManagerPage";
 import JourneysManagerPage from "./pages/admin/JourneysManagerPage";
+import JourneyDuasManagerPage from "./pages/admin/JourneyDuasManagerPage";
 import CategoriesManagerPage from "./pages/admin/CategoriesManagerPage";
 import CollectionsManagerPage from "./pages/admin/CollectionsManagerPage";
 import UsersManagerPage from "./pages/admin/UsersManagerPage";
@@ -133,6 +134,7 @@ function AppRoutes() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="duas" element={<DuasManagerPage />} />
           <Route path="journeys" element={<JourneysManagerPage />} />
+          <Route path="journeys/:journeyId/duas" element={<JourneyDuasManagerPage />} />
           <Route path="categories" element={<CategoriesManagerPage />} />
           <Route path="collections" element={<CollectionsManagerPage />} />
           <Route path="users" element={<UsersManagerPage />} />

@@ -51,6 +51,9 @@ struct JourneysView: View {
       .sheet(item: $store.scope(state: \.detail, action: \.detail)) { detailStore in
         JourneyDetailView(store: detailStore)
       }
+      .sheet(item: $store.scope(state: \.practice, action: \.practice)) { practiceStore in
+        PracticeView(store: practiceStore)
+      }
     }
     .task {
       store.send(.onAppear)

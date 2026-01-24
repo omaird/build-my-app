@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Foundation
 import RIZQKit
+import UserNotifications
 
 @Reducer
 struct SettingsFeature {
@@ -18,7 +19,7 @@ struct SettingsFeature {
 
     // Preferences
     var isDarkMode: Bool = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
-    var notificationsEnabled: Bool = true
+    var notificationsEnabled: Bool = UserDefaults.standard.bool(forKey: "rizq_notifications_enabled")
 
     // Loading States
     var isLoading: Bool = false
@@ -201,12 +202,19 @@ struct SettingsFeature {
           state.errorMessage = "Display name cannot be empty"
           return .none
         }
+        guard let userId = state.user?.id else {
+          state.errorMessage = "Not authenticated"
+          return .none
+        }
         state.isSavingDisplayName = true
         let newName = state.editedDisplayName.trimmingCharacters(in: .whitespaces)
-        // TODO: Save to server
-        return .run { send in
-          try await clock.sleep(for: .milliseconds(300))
-          await send(.displayNameSaved(newName))
+        return .run { [firestoreUserClient] send in
+          do {
+            _ = try await firestoreUserClient.updateDisplayName(userId, newName)
+            await send(.displayNameSaved(newName))
+          } catch {
+            await send(.displayNameSaveFailed(error.localizedDescription))
+          }
         }
 
       case .displayNameSaved(let newName):
@@ -247,22 +255,39 @@ struct SettingsFeature {
 
       case .notificationsToggled(let isOn):
         state.notificationsEnabled = isOn
-        // TODO: Request notification permissions if enabling
+        UserDefaults.standard.set(isOn, forKey: "rizq_notifications_enabled")
+        if isOn {
+          return .run { send in
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+              do {
+                let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                if !granted {
+                  await send(.notificationsToggled(false))
+                }
+              } catch {
+                await send(.notificationsToggled(false))
+              }
+            } else if settings.authorizationStatus == .denied {
+              // User previously denied - can't re-request, they need to go to Settings
+              await send(.notificationsToggled(false))
+            }
+          }
+        }
         return .none
 
       // MARK: - Linked Accounts
 
       case .linkAccountTapped(let provider):
         state.isLinkingAccount = provider
-        // TODO: Initiate OAuth flow via AuthService
-        return .run { send in
-          try await clock.sleep(for: .seconds(1))
-          let newAccount = LinkedAccount(
-            id: UUID().uuidString,
-            provider: provider,
-            providerAccountId: "\(provider.rawValue)-\(UUID().uuidString.prefix(8))"
-          )
-          await send(.accountLinked(newAccount))
+        return .run { [authClient] send in
+          do {
+            let account = try await authClient.linkAccount(provider)
+            await send(.accountLinked(account))
+          } catch {
+            await send(.linkAccountFailed(error.localizedDescription))
+          }
         }
 
       case .unlinkAccountTapped(let provider):
@@ -278,10 +303,13 @@ struct SettingsFeature {
         state.showingUnlinkAlert = false
         guard let provider = state.providerToUnlink else { return .none }
         state.isUnlinkingAccount = provider
-        // TODO: Unlink via AuthService
-        return .run { [provider] send in
-          try await clock.sleep(for: .milliseconds(500))
-          await send(.accountUnlinked(provider))
+        return .run { [authClient, provider] send in
+          do {
+            try await authClient.unlinkAccount(provider)
+            await send(.accountUnlinked(provider))
+          } catch {
+            await send(.unlinkAccountFailed(error.localizedDescription))
+          }
         }
 
       case .cancelUnlinkAccount:
@@ -326,11 +354,18 @@ struct SettingsFeature {
 
       case .confirmResetProgress:
         state.showingResetProgressAlert = false
+        guard let userId = state.user?.id else {
+          state.errorMessage = "Not authenticated"
+          return .none
+        }
         state.isResettingProgress = true
-        // TODO: Reset progress via API
-        return .run { send in
-          try await clock.sleep(for: .milliseconds(500))
-          await send(.progressReset)
+        return .run { [firestoreUserClient] send in
+          do {
+            let profile = try await firestoreUserClient.resetUserProgress(userId)
+            await send(.progressReset)
+          } catch {
+            await send(.resetProgressFailed(error.localizedDescription))
+          }
         }
 
       case .cancelResetProgress:
@@ -372,8 +407,14 @@ struct SettingsFeature {
 
       case .confirmSignOut:
         state.showingSignOutAlert = false
-        // TODO: Clear keychain and user data via AuthService
-        return .send(.signedOut)
+        return .run { [authClient] send in
+          do {
+            try await authClient.signOut()
+          } catch {
+            // Sign out locally even if server call fails
+          }
+          await send(.signedOut)
+        }
 
       case .cancelSignOut:
         state.showingSignOutAlert = false
