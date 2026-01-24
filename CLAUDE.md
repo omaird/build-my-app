@@ -84,6 +84,7 @@ src/
 │   │   ├── AdminDashboardPage.tsx    # Admin overview with stats
 │   │   ├── DuasManagerPage.tsx       # CRUD for duas
 │   │   ├── JourneysManagerPage.tsx   # CRUD for journeys
+│   │   ├── JourneyDuasManagerPage.tsx # Manage duas within a journey
 │   │   ├── CategoriesManagerPage.tsx # CRUD for categories
 │   │   ├── CollectionsManagerPage.tsx # CRUD for collections
 │   │   └── UsersManagerPage.tsx      # User management
@@ -100,7 +101,7 @@ src/
 ├── hooks/
 │   ├── admin/               # Admin-specific hooks
 │   │   ├── useAdminDuas.ts      # CRUD operations for duas
-│   │   ├── useAdminJourneys.ts  # CRUD operations for journeys
+│   │   ├── useAdminJourneys.ts  # CRUD + journey-dua assignment operations
 │   │   ├── useAdminCategories.ts # CRUD operations for categories
 │   │   ├── useAdminCollections.ts # CRUD operations for collections
 │   │   └── useAdminUsers.ts     # User management operations
@@ -146,17 +147,18 @@ RIZQ-iOS/
 │   │   ├── Animations/              # Celebration, ripple, sparkles
 │   │   ├── GamificationViews/       # XP, level, streak badges
 │   │   ├── HabitViews/              # Habit cards, progress bars
+│   │   ├── HomeViews/               # Dashboard components (quote, progress, achievements)
 │   │   ├── JourneyViews/            # Journey cards, headers
 │   │   └── DuaViews/                # Dua cards, list items
 │   ├── Dependencies/                # TCA dependency clients
 │   └── Resources/                   # GoogleService-Info.plist, fonts
 ├── RIZQKit/                     # Shared framework
-│   ├── Models/                      # Domain models (Dua, Journey, User)
+│   ├── Models/                      # Domain models (Dua, Journey, User, Achievement, IslamicQuote, MotivationState)
 │   ├── Design/                      # Colors, Typography, Spacing
 │   └── Services/
-│       ├── API/                     # Legacy Neon API client
+│       ├── API/                     # Legacy Neon API client (deprecated)
 │       ├── Auth/                    # FirebaseAuthService
-│       ├── Firebase/                # FirestoreContentService
+│       ├── Firebase/                # FirestoreContentService, FirebaseUserService
 │       └── Persistence/             # HabitStorage, CacheService
 ├── RIZQTests/                   # Unit tests
 ├── RIZQSnapshotTests/           # Snapshot tests
@@ -291,6 +293,7 @@ Managed by Neon Auth. Key table: `neon_auth.user` with `id`, `email`, `name`, `i
 | `journey_duas` | Journey-dua mapping | `journeyId`, `duaId`, `timeSlot`, `sortOrder` |
 | `user_profiles/{userId}` | User stats | `displayName`, `streak`, `totalXp`, `level`, `lastActiveDate` |
 | `user_activity/{userId}/dates/{date}` | Daily tracking | `duasCompleted[]`, `xpEarned` |
+| `user_progress/{userId}/duas/{duaId}` | Per-dua progress | `completedCount`, `lastCompleted` |
 
 **Firestore Field Naming**: Uses camelCase (not snake_case like Neon).
 
@@ -308,7 +311,7 @@ match /user_profiles/{userId} {
 Values: `"morning"` | `"anytime"` | `"evening"` (matches Islamic prayer structure)
 
 ### Category Slugs
-Values: `"morning"` | `"evening"` | `"rizq"` | `"gratitude"`
+Values: `"morning"` | `"evening"` | `"rizq"` | `"gratitude"` | `"foundation"`
 
 ## Design System
 
@@ -471,7 +474,10 @@ const itemVariants = {
 | Root Feature | `RIZQ-iOS/RIZQ/App/AppFeature.swift` |
 | Root View | `RIZQ-iOS/RIZQ/App/AppView.swift` |
 | Firestore Content Service | `RIZQ-iOS/RIZQKit/Services/Firebase/FirestoreContentService.swift` |
+| Firebase User Service | `RIZQ-iOS/RIZQKit/Services/Firebase/FirebaseUserService.swift` |
 | Firebase Auth Service | `RIZQ-iOS/RIZQKit/Services/Auth/FirebaseAuthService.swift` |
+| Firestore User Client | `RIZQ-iOS/RIZQ/Dependencies/FirestoreUserClient.swift` |
+| Firestore Content Client | `RIZQ-iOS/RIZQ/Dependencies/FirestoreContentClient.swift` |
 | Models | `RIZQ-iOS/RIZQKit/Models/` |
 | Design Tokens | `RIZQ-iOS/RIZQKit/Design/` |
 | TCA Dependencies | `RIZQ-iOS/RIZQKit/Services/Dependencies.swift` |
@@ -609,6 +615,20 @@ The admin panel uses a nested route structure with `AdminLayout` providing sideb
 | `StatusBadges` | Premium/featured status badges |
 | `TableSkeleton` | Loading skeleton for tables |
 
+### Admin Routes
+
+```typescript
+<Route path="admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+  <Route index element={<AdminDashboardPage />} />
+  <Route path="duas" element={<DuasManagerPage />} />
+  <Route path="journeys" element={<JourneysManagerPage />} />
+  <Route path="journeys/:journeyId/duas" element={<JourneyDuasManagerPage />} />
+  <Route path="categories" element={<CategoriesManagerPage />} />
+  <Route path="collections" element={<CollectionsManagerPage />} />
+  <Route path="users" element={<UsersManagerPage />} />
+</Route>
+```
+
 ### Admin Hook Pattern
 
 Admin hooks follow a consistent pattern with CRUD operations and optimistic updates:
@@ -637,6 +657,19 @@ export function useAdminDuas() {
 }
 ```
 
+### Journey-Dua Management Hooks
+
+`useAdminJourneys.ts` provides additional hooks for managing dua assignments within journeys:
+
+| Hook | Purpose |
+|------|---------|
+| `useAdminJourneyDuas(journeyId)` | Fetch duas assigned to a journey |
+| `useAssignDuaToJourney()` | Add/update a dua in a journey with time slot |
+| `useRemoveDuaFromJourney()` | Remove a dua from a journey |
+| `useReorderJourneyDuas()` | Batch update sort order and time slots |
+| `useToggleJourneyFeatured()` | Toggle featured status |
+| `useToggleJourneyPremium()` | Toggle premium status |
+
 ### Admin Types
 
 Admin types are defined in `src/types/admin.ts` with both DB row types (snake_case) and frontend types (camelCase):
@@ -656,6 +689,23 @@ interface AdminDua {
   titleEn: string;
   categoryId: number | null;
   // ... camelCase properties
+}
+
+// Journey-Dua assignment types
+interface JourneyDuaAssignment {
+  id: number;
+  journeyId: number;
+  duaId: number;
+  timeSlot: TimeSlot;
+  sortOrder: number;
+  duaTitle?: string;
+  duaArabic?: string;
+}
+
+interface AssignDuaInput {
+  journeyId: number;
+  duaId: number;
+  timeSlot: TimeSlot;
 }
 ```
 
@@ -696,12 +746,59 @@ Firebase configuration is in `RIZQ-iOS/RIZQ/Resources/GoogleService-Info.plist` 
 
 ### Firebase Project
 
+**Project ID**: `rizq-app-c6468`
+**Firestore Location**: `nam5` (North America multi-region)
+
 | Service | Status |
 |---------|--------|
 | Firebase Auth | ✅ Active (Google Sign-In) |
 | Firestore | ✅ Active (content + user data) |
 | Firebase Hosting | Not used |
 | Firebase Storage | Not used |
+
+## Testing
+
+### Web E2E Tests (Playwright)
+
+Test files live in `e2e/` directory. Configuration in `playwright.config.ts`:
+
+| Setting | Value |
+|---------|-------|
+| Test directory | `./e2e` |
+| Base URL | `http://localhost:8081` |
+| Browser | Chromium |
+| Timeout | 30 seconds |
+| Dev server | `npm run dev` on port 8081 |
+
+Run tests: `npx playwright test`
+
+### iOS Unit Tests (XCTest + TCA TestStore)
+
+Test files in `RIZQ-iOS/RIZQTests/`. Pattern:
+
+```swift
+@MainActor
+func testActionSuccess() async {
+    let store = TestStore(initialState: Feature.State()) {
+        Feature()
+    } withDependencies: {
+        $0.firestoreUserClient.someMethod = { _ in .mock }
+        $0.continuousClock = ImmediateClock()
+    }
+
+    await store.send(.actionTapped) { $0.isLoading = true }
+    await store.receive(.actionCompleted) { $0.isLoading = false }
+}
+```
+
+### MCP Servers
+
+Two MCP servers configured in `.mcp.json` for development:
+
+| Server | Purpose |
+|--------|---------|
+| Playwright | Browser automation and E2E testing |
+| Firebase | Firestore data management via Admin SDK |
 
 ## iOS App Development
 
@@ -754,6 +851,51 @@ public func fetchAllDuas() async throws -> [Dua] {
     try? mapDocumentToDua(doc.data(), documentId: doc.documentID)
   }
 }
+```
+
+### iOS Tab Lifecycle Pattern
+
+Features use `becameActive` to refresh data when their tab is selected:
+
+```swift
+case .becameActive:
+    return .run { send in
+        let items = try await firestoreClient.fetchItems()
+        await send(.itemsLoaded(.success(items)))
+    }
+```
+
+### iOS Service Timeout Pattern
+
+Services use task groups with timeouts to prevent stuck loading states:
+
+```swift
+// 10-second timeout for journey fetching, fallback to SampleData
+// 8-second timeout for adkhar habits, fallback to empty arrays
+return .run { send in
+    let result = try await withThrowingTaskGroup(of: [Item].self) { group in
+        group.addTask { try await service.fetch() }
+        group.addTask {
+            try await clock.sleep(for: .seconds(10))
+            throw TimeoutError()
+        }
+        return try await group.next()!
+    }
+    await send(.loaded(.success(result)))
+} catch: { _, send in
+    await send(.loaded(.success(SampleData.items)))
+}
+```
+
+### iOS Logging
+
+Use structured Logger instead of print statements:
+
+```swift
+import os
+private let logger = Logger(subsystem: "com.rizq.app", category: "FeatureName")
+logger.debug("Loading items...")
+logger.error("Failed to fetch: \(error.localizedDescription)")
 ```
 
 ### Build Verification (iOS)
@@ -819,6 +961,9 @@ cd RIZQ-iOS && xcodebuild -scheme RIZQ \
 - Use `.run` effects for async work
 - Capture state values before entering `.run` blocks
 - Run build verification after every change
+- Use `Logger` instead of `print` for debugging
+- Implement `becameActive` pattern for tab refreshes
+- Add service timeouts with fallback to SampleData
 
 ### Firebase
 - Use `scripts/seed-firestore.cjs` to sync content to Firestore

@@ -35,17 +35,30 @@ find . -type d -name 'node_modules' -prune -o -type d -name '.git' -prune -o -ty
 - Database: src/lib/db.ts
 - Auth: src/lib/auth-client.ts, src/contexts/AuthContext.tsx
 - Key types: src/types/dua.ts, src/types/habit.ts, src/types/admin.ts
+- Admin hooks: src/hooks/admin/ (useAdminDuas, useAdminJourneys, etc.)
+- Admin pages: src/pages/admin/ (including JourneyDuasManagerPage)
+- E2E tests: e2e/ (admin-journeys.spec.ts, auth.spec.ts)
 
 **iOS App (Swift/TCA):**
 - Main entry: RIZQ-iOS/RIZQ/App/RIZQApp.swift
 - App Feature: RIZQ-iOS/RIZQ/App/AppFeature.swift
-- Package: RIZQ-iOS/Package.swift or RIZQ-iOS/RIZQ.xcodeproj
-- Key models: RIZQ-iOS/RIZQKit/Models/
-- Key services: RIZQ-iOS/RIZQKit/Services/
+- Key features: RIZQ-iOS/RIZQ/Features/ (Home, Journeys, Adkhar, Settings, etc.)
+- Dependencies: RIZQ-iOS/RIZQ/Dependencies/ (FirestoreUserClient, FirestoreContentClient)
+- Key models: RIZQ-iOS/RIZQKit/Models/ (Dua, Journey, User, Achievement, IslamicQuote)
+- Key services: RIZQ-iOS/RIZQKit/Services/Firebase/ (FirebaseUserService, FirestoreContentService)
+- Tests: RIZQ-iOS/RIZQTests/ (SettingsFeatureTests, FirebaseAuthTests)
+- Build config: RIZQ-iOS/project.yml
 
 **Firebase:**
 - Configuration: firebase.json, .firebaserc
 - Rules: firestore.rules
+- Indexes: firestore.indexes.json
+- Seeding: scripts/seed-firestore.cjs
+
+**Infrastructure:**
+- MCP servers: .mcp.json (Playwright + Firebase)
+- Claude settings: .claude/settings.json
+- Test config: playwright.config.ts
 
 ### 4. Understand Current State
 
@@ -87,12 +100,18 @@ Provide a concise summary covering:
 ### Core Principles
 - Code style and conventions observed
 - Design system (warm Islamic aesthetic)
-- Testing approach
-- State management patterns
+- Testing approach (Playwright E2E for web, TestStore + snapshots for iOS)
+- State management patterns (React Query + Context for web, TCA for iOS)
+
+### Infrastructure
+- Firebase project: rizq-app-c6468 (Firestore location: nam5)
+- MCP servers: Playwright (E2E), Firebase (admin ops)
+- Dev server port: 8080 (Vite), Test base URL: localhost:8081
 
 ### Current State
 - Active branch
 - Recent changes or development focus
 - Any immediate observations or concerns
+- Unstaged changes and untracked files
 
 **Make this summary easy to scan - use bullet points and clear headers.**

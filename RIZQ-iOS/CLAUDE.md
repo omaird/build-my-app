@@ -34,45 +34,77 @@ RIZQ iOS is a native iOS app for the RIZQ dua practice platform. Built with Swif
 RIZQ-iOS/
 ├── RIZQ/                        # Main app target
 │   ├── App/
-│   │   ├── RIZQApp.swift            # App entry point
-│   │   ├── AppFeature.swift         # Root TCA reducer
-│   │   └── AppView.swift            # Root view with navigation
+│   │   ├── RIZQApp.swift            # App entry point + Firebase config
+│   │   ├── AppFeature.swift         # Root TCA reducer (6 tabs + admin)
+│   │   └── AppView.swift            # Root view with tab navigation
 │   ├── Features/
-│   │   ├── Adkhar/                  # Daily habits
+│   │   ├── Adkhar/                  # Daily habits (time slot filtering)
 │   │   │   ├── AdkharFeature.swift
 │   │   │   └── AdkharView.swift
-│   │   ├── Auth/                    # Authentication
+│   │   ├── Auth/                    # Firebase Auth (email + OAuth)
 │   │   │   ├── AuthFeature.swift
 │   │   │   └── AuthView.swift
+│   │   ├── Home/                    # Dashboard with gamification
+│   │   │   ├── HomeFeature.swift
+│   │   │   └── HomeView.swift
 │   │   ├── Journeys/                # Journey browsing & detail
 │   │   │   ├── JourneysFeature.swift
 │   │   │   ├── JourneysView.swift
+│   │   │   ├── JourneyDetailFeature.swift
 │   │   │   └── JourneyDetailView.swift
+│   │   ├── Library/                 # Dua reference library
+│   │   │   ├── LibraryFeature.swift
+│   │   │   ├── LibraryView.swift
+│   │   │   ├── DuaReferenceSheetFeature.swift
+│   │   │   └── Components/
 │   │   ├── Practice/                # Dua practice with counter
 │   │   │   ├── PracticeFeature.swift
 │   │   │   └── PracticeView.swift
-│   │   └── Settings/                # User settings
-│   │       ├── SettingsFeature.swift
-│   │       └── SettingsView.swift
+│   │   ├── Settings/                # User settings + account linking
+│   │   │   ├── SettingsFeature.swift
+│   │   │   ├── SettingsView.swift
+│   │   │   └── Views/
+│   │   └── Admin/                   # Admin panel (categories, duas, journeys, users)
+│   ├── Dependencies/                # TCA dependency clients
+│   │   ├── FirestoreContentClient.swift
+│   │   ├── FirestoreUserClient.swift
+│   │   ├── HapticClient.swift
+│   │   └── UserHabitsClient.swift
 │   ├── Views/Components/            # Reusable UI components
-│   ├── Resources/                   # GoogleService-Info.plist, etc.
-│   └── Assets.xcassets
+│   │   ├── Animations/              # Celebration, ripple, sparkles
+│   │   ├── GamificationViews/       # XP, level, streak badges
+│   │   ├── HabitViews/              # Habit cards, quick practice
+│   │   ├── HomeViews/               # Quote, progress, achievements, calendar
+│   │   ├── JourneyViews/            # Journey cards, headers
+│   │   └── DuaViews/                # Dua cards, list items
+│   ├── Resources/                   # GoogleService-Info.plist, fonts
+│   └── Assets.xcassets              # Colors (adaptive) + images
 ├── RIZQKit/                     # Shared framework
 │   ├── Models/                      # Domain models
 │   │   ├── Dua.swift
 │   │   ├── Journey.swift
-│   │   └── UserProfile.swift
+│   │   ├── User.swift               # UserProfile, AuthUser, LinkedAccount
+│   │   ├── Habit.swift              # UserHabit, TimeSlot
+│   │   ├── Achievement.swift        # Achievement definitions
+│   │   ├── IslamicQuote.swift       # Daily rotating quotes
+│   │   ├── MotivationState.swift    # Contextual motivation states
+│   │   └── DailyActivity.swift      # Activity tracking
+│   ├── Design/                      # Colors, Typography, Spacing
 │   ├── Services/
-│   │   ├── API/                     # Firestore client
-│   │   └── Auth/                    # Auth service
-│   └── Dependencies/                # TCA dependencies
+│   │   ├── API/                     # Legacy Neon client (deprecated)
+│   │   ├── Auth/                    # FirebaseAuthService, KeychainService
+│   │   ├── Firebase/                # FirestoreContentService, FirebaseUserService
+│   │   └── Persistence/             # HabitStorage, CacheService, UserDefaultsService
+│   └── Services/Dependencies.swift  # ServiceContainer + DependencyKey registrations
 ├── RIZQTests/                   # Unit tests
+│   ├── SettingsFeatureTests.swift   # Comprehensive settings tests
+│   └── FirebaseAuthTests.swift      # Auth service tests
 ├── RIZQSnapshotTests/           # Snapshot tests
 ├── RIZQWidget/                  # Home screen widget
 ├── fastlane/                    # Build automation
 ├── docs/                        # Implementation docs
 ├── .claude/reference/           # Claude reference docs
-└── project.yml                  # XcodeGen spec
+└── project.yml                  # XcodeGen spec (v1.0.0, build 4)
 ```
 
 ## Code Conventions
@@ -212,6 +244,83 @@ case .searchChanged(let query):
     .cancellable(id: CancelID.search, cancelInFlight: true)
 ```
 
+### Tab Lifecycle Pattern
+
+Features implement `becameActive` to refresh data when their tab is selected:
+
+```swift
+case .becameActive:
+    return .run { send in
+        let data = try await service.fetch()
+        await send(.dataLoaded(.success(data)))
+    }
+```
+
+This is triggered by `AppFeature` when `selectedTab` changes. Use for forced refresh on programmatic navigation.
+
+### Service Timeout Pattern
+
+Services use task groups with timeout to prevent stuck loading:
+
+```swift
+case .onAppear:
+    state.isLoading = true
+    return .run { [clock] send in
+        let result = try await withThrowingTaskGroup(of: [Item].self) { group in
+            group.addTask { try await service.fetch() }
+            group.addTask {
+                try await clock.sleep(for: .seconds(10))
+                throw CancellationError()
+            }
+            let first = try await group.next()!
+            group.cancelAll()
+            return first
+        }
+        await send(.loaded(.success(result)))
+    } catch: { _, send in
+        await send(.loaded(.success(SampleData.items)))  // Fallback
+    }
+```
+
+Timeouts: Journeys 10s, Adkhar 8s. Always fall back to SampleData or empty arrays.
+
+### BindingReducer Pattern
+
+For features with form fields (Settings, Auth):
+
+```swift
+@Reducer
+struct SettingsFeature {
+    @ObservableState
+    struct State: Equatable {
+        @Shared(.appStorage("isDarkMode")) var isDarkMode = false
+        var editedDisplayName = ""
+    }
+
+    enum Action: BindableAction {
+        case binding(BindingAction<State>)
+        case saveDisplayNameTapped
+        // ...
+    }
+
+    var body: some ReducerOf<Self> {
+        BindingReducer()
+        Reduce { state, action in ... }
+    }
+}
+```
+
+### Logging
+
+Use structured Logger (not print):
+
+```swift
+import os
+private let logger = Logger(subsystem: "com.rizq.app", category: "FeatureName")
+logger.debug("Loading items...")
+logger.error("Failed: \(error.localizedDescription)")
+```
+
 ### Navigation
 
 ```swift
@@ -281,11 +390,41 @@ If issues arise requiring Neon rollback:
 |------------|---------|
 | `\.firestoreContentClient` | Content (duas, journeys, categories) from Firestore |
 | `\.firestoreUserClient` | User data (profiles, activity, completions) from Firestore |
-| `\.authClient` | Firebase Authentication (sign in, sign up, OAuth) |
+| `\.authClient` | Firebase Authentication (sign in, sign up, OAuth, account linking) |
 | `\.adminService` | Admin panel operations (user management) |
+| `\.habitStorage` | Local journey subscriptions (UserDefaults) |
 | `\.haptics` | Haptic feedback |
 | `\.dismiss` | Dismiss presented views |
 | `\.continuousClock` | Timing and delays |
+
+### Dependency Client Structure
+
+Dependencies use closure-based structs with manual DependencyKey registration:
+
+```swift
+struct FirestoreUserClient: Sendable {
+    var fetchUserProfile: @Sendable (_ userId: String) async throws -> UserProfile?
+    var createUserProfile: @Sendable (_ userId: String, _ displayName: String?) async throws -> UserProfile
+    var updateDisplayName: @Sendable (_ userId: String, _ name: String) async throws -> UserProfile
+    var getOrCreateUserProfile: @Sendable (_ userId: String, _ displayName: String?) async throws -> UserProfile
+    var fetchWeekActivities: @Sendable (_ userId: String) async throws -> [UserActivity]
+    var recordPracticeCompletion: @Sendable (_ userId: String, _ duaId: Int, _ xp: Int) async throws -> UserProfile
+    var resetUserProgress: @Sendable (_ userId: String) async throws -> UserProfile
+}
+
+extension FirestoreUserClient: DependencyKey {
+    static let liveValue: FirestoreUserClient = {
+        let service = FirebaseUserService()
+        return FirestoreUserClient(
+            fetchUserProfile: { try await service.fetchUserProfile(userId: $0) },
+            // ... closures wrapping the actor-based service
+        )
+    }()
+    static let testValue = FirestoreUserClient(/* mock closures */)
+}
+```
+
+The underlying `FirebaseUserService` is an **actor** for thread-safe Firestore operations with a lazy `db` property ensuring Firebase is configured before access.
 
 ## Testing
 
@@ -300,6 +439,7 @@ func testOnAppearLoadsData() async {
         MyFeature()
     } withDependencies: {
         $0.firestoreClient.fetchItems = { [.mock] }
+        $0.continuousClock = ImmediateClock()  // Skip delays in tests
     }
 
     await store.send(.onAppear) {
@@ -312,6 +452,46 @@ func testOnAppearLoadsData() async {
     }
 }
 ```
+
+### Multi-Step Async Test Pattern
+
+From `SettingsFeatureTests.swift` - test complex flows with multiple send/receive:
+
+```swift
+@MainActor
+func testSaveDisplayNameSuccess() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+        SettingsFeature()
+    } withDependencies: {
+        $0.firestoreUserClient.updateDisplayName = { _, newName in
+            UserProfile(/* ... displayName: newName ... */)
+        }
+        $0.continuousClock = ImmediateClock()
+    }
+
+    store.state.user = AuthUser(id: "test", email: "test@example.com", name: "Test")
+    store.state.editedDisplayName = "New Name"
+
+    await store.send(.saveDisplayNameTapped) { $0.isSavingDisplayName = true }
+    await store.receive(.displayNameSaved("New Name")) {
+        $0.isSavingDisplayName = false
+        $0.isEditingDisplayName = false
+        $0.profile?.displayName = "New Name"
+        $0.successMessage = "Display name updated"
+    }
+    await store.receive(.clearSuccess) { $0.successMessage = nil }
+}
+```
+
+### Test Coverage Areas
+
+Current test files and their coverage:
+
+| File | Tests |
+|------|-------|
+| `SettingsFeatureTests.swift` | Display name editing, dark mode, account linking/unlinking, reset progress, sign out |
+| `FirebaseAuthTests.swift` | Auth service operations |
+| `NeonServiceTests.swift` | Legacy (deprecated) |
 
 ### Snapshot Tests
 
@@ -450,6 +630,11 @@ extension MyClient: DependencyKey {
 - Test reducer logic with TestStore
 - Use `.run` effects for async work
 - Capture state values before entering `.run` blocks
+- Use `Logger` instead of `print` for debugging
+- Implement `becameActive` for tab refresh lifecycle
+- Add service timeouts with fallback to SampleData
+- Use `ImmediateClock()` in tests to skip delays
+- Use `BindingReducer()` for features with form fields
 - **Always read model definitions before using properties**
 - **Run build verification after every change**
 - **Check SampleData.swift for available demo data**
@@ -462,6 +647,8 @@ extension MyClient: DependencyKey {
 - Don't block the main thread
 - Don't skip effect assertions in tests
 - Don't use real network in unit tests
+- Don't use `print` statements (use Logger)
+- Don't skip service timeouts for Firestore fetches
 - **Don't assume property types - verify in model files**
 - **Don't use `@DependencyClient` macro - use manual registration**
 - **Don't skip build verification after changes**
