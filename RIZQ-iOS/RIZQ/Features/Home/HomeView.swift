@@ -128,7 +128,16 @@ struct HomeView: View {
       set: { if !$0 { store.send(.dismissAchievementDetail) } }
     )) {
       if let achievement = store.selectedAchievement {
-        AchievementDetailSheet(achievement: achievement)
+        AchievementDetailSheet(achievement: achievement, evaluationContext: store.achievementEvaluationContext)
+      }
+    }
+    .overlay {
+      if let achievement = store.newlyUnlockedAchievement {
+        AchievementUnlockOverlay(achievement: achievement) {
+          store.send(.dismissAchievementUnlock)
+        }
+        .transition(.opacity)
+        .zIndex(100)
       }
     }
   }
@@ -489,24 +498,35 @@ struct ShareSheet: UIViewControllerRepresentable {
 
 // MARK: - AchievementDetailSheet
 
-/// Detail sheet showing achievement information
+/// Detail sheet showing achievement information with progress
 struct AchievementDetailSheet: View {
   let achievement: Achievement
+  var evaluationContext: AchievementEvaluationContext = AchievementEvaluationContext()
   @Environment(\.dismiss) private var dismiss
+
+  private var progress: Double {
+    achievement.progress(with: evaluationContext)
+  }
+
+  private var badgeColor: Color {
+    switch achievement.category {
+    case .streak: return .streakGlow
+    case .practice: return .tealSuccess
+    case .level: return .badgeEvening
+    case .special: return .goldBright
+    }
+  }
 
   var body: some View {
     NavigationStack {
       VStack(spacing: RIZQSpacing.xl) {
-        // Achievement icon
-        ZStack {
-          Circle()
-            .fill(achievement.isUnlocked ? Color.rizqPrimary.opacity(0.15) : Color.rizqMuted.opacity(0.3))
-            .frame(width: 100, height: 100)
-
-          Image(systemName: achievement.category.iconName)
-            .font(.system(size: 44))
-            .foregroundStyle(achievement.isUnlocked ? Color.rizqPrimary : Color.rizqTextSecondary)
-        }
+        // Achievement badge
+        AchievementBadgeView(
+          achievement: achievement,
+          size: .large,
+          showDetails: false,
+          unlockProgress: achievement.isUnlocked ? 0 : progress
+        )
         .padding(.top, RIZQSpacing.xxl)
 
         // Achievement name
@@ -522,16 +542,63 @@ struct AchievementDetailSheet: View {
           .multilineTextAlignment(.center)
           .padding(.horizontal, RIZQSpacing.xl)
 
-        // Status
-        HStack(spacing: RIZQSpacing.sm) {
-          Image(systemName: achievement.isUnlocked ? "checkmark.circle.fill" : "lock.fill")
-            .foregroundStyle(achievement.isUnlocked ? Color.tealSuccess : Color.rizqTextSecondary)
+        // Status and progress
+        if achievement.isUnlocked {
+          HStack(spacing: RIZQSpacing.sm) {
+            Image(systemName: "checkmark.circle.fill")
+              .foregroundStyle(Color.tealSuccess)
+            Text("Unlocked")
+              .font(.rizqSansMedium(.subheadline))
+              .foregroundStyle(Color.tealSuccess)
+          }
+          .padding(.top, RIZQSpacing.md)
+        } else {
+          // Progress section for locked achievements
+          VStack(spacing: RIZQSpacing.md) {
+            // Progress bar
+            VStack(spacing: RIZQSpacing.xs) {
+              HStack {
+                Text("\(Int(progress * 100))% complete")
+                  .font(.rizqSansMedium(.subheadline))
+                  .foregroundStyle(badgeColor)
+                Spacer()
+                Text(progressDetailText)
+                  .font(.rizqSans(.caption))
+                  .foregroundStyle(Color.rizqTextSecondary)
+              }
 
-          Text(achievement.isUnlocked ? "Unlocked" : "Locked")
-            .font(.rizqSansMedium(.subheadline))
-            .foregroundStyle(achievement.isUnlocked ? Color.tealSuccess : Color.rizqTextSecondary)
+              GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                  Capsule()
+                    .fill(Color.rizqMuted.opacity(0.3))
+                    .frame(height: 8)
+                  Capsule()
+                    .fill(badgeColor)
+                    .frame(width: geometry.size.width * progress, height: 8)
+                    .animation(.easeOut(duration: 0.5), value: progress)
+                }
+              }
+              .frame(height: 8)
+            }
+            .padding(.horizontal, RIZQSpacing.xl)
+          }
+          .padding(.top, RIZQSpacing.md)
         }
-        .padding(.top, RIZQSpacing.md)
+
+        // XP reward
+        HStack(spacing: RIZQSpacing.xs) {
+          Image(systemName: "sparkles")
+            .font(.caption)
+          Text("+\(achievement.xpReward) XP")
+            .font(.rizqMonoMedium(.subheadline))
+        }
+        .foregroundStyle(achievement.isUnlocked ? badgeColor : Color.rizqMuted)
+        .padding(.horizontal, RIZQSpacing.lg)
+        .padding(.vertical, RIZQSpacing.sm)
+        .background(
+          Capsule()
+            .fill(achievement.isUnlocked ? badgeColor.opacity(0.15) : Color.rizqMuted.opacity(0.1))
+        )
 
         Spacer()
       }
@@ -546,6 +613,26 @@ struct AchievementDetailSheet: View {
           .foregroundStyle(Color.rizqPrimary)
         }
       }
+    }
+  }
+
+  /// Text showing current/target progress detail
+  private var progressDetailText: String {
+    let currentValue: Int
+    let targetValue = achievement.requirement.value
+    switch achievement.requirement.type {
+    case .streakDays:
+      currentValue = evaluationContext.currentStreak
+      return "\(currentValue)/\(targetValue) days"
+    case .totalDuas:
+      currentValue = evaluationContext.totalDuasCompleted
+      return "\(currentValue)/\(targetValue) duas"
+    case .levelReached:
+      currentValue = evaluationContext.currentLevel
+      return "Level \(currentValue)/\(targetValue)"
+    case .perfectWeek:
+      currentValue = evaluationContext.perfectWeekCount
+      return "\(currentValue)/\(targetValue) weeks"
     }
   }
 }

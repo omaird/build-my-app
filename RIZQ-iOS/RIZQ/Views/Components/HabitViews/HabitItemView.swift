@@ -30,15 +30,17 @@ struct HabitItemView: View {
 
             Text("+\(habit.xpValue) XP")
               .font(.rizqMono(.caption))
-              .foregroundStyle(Color.rizqPrimary)
+              .foregroundStyle(isCompleted ? Color.rizqMuted : Color.rizqPrimary)
           }
 
-          // Arabic text preview
-          Text(habit.arabicText)
-            .font(.rizqArabic(.subheadline))
+          // Category badge + source
+          categorySourceRow
+
+          // Purpose/benefit line
+          Text(habit.rizqBenefit ?? habit.translation)
+            .font(.rizqSans(.caption))
             .foregroundStyle(isCompleted ? Color.rizqMuted.opacity(0.6) : Color.rizqTextSecondary)
             .lineLimit(1)
-            .environment(\.layoutDirection, .rightToLeft)
 
           // Repetitions badge
           if habit.repetitions > 1 {
@@ -77,6 +79,69 @@ struct HabitItemView: View {
     }
   }
 
+  // MARK: - Category + Source Row
+  private var categorySourceRow: some View {
+    HStack(spacing: RIZQSpacing.sm) {
+      // Category badge pill
+      HStack(spacing: 4) {
+        Text(categoryEmoji(for: habit.categoryId))
+          .font(.system(size: 10))
+
+        Text(categoryName(for: habit.categoryId))
+          .font(.rizqSans(.caption2))
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 4)
+      .background(categoryColor(for: habit.categoryId).opacity(isCompleted ? 0.08 : 0.15))
+      .foregroundStyle(isCompleted ? Color.rizqMuted : categoryColor(for: habit.categoryId))
+      .clipShape(Capsule())
+
+      // Source (if available)
+      if let source = habit.source {
+        Text("•")
+          .font(.rizqSans(.caption2))
+          .foregroundStyle(Color.rizqMuted)
+
+        Text(source)
+          .font(.rizqSans(.caption2))
+          .foregroundStyle(isCompleted ? Color.rizqMuted : Color.rizqTextSecondary)
+          .lineLimit(1)
+      }
+    }
+  }
+
+  // MARK: - Category Helpers
+
+  private func categoryEmoji(for categoryId: Int?) -> String {
+    switch categoryId {
+    case 1: return "🌅"
+    case 2: return "🌙"
+    case 3: return "💫"
+    case 4: return "🤲"
+    default: return "📿"
+    }
+  }
+
+  private func categoryName(for categoryId: Int?) -> String {
+    switch categoryId {
+    case 1: return "Morning"
+    case 2: return "Evening"
+    case 3: return "Rizq"
+    case 4: return "Gratitude"
+    default: return "Dua"
+    }
+  }
+
+  private func categoryColor(for categoryId: Int?) -> Color {
+    switch categoryId {
+    case 1: return .badgeMorning
+    case 2: return .badgeEvening
+    case 3: return .badgeRizq
+    case 4: return .badgeGratitude
+    default: return .rizqPrimary
+    }
+  }
+
   // MARK: - Checkbox View
   private var checkboxView: some View {
     ZStack {
@@ -104,6 +169,8 @@ struct HabitItemView: View {
   // MARK: - Accessibility Label
   private var accessibilityLabel: String {
     var components: [String] = [habit.titleEn]
+
+    components.append(habit.rizqBenefit ?? habit.translation)
 
     if habit.repetitions > 1 {
       components.append("Repeat \(habit.repetitions) times")
@@ -138,38 +205,63 @@ struct PressEventsModifier: ViewModifier {
 
 #Preview {
   VStack(spacing: RIZQSpacing.lg) {
+    // With rizqBenefit + source (morning category)
     HabitItemView(
       habit: Habit(
         id: 1,
         duaId: 101,
+        categoryId: 1,
         titleEn: "Morning Remembrance",
         arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ",
         transliteration: "Asbahna wa asbahal mulku lillah",
-        translation: "We have reached the morning",
-        source: "Muslim",
+        translation: "We have reached the morning and the dominion belongs to Allah",
+        source: "Sahih Muslim",
         rizqBenefit: "Protection throughout the day",
         propheticContext: nil,
         timeSlot: .morning,
-        xpValue: 10,
+        xpValue: 15,
         repetitions: 3
       ),
       isCompleted: false,
       onSelect: {}
     )
 
+    // Without rizqBenefit (falls back to translation), rizq category
     HabitItemView(
       habit: Habit(
         id: 2,
         duaId: 102,
-        titleEn: "Seeking Refuge",
-        arabicText: "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ",
+        categoryId: 3,
+        titleEn: "Seeking Rizq",
+        arabicText: "اللَّهُمَّ اكْفِنِي بِحَلَالِكَ عَنْ حَرَامِكَ",
         transliteration: nil,
-        translation: "I seek refuge in Allah",
-        source: nil,
+        translation: "O Allah, suffice me with what is lawful against what is unlawful",
+        source: "Tirmidhi",
         rizqBenefit: nil,
         propheticContext: nil,
-        timeSlot: .morning,
-        xpValue: 5,
+        timeSlot: .anytime,
+        xpValue: 20,
+        repetitions: 3
+      ),
+      isCompleted: false,
+      onSelect: {}
+    )
+
+    // Completed state (evening category, no source)
+    HabitItemView(
+      habit: Habit(
+        id: 3,
+        duaId: 103,
+        categoryId: 2,
+        titleEn: "Evening Protection",
+        arabicText: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ",
+        transliteration: nil,
+        translation: "We have reached the evening and the dominion belongs to Allah",
+        source: nil,
+        rizqBenefit: "Safety through the night",
+        propheticContext: nil,
+        timeSlot: .evening,
+        xpValue: 10,
         repetitions: 1
       ),
       isCompleted: true,

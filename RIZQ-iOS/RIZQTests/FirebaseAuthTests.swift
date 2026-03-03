@@ -353,20 +353,33 @@ final class AuthClientTests: XCTestCase {
     XCTAssertEqual(response.user.email, "test@example.com")
   }
 
-  // TODO: Fix TCA test expectations - temporarily skipped during Firebase migration
-  // The test has state change mismatches that need investigation
   @MainActor
-  func DISABLED_testAuthFeatureSignInFlow() async throws {
+  func testAuthFeatureSignInFlow() async throws {
+    // Use fixed dates to ensure Equatable comparison succeeds
+    let fixedDate = Date(timeIntervalSince1970: 1_000_000)
+    let expectedUser = AuthUser(
+      id: "test-id",
+      email: "test@example.com",
+      name: "Test User",
+      createdAt: fixedDate,
+      updatedAt: fixedDate
+    )
+    let expectedSession = AuthSession(
+      id: "session",
+      userId: "test-id",
+      token: "token",
+      expiresAt: fixedDate.addingTimeInterval(3600),
+      createdAt: fixedDate,
+      updatedAt: fixedDate
+    )
+
     // Given: Auth feature with mock client
     let store = TestStore(initialState: AuthFeature.State()) {
       AuthFeature()
     } withDependencies: {
       $0.authClient = AuthClient(
-        signIn: { email, _ in
-          AuthResponse(
-            user: AuthUser(id: "test-id", email: email, name: "Test User"),
-            session: AuthSession(id: "session", userId: "test-id", token: "token", expiresAt: Date().addingTimeInterval(3600))
-          )
+        signIn: { _, _ in
+          AuthResponse(user: expectedUser, session: expectedSession)
         },
         signUp: unimplemented("signUp"),
         signInWithOAuth: unimplemented("signInWithOAuth"),
@@ -394,11 +407,12 @@ final class AuthClientTests: XCTestCase {
 
     await store.receive(\.authResponse.success) {
       $0.isLoading = false
-      $0.user = AuthUser(id: "test-id", email: "test@example.com", name: "Test User")
+      $0.user = expectedUser
     }
 
     await store.receive(\.authSuccess) { _ in
-      // authSuccess sets user (already set by authResponse, no state change)
+      // authSuccess sets user and isLoading, but both are already
+      // at their expected values from authResponse, so no state change
     }
   }
 

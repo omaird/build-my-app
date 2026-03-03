@@ -11,6 +11,7 @@ struct AdminFeature {
     var duas = AdminDuasFeature.State()
     var journeys = AdminJourneysFeature.State()
     var categories = AdminCategoriesFeature.State()
+    var collections = AdminCollectionsFeature.State()
     var users = AdminUsersFeature.State()
     var isShowingAdmin: Bool = true
   }
@@ -20,6 +21,7 @@ struct AdminFeature {
     case duas
     case journeys
     case categories
+    case collections
     case users
 
     var id: String { rawValue }
@@ -30,6 +32,7 @@ struct AdminFeature {
       case .duas: return "Duas"
       case .journeys: return "Journeys"
       case .categories: return "Categories"
+      case .collections: return "Collections"
       case .users: return "Users"
       }
     }
@@ -40,6 +43,7 @@ struct AdminFeature {
       case .duas: return "book.fill"
       case .journeys: return "map.fill"
       case .categories: return "tag.fill"
+      case .collections: return "square.stack.fill"
       case .users: return "person.2.fill"
       }
     }
@@ -50,6 +54,7 @@ struct AdminFeature {
       case .duas: return "Manage supplications"
       case .journeys: return "Manage dua collections"
       case .categories: return "Organize duas"
+      case .collections: return "Manage content tiers"
       case .users: return "Manage users"
       }
     }
@@ -63,6 +68,7 @@ struct AdminFeature {
     case duas(AdminDuasFeature.Action)
     case journeys(AdminJourneysFeature.Action)
     case categories(AdminCategoriesFeature.Action)
+    case collections(AdminCollectionsFeature.Action)
     case users(AdminUsersFeature.Action)
   }
 
@@ -86,6 +92,8 @@ struct AdminFeature {
           return .send(.journeys(.loadJourneys))
         case .categories:
           return .send(.categories(.loadCategories))
+        case .collections:
+          return .send(.collections(.loadCollections))
         case .users:
           return .send(.users(.loadUsers))
         }
@@ -94,7 +102,7 @@ struct AdminFeature {
         state.isShowingAdmin = false
         return .none
 
-      case .dashboard, .duas, .journeys, .categories, .users:
+      case .dashboard, .duas, .journeys, .categories, .collections, .users:
         return .none
       }
     }
@@ -113,6 +121,10 @@ struct AdminFeature {
 
     Scope(state: \.categories, action: \.categories) {
       AdminCategoriesFeature()
+    }
+
+    Scope(state: \.collections, action: \.collections) {
+      AdminCollectionsFeature()
     }
 
     Scope(state: \.users, action: \.users) {

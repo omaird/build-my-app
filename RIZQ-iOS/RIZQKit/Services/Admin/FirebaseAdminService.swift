@@ -432,6 +432,90 @@ public actor FirebaseAdminService: AdminServiceProtocol {
     logger.info("Deleted category ID \(id)")
   }
 
+  // MARK: - Collections CRUD
+
+  public func fetchAllCollectionsAdmin() async throws -> [DuaCollection] {
+    logger.info("Fetching all collections for admin")
+
+    let snapshot = try await db.collection(collectionsCollection)
+      .order(by: "id")
+      .getDocuments()
+
+    let collections = snapshot.documents.compactMap { doc -> DuaCollection? in
+      try? mapDocumentToCollection(doc.data(), documentId: doc.documentID)
+    }
+
+    logger.info("Fetched \(collections.count) collections")
+    return collections
+  }
+
+  public func createCollection(_ input: CollectionInput) async throws -> DuaCollection {
+    logger.info("Creating new collection: \(input.name)")
+
+    let maxId = try await fetchMaxId(collection: collectionsCollection)
+    let newId = maxId + 1
+
+    let data = mapCollectionInputToDocument(input, id: newId)
+
+    let docRef = db.collection(collectionsCollection).document(String(newId))
+    try await docRef.setData(data)
+
+    logger.info("Created collection with ID \(newId)")
+
+    return DuaCollection(
+      id: newId,
+      name: input.name.trimmingCharacters(in: .whitespacesAndNewlines),
+      slug: input.slug.trimmingCharacters(in: .whitespacesAndNewlines),
+      isPremium: input.isPremium
+    )
+  }
+
+  public func updateCollection(id: Int, input: CollectionInput) async throws -> DuaCollection {
+    logger.info("Updating collection ID \(id)")
+
+    let docRef = db.collection(collectionsCollection).document(String(id))
+    let snapshot = try await docRef.getDocument()
+
+    guard snapshot.exists else {
+      logger.error("Collection not found: \(id)")
+      throw FirebaseAdminError.notFound("Collection with ID \(id) not found")
+    }
+
+    let data = mapCollectionInputToDocument(input, id: id)
+    try await docRef.setData(data)
+
+    logger.info("Updated collection ID \(id)")
+
+    return DuaCollection(
+      id: id,
+      name: input.name.trimmingCharacters(in: .whitespacesAndNewlines),
+      slug: input.slug.trimmingCharacters(in: .whitespacesAndNewlines),
+      isPremium: input.isPremium
+    )
+  }
+
+  public func deleteCollection(id: Int) async throws {
+    logger.info("Deleting collection ID \(id)")
+
+    // Set collectionId to null for duas in this collection
+    let duasSnapshot = try await db.collection(duasCollection)
+      .whereField("collectionId", isEqualTo: id)
+      .getDocuments()
+
+    let batch = db.batch()
+
+    for doc in duasSnapshot.documents {
+      batch.updateData(["collectionId": FieldValue.delete()], forDocument: doc.reference)
+    }
+
+    // Delete the collection
+    let collectionRef = db.collection(collectionsCollection).document(String(id))
+    batch.deleteDocument(collectionRef)
+
+    try await batch.commit()
+    logger.info("Deleted collection ID \(id)")
+  }
+
   // MARK: - Users
 
   public func fetchAllUsersAdmin() async throws -> [UserProfile] {
@@ -716,6 +800,31 @@ public actor FirebaseAdminService: AdminServiceProtocol {
     if let description = input.description { doc["description"] = description }
 
     return doc
+  }
+
+  private func mapDocumentToCollection(_ data: [String: Any], documentId: String) throws -> DuaCollection {
+    guard let id = data["id"] as? Int,
+          let name = data["name"] as? String,
+          let slug = data["slug"] as? String
+    else {
+      throw FirebaseAdminError.invalidData("Invalid collection document: \(documentId)")
+    }
+
+    return DuaCollection(
+      id: id,
+      name: name,
+      slug: slug,
+      isPremium: data["isPremium"] as? Bool ?? false
+    )
+  }
+
+  private func mapCollectionInputToDocument(_ input: CollectionInput, id: Int) -> [String: Any] {
+    return [
+      "id": id,
+      "name": input.name.trimmingCharacters(in: .whitespacesAndNewlines),
+      "slug": input.slug.trimmingCharacters(in: .whitespacesAndNewlines),
+      "isPremium": input.isPremium
+    ]
   }
 
   private func mapDocumentToUserProfile(_ data: [String: Any], userId: String) throws -> UserProfile {

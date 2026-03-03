@@ -38,6 +38,12 @@ public protocol AdminServiceProtocol: Sendable {
   func updateCategory(id: Int, input: CategoryInput) async throws -> DuaCategory
   func deleteCategory(id: Int) async throws
 
+  // Collections CRUD
+  func fetchAllCollectionsAdmin() async throws -> [DuaCollection]
+  func createCollection(_ input: CollectionInput) async throws -> DuaCollection
+  func updateCollection(id: Int, input: CollectionInput) async throws -> DuaCollection
+  func deleteCollection(id: Int) async throws
+
   // Users
   func fetchAllUsersAdmin() async throws -> [UserProfile]
   func updateUserAdmin(userId: String, isAdmin: Bool) async throws -> UserProfile
@@ -286,6 +292,55 @@ public struct CategoryInput: Equatable, Sendable {
   /// Validate required fields
   public var isValid: Bool {
     !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+}
+
+public struct CollectionInput: Equatable, Sendable {
+  public var name: String
+  public var slug: String
+  public var isPremium: Bool
+
+  public init(
+    name: String = "",
+    slug: String = "",
+    isPremium: Bool = false
+  ) {
+    self.name = name
+    self.slug = slug
+    self.isPremium = isPremium
+  }
+
+  /// Create from existing DuaCollection for editing
+  public init(from collection: DuaCollection) {
+    self.name = collection.name
+    self.slug = collection.slug
+    self.isPremium = collection.isPremium
+  }
+
+  /// Generate slug from name
+  public mutating func generateSlug() {
+    slug = name
+      .lowercased()
+      .replacingOccurrences(of: " ", with: "-")
+      .replacingOccurrences(of: "[^a-z0-9-]", with: "", options: .regularExpression)
+  }
+
+  /// Validate required fields
+  public var isValid: Bool {
+    !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+    !slug.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  /// Validation errors
+  public var validationErrors: [String] {
+    var errors: [String] = []
+    if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      errors.append("Name is required")
+    }
+    if slug.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      errors.append("Slug is required")
+    }
+    return errors
   }
 }
 
@@ -661,6 +716,77 @@ public actor AdminService: AdminServiceProtocol {
     }
   }
 
+  // MARK: - Collections CRUD
+
+  public func fetchAllCollectionsAdmin() async throws -> [DuaCollection] {
+    let query = """
+      SELECT * FROM collections
+      ORDER BY name
+    """
+    return try await apiClient.execute(query, params: nil)
+  }
+
+  public func createCollection(_ input: CollectionInput) async throws -> DuaCollection {
+    let query = """
+      INSERT INTO collections (name, slug, is_premium)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    """
+
+    let params: [SQLValue] = [
+      .string(input.name.trimmingCharacters(in: .whitespacesAndNewlines)),
+      .string(input.slug.trimmingCharacters(in: .whitespacesAndNewlines)),
+      .bool(input.isPremium)
+    ]
+
+    let results: [DuaCollection] = try await apiClient.execute(query, params: params)
+    guard let collection = results.first else {
+      throw APIError.serverError("Failed to create collection")
+    }
+    return collection
+  }
+
+  public func updateCollection(id: Int, input: CollectionInput) async throws -> DuaCollection {
+    let query = """
+      UPDATE collections SET
+        name = $2,
+        slug = $3,
+        is_premium = $4
+      WHERE id = $1
+      RETURNING *
+    """
+
+    let params: [SQLValue] = [
+      .int(id),
+      .string(input.name.trimmingCharacters(in: .whitespacesAndNewlines)),
+      .string(input.slug.trimmingCharacters(in: .whitespacesAndNewlines)),
+      .bool(input.isPremium)
+    ]
+
+    let results: [DuaCollection] = try await apiClient.execute(query, params: params)
+    guard let collection = results.first else {
+      throw APIError.notFound
+    }
+    return collection
+  }
+
+  public func deleteCollection(id: Int) async throws {
+    // Set collection_id to null for duas in this collection
+    let updateDuas = """
+      UPDATE duas SET collection_id = NULL WHERE collection_id = $1
+    """
+    _ = try await apiClient.executeUpdate(updateDuas, params: [.int(id)])
+
+    // Then delete the collection
+    let query = """
+      DELETE FROM collections WHERE id = $1
+    """
+    let affected = try await apiClient.executeUpdate(query, params: [.int(id)])
+    if affected == 0 {
+      throw APIError.notFound
+    }
+  }
+
   // MARK: - Users
 
   public func fetchAllUsersAdmin() async throws -> [UserProfile] {
@@ -857,6 +983,20 @@ public actor MockAdminService: AdminServiceProtocol {
   }
 
   public func deleteCategory(id: Int) async throws {}
+
+  public func fetchAllCollectionsAdmin() async throws -> [DuaCollection] {
+    SampleData.collections
+  }
+
+  public func createCollection(_ input: CollectionInput) async throws -> DuaCollection {
+    DuaCollection(id: Int.random(in: 100...999), name: input.name, slug: input.slug, isPremium: input.isPremium)
+  }
+
+  public func updateCollection(id: Int, input: CollectionInput) async throws -> DuaCollection {
+    DuaCollection(id: id, name: input.name, slug: input.slug, isPremium: input.isPremium)
+  }
+
+  public func deleteCollection(id: Int) async throws {}
 
   public func fetchAllUsersAdmin() async throws -> [UserProfile] {
     [SampleData.userProfile]

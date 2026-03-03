@@ -149,6 +149,10 @@ struct AdminTabView: View {
       AdminCategoriesView(
         store: store.scope(state: \.categories, action: \.categories)
       )
+    case .collections:
+      AdminCollectionsView(
+        store: store.scope(state: \.collections, action: \.collections)
+      )
     case .users:
       AdminUsersView(
         store: store.scope(state: \.users, action: \.users)
@@ -164,6 +168,7 @@ struct AdminTabView: View {
     case .duas: return .badgeMorning
     case .journeys: return .tealMuted
     case .categories: return .badgeGratitude
+    case .collections: return .badgeRizq
     case .users: return .badgeEvening
     }
   }

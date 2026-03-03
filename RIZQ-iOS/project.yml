@@ -61,6 +61,9 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
     from: "8.0.0"
+  Satin:
+    url: https://github.com/Hi-Rez/Satin
+    branch: main
 
 targets:
   RIZQ:
@@ -115,6 +118,7 @@ targets:
         product: FirebaseFirestore
       - package: GoogleSignIn
         product: GoogleSignIn
+      - package: Satin
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rizq.app.kit

@@ -323,6 +323,7 @@ struct QuickPracticeSheet: View {
     habit: Habit(
       id: 1,
       duaId: 101,
+      categoryId: 1,
       titleEn: "Morning Remembrance",
       arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ",
       transliteration: "Asbahna wa asbahal mulku lillah wal hamdu lillah",

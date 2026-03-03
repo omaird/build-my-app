@@ -166,6 +166,7 @@ struct AdkharFeature {
   @Dependency(\.continuousClock) var clock
   @Dependency(HapticClient.self) var haptics
   @Dependency(\.adkharService) var adkharService
+  @Dependency(\.userHabitsClient) var userHabitsClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -175,7 +176,7 @@ struct AdkharFeature {
         state.isLoading = true
         state.loadError = nil
 
-        return .run { [adkharService] send in
+        return .run { [adkharService, userHabitsClient] send in
           do {
             // Fetch all habits (journey + custom) from storage and database
             adkharLogger.info("📱 Fetching all habits from service...")
@@ -194,10 +195,18 @@ struct AdkharFeature {
               let streak = try await adkharService.fetchStreak(userId)
               await send(.streakLoaded(streak))
 
-              // Restore today's completions
+              // Restore today's completions from Firestore (cloud source of truth)
               let completedIds = try await adkharService.fetchTodayCompletions(userId)
               if !completedIds.isEmpty {
                 await send(.completionsRestored(completedIds))
+
+                // Sync cloud completions into local storage for offline access
+                do {
+                  try await userHabitsClient.syncCompletionsFromCloud(completedIds)
+                  adkharLogger.info("📱 Synced \(completedIds.count) completions from cloud to local storage")
+                } catch {
+                  adkharLogger.error("📱 Failed to sync cloud completions to local storage: \(error.localizedDescription, privacy: .public)")
+                }
               }
             } else {
               adkharLogger.info("📱 No user logged in, setting streak to 0")
@@ -214,7 +223,7 @@ struct AdkharFeature {
         state.isLoading = true
         state.loadError = nil
 
-        return .run { [adkharService] send in
+        return .run { [adkharService, userHabitsClient] send in
           do {
             let habits = try await adkharService.fetchAllHabits()
 
@@ -228,9 +237,17 @@ struct AdkharFeature {
               let streak = try await adkharService.fetchStreak(userId)
               await send(.streakLoaded(streak))
 
+              // Restore today's completions from Firestore (cloud source of truth)
               let completedIds = try await adkharService.fetchTodayCompletions(userId)
               if !completedIds.isEmpty {
                 await send(.completionsRestored(completedIds))
+
+                // Sync cloud completions into local storage for offline access
+                do {
+                  try await userHabitsClient.syncCompletionsFromCloud(completedIds)
+                } catch {
+                  adkharLogger.error("📱 Failed to sync cloud completions on refresh: \(error.localizedDescription, privacy: .public)")
+                }
               }
             } else {
               await send(.streakLoaded(0))
@@ -284,8 +301,9 @@ struct AdkharFeature {
         let totalCount = state.totalHabits
         let streak = state.streak
         let xpEarned = habit.xpValue
+        let duaId = habit.duaId
 
-        return .run { [adkharService] _ in
+        return .run { [adkharService, userHabitsClient] _ in
           // Update widget with current progress
           WidgetDataManager.shared.updateDailyProgress(
             completedCount: completedCount,
@@ -296,14 +314,22 @@ struct AdkharFeature {
             level: 1
           )
 
-          // Persist completion to Firestore
+          // Persist completion to local storage (fast, offline-safe cache)
+          do {
+            _ = try await userHabitsClient.completeHabit(String(duaId), xpEarned)
+            adkharLogger.info("Cached completion locally: dua \(duaId, privacy: .public)")
+          } catch {
+            adkharLogger.error("Failed to cache completion locally: \(error.localizedDescription, privacy: .public)")
+          }
+
+          // Persist completion to Firestore (cloud source of truth)
           guard let userId = adkharService.currentUserId() else { return }
 
           do {
-            try await adkharService.recordCompletion(userId, habit.duaId, xpEarned)
-            adkharLogger.info("Recorded completion: dua \(habit.duaId, privacy: .public), xp: \(xpEarned, privacy: .public)")
+            try await adkharService.recordCompletion(userId, duaId, xpEarned)
+            adkharLogger.info("Recorded completion to Firestore: dua \(duaId, privacy: .public), xp: \(xpEarned, privacy: .public)")
           } catch {
-            adkharLogger.error("Error recording completion: \(error.localizedDescription, privacy: .public)")
+            adkharLogger.error("Error recording completion to Firestore: \(error.localizedDescription, privacy: .public)")
           }
         }
 
@@ -432,6 +458,7 @@ struct AdkharFeature {
 struct Habit: Equatable, Identifiable, Hashable {
   let id: Int
   let duaId: Int
+  let categoryId: Int?
   let titleEn: String
   let arabicText: String
   let transliteration: String?
@@ -494,6 +521,7 @@ extension AdkharServiceClient: DependencyKey {
       Habit(
         id: dua.id,
         duaId: dua.id,
+        categoryId: dua.categoryId,
         titleEn: dua.titleEn,
         arabicText: dua.arabicText,
         transliteration: dua.transliteration,
@@ -567,6 +595,7 @@ extension AdkharServiceClient: DependencyKey {
                   let habit = Habit(
                     id: dua.id,
                     duaId: dua.id,
+                    categoryId: dua.categoryId,
                     titleEn: dua.titleEn,
                     arabicText: dua.arabicText,
                     transliteration: dua.transliteration,
@@ -687,7 +716,7 @@ extension AdkharServiceClient: DependencyKey {
       // Return sample habits for previews
       let morning = [
         Habit(
-          id: 1, duaId: 1, titleEn: "Morning Remembrance",
+          id: 1, duaId: 1, categoryId: 1, titleEn: "Morning Remembrance",
           arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ",
           transliteration: "Asbahna wa asbahal mulku lillah",
           translation: "We have reached the morning and at this very time unto Allah belongs all sovereignty",
@@ -698,7 +727,7 @@ extension AdkharServiceClient: DependencyKey {
       ]
       let evening = [
         Habit(
-          id: 2, duaId: 2, titleEn: "Evening Protection",
+          id: 2, duaId: 2, categoryId: 2, titleEn: "Evening Protection",
           arabicText: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ",
           transliteration: "Amsayna wa amsal mulku lillah",
           translation: "We have reached the evening and at this very time unto Allah belongs all sovereignty",
@@ -712,7 +741,7 @@ extension AdkharServiceClient: DependencyKey {
     fetchHabitsForJourneys: { _ in
       let morning = [
         Habit(
-          id: 1, duaId: 1, titleEn: "Morning Remembrance",
+          id: 1, duaId: 1, categoryId: 1, titleEn: "Morning Remembrance",
           arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ",
           transliteration: "Asbahna wa asbahal mulku lillah",
           translation: "We have reached the morning",

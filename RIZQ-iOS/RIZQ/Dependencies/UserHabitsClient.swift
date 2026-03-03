@@ -31,6 +31,12 @@ struct UserHabitsClient: Sendable {
   var completeHabit: @Sendable (_ habitId: String, _ xpEarned: Int) async throws -> HabitCompletion
   var uncompleteHabit: @Sendable (_ habitId: String) async throws -> Void
 
+  // MARK: - Cloud Sync
+
+  /// Sync completions from Firestore into local storage for offline access.
+  /// Merges cloud completions with any local completions that haven't been synced yet.
+  var syncCompletionsFromCloud: @Sendable (_ completedDuaIds: Set<Int>) async throws -> Void
+
   // MARK: - Statistics
 
   var getTodayProgress: @Sendable (_ totalHabits: Int) async throws -> TodayProgress
@@ -70,6 +76,19 @@ extension UserHabitsClient: DependencyKey {
       isCompletedToday: { try await storage.isCompletedToday($0) },
       completeHabit: { try await storage.completeHabit($0, xpEarned: $1) },
       uncompleteHabit: { try await storage.uncompleteHabit($0, date: storage.todayDateString()) },
+      syncCompletionsFromCloud: { completedDuaIds in
+        // Merge cloud completions into local storage so they're available offline.
+        // For each completed dua ID from Firestore, create a local HabitCompletion
+        // if one doesn't already exist for today.
+        let today = await storage.todayDateString()
+        for duaId in completedDuaIds {
+          let habitId = String(duaId)
+          let isAlreadyCompleted = try await storage.isCompletedToday(habitId)
+          if !isAlreadyCompleted {
+            _ = try await storage.completeHabit(habitId, xpEarned: 0)
+          }
+        }
+      },
       getTodayProgress: { try await storage.getTodayProgress(totalHabits: $0) },
       calculateStreak: { try await storage.calculateStreak() },
       clearOldCompletions: { try await storage.clearOldCompletions(keepDays: $0) },
@@ -97,6 +116,7 @@ extension UserHabitsClient: DependencyKey {
         HabitCompletion(habitId: habitId, date: "2024-01-01", completedAt: Date(), xpEarned: xpEarned)
       },
       uncompleteHabit: { _ in },
+      syncCompletionsFromCloud: { _ in },
       getTodayProgress: { TodayProgress(completed: 0, total: $0, xpEarned: 0) },
       calculateStreak: { 7 },
       clearOldCompletions: { _ in 0 },
@@ -122,6 +142,7 @@ extension UserHabitsClient: DependencyKey {
       HabitCompletion(habitId: habitId, date: "2024-01-01", completedAt: Date(), xpEarned: xpEarned)
     },
     uncompleteHabit: { _ in },
+    syncCompletionsFromCloud: { _ in },
     getTodayProgress: { TodayProgress(completed: 0, total: $0, xpEarned: 0) },
     calculateStreak: { 0 },
     clearOldCompletions: { _ in 0 },

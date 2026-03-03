@@ -1,6 +1,9 @@
 import ComposableArchitecture
 import Foundation
+import os
 import RIZQKit
+
+private let logger = Logger(subsystem: "com.rizq.app", category: "HomeFeature")
 
 // MARK: - HomeFeature
 /// The main dashboard feature for the RIZQ iOS app.
@@ -15,6 +18,7 @@ import RIZQKit
 /// - **Daily Adkhar Summary**: Link to today's habits with completion percentage
 /// - **Daily Quote**: Inspirational Islamic quote with daily rotation
 /// - **Motivational Progress**: Dynamic encouragement based on daily completion
+/// - **Achievement Unlock**: Evaluates achievements against user stats and shows unlock celebrations
 /// - **Navigation CTAs**: Quick access to Journeys and Library
 ///
 /// ## User States
@@ -22,6 +26,11 @@ import RIZQKit
 /// - **Error**: Shows error overlay with retry button when data fails to load
 /// - **Empty**: New user with no activity shows welcome state
 /// - **Active**: User with profile data shows full dashboard
+///
+/// ## Achievement Unlock System
+/// Achievements are evaluated deterministically from user stats (streak, level, XP, duas completed).
+/// No Firestore persistence needed — unlock status is computed each time profile/activity loads.
+/// When a new achievement is unlocked (wasn't unlocked before), a celebration overlay is shown.
 ///
 /// ## New Component Integration (Feature 5)
 /// - `dailyQuote` computed property: Deterministic daily rotation via IslamicQuote.quoteForToday()
@@ -42,6 +51,8 @@ import RIZQKit
 /// 8. ✅ Motivation state computed correctly for all 5 states
 /// 9. ✅ motivationActionTapped routes intelligently based on state
 /// 10. ✅ Unit tests cover all new computed properties and actions
+/// 11. ✅ Achievements evaluated against user stats on profile/activity load
+/// 12. ✅ Newly unlocked achievements trigger celebration overlay
 ///
 /// ## Related Files
 /// - HomeView.swift: SwiftUI view consuming this feature
@@ -93,8 +104,11 @@ struct HomeFeature {
     var todaysProgress: TodayProgress = TodayProgress(completed: 0, total: 0, xpEarned: 0)
     var todaysHabits: [UserHabit] = []
 
-    // Achievements (use defaults until Firestore integration is added)
+    // Achievements — evaluated from user stats (streak, level, duas completed)
     var achievements: [Achievement] = Achievement.defaults
+
+    // Achievement unlock celebration — set when a new achievement is unlocked
+    var newlyUnlockedAchievement: Achievement?
 
     // UI state
     var isLoading: Bool = false
@@ -107,6 +121,22 @@ struct HomeFeature {
 
     // Achievement detail sheet state
     var selectedAchievement: Achievement?
+
+    // MARK: - Achievement Evaluation
+
+    /// Builds the evaluation context from current user stats
+    var achievementEvaluationContext: AchievementEvaluationContext {
+      let totalDuasCompleted = todayActivity?.duasCompleted.count ?? 0
+      // perfectWeekCount: count how many of the last 7 days were completed
+      let perfectWeekDays = weekActivities.filter { !$0.duasCompleted.isEmpty }.count
+      let perfectWeekCount = perfectWeekDays >= 7 ? 1 : 0
+      return AchievementEvaluationContext(
+        currentStreak: streak,
+        totalDuasCompleted: totalDuasCompleted,
+        currentLevel: level,
+        perfectWeekCount: perfectWeekCount
+      )
+    }
 
     // Computed properties
     var greeting: String {
@@ -169,6 +199,10 @@ struct HomeFeature {
     case navigateToAdkhar
     case navigateToLibrary
     case navigateToJourneys
+
+    // Achievement unlock actions
+    case evaluateAchievements
+    case dismissAchievementUnlock
 
     // New component actions
     case shareQuoteTapped
@@ -292,17 +326,20 @@ struct HomeFeature {
         // Trigger streak animation if streak increased
         if previousStreak > 0 && profile.streak > previousStreak {
           state.isStreakAnimating = true
-          return .run { send in
-            // Use do-catch to ensure animation completes even if sleep throws
-            do {
-              try await clock.sleep(for: .seconds(2))
-            } catch {
-              // Sleep was cancelled or failed - still complete animation
+          return .merge(
+            .send(.evaluateAchievements),
+            .run { send in
+              do {
+                try await clock.sleep(for: .seconds(2))
+              } catch {
+                // Sleep was cancelled or failed - still complete animation
+              }
+              await send(.streakAnimationCompleted)
             }
-            await send(.streakAnimationCompleted)
-          }
+          )
         }
-        return .none
+        // Evaluate achievements with updated profile stats
+        return .send(.evaluateAchievements)
 
       case .profileLoadFailed(let error):
         state.isLoading = false
@@ -320,11 +357,13 @@ struct HomeFeature {
             xpEarned: activity.xpEarned
           )
         }
-        return .none
+        // Re-evaluate achievements with updated activity data (totalDuasCompleted)
+        return .send(.evaluateAchievements)
 
       case .weekActivitiesLoaded(let activities):
         state.weekActivities = activities
-        return .none
+        // Re-evaluate achievements with updated week data (perfectWeekCount)
+        return .send(.evaluateAchievements)
 
       case .habitsProgressLoaded(let progress):
         state.todaysProgress = progress
@@ -363,6 +402,43 @@ struct HomeFeature {
 
       case .navigateToPractice, .navigateToAdkhar, .navigateToLibrary, .navigateToJourneys:
         // Handled by parent feature for navigation
+        return .none
+
+      // MARK: - Achievement Unlock Actions
+
+      case .evaluateAchievements:
+        let context = state.achievementEvaluationContext
+        let previouslyUnlockedIds = Set(state.achievements.filter { $0.isUnlocked }.map(\.id))
+
+        // Evaluate each achievement and unlock if criteria met
+        let updatedAchievements = state.achievements.map { achievement -> Achievement in
+          if achievement.isUnlocked {
+            return achievement  // Already unlocked, keep as-is
+          }
+          if achievement.shouldUnlock(with: context) {
+            logger.debug("Achievement unlocked: \(achievement.name) (id: \(achievement.id))")
+            return achievement.unlocked()
+          }
+          return achievement
+        }
+
+        state.achievements = updatedAchievements
+
+        // Find the first newly unlocked achievement (wasn't unlocked before)
+        let newlyUnlocked = updatedAchievements.first { achievement in
+          achievement.isUnlocked && !previouslyUnlockedIds.contains(achievement.id)
+        }
+
+        // Only show celebration if there's a new unlock and we're not already showing one
+        if let newlyUnlocked, state.newlyUnlockedAchievement == nil {
+          state.newlyUnlockedAchievement = newlyUnlocked
+          logger.debug("Showing unlock celebration for: \(newlyUnlocked.name)")
+        }
+
+        return .none
+
+      case .dismissAchievementUnlock:
+        state.newlyUnlockedAchievement = nil
         return .none
 
       // MARK: - New Component Actions

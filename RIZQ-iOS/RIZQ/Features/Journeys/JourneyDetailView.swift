@@ -48,6 +48,9 @@ struct JourneyDetailView: View {
     .onAppear {
       store.send(.onAppear)
     }
+    .sheet(item: $store.scope(state: \.practice, action: \.practice)) { practiceStore in
+      PracticeView(store: practiceStore)
+    }
   }
 
   // MARK: - Duas Loading View

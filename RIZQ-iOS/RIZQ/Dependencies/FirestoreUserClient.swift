@@ -36,6 +36,14 @@ struct FirestoreUserClient: Sendable {
   /// Record a dua completion for a user.
   var recordDuaCompletion: @Sendable (_ userId: String, _ duaId: Int, _ xpEarned: Int) async throws -> Void
 
+  // MARK: - User Progress
+
+  /// Fetch all progress records for a user.
+  var fetchUserProgress: @Sendable (_ userId: String) async throws -> [UserProgress]
+
+  /// Fetch today's completed dua IDs from Firestore (for cloud state restoration).
+  var fetchTodayCompletedDuaIds: @Sendable (_ userId: String) async throws -> Set<Int>
+
   // MARK: - Batch Operations
 
   /// Record a complete practice session (activity + progress + XP).
@@ -61,6 +69,13 @@ extension FirestoreUserClient: DependencyKey {
       fetchUserActivity: { try await service.fetchUserActivity(userId: $0, date: $1) },
       fetchWeekActivities: { try await service.fetchWeekActivities(userId: $0) },
       recordDuaCompletion: { try await service.recordDuaCompletion(userId: $0, duaId: $1, xpEarned: $2) },
+      fetchUserProgress: { try await service.fetchUserProgress(userId: $0) },
+      fetchTodayCompletedDuaIds: { userId in
+        if let activity = try await service.fetchUserActivity(userId: userId, date: Date()) {
+          return Set(activity.duasCompleted)
+        }
+        return []
+      },
       recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) },
       resetUserProgress: { try await service.resetUserProgress(userId: $0) }
     )
@@ -79,6 +94,13 @@ extension FirestoreUserClient: DependencyKey {
       fetchUserActivity: { try await service.fetchUserActivity(userId: $0, date: $1) },
       fetchWeekActivities: { try await service.fetchWeekActivities(userId: $0) },
       recordDuaCompletion: { try await service.recordDuaCompletion(userId: $0, duaId: $1, xpEarned: $2) },
+      fetchUserProgress: { try await service.fetchUserProgress(userId: $0) },
+      fetchTodayCompletedDuaIds: { userId in
+        if let activity = try await service.fetchUserActivity(userId: userId, date: Date()) {
+          return Set(activity.duasCompleted)
+        }
+        return []
+      },
       recordPracticeCompletion: { try await service.recordPracticeCompletion(userId: $0, duaId: $1, xp: $2) },
       resetUserProgress: { try await service.resetUserProgress(userId: $0) }
     )
@@ -147,6 +169,8 @@ extension FirestoreUserClient: DependencyKey {
     fetchUserActivity: { _, _ in nil },
     fetchWeekActivities: { _ in [] },
     recordDuaCompletion: { _, _, _ in },
+    fetchUserProgress: { _ in [] },
+    fetchTodayCompletedDuaIds: { _ in [] },
     recordPracticeCompletion: { userId, _, xp in
       UserProfile(
         id: userId,

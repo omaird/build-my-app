@@ -98,6 +98,7 @@ struct TimeSlotSectionView: View {
           Habit(
             id: 1,
             duaId: 101,
+            categoryId: 1,
             titleEn: "Morning Remembrance",
             arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ",
             transliteration: "Asbahna wa asbahal mulku lillah",
@@ -112,6 +113,7 @@ struct TimeSlotSectionView: View {
           Habit(
             id: 2,
             duaId: 102,
+            categoryId: 1,
             titleEn: "Seeking Refuge",
             arabicText: "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ",
             transliteration: nil,
@@ -135,6 +137,7 @@ struct TimeSlotSectionView: View {
           Habit(
             id: 4,
             duaId: 104,
+            categoryId: 2,
             titleEn: "Evening Protection",
             arabicText: "أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ",
             transliteration: nil,

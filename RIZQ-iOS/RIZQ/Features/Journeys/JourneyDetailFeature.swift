@@ -10,6 +10,7 @@ struct JourneyDetailFeature {
     var isSubscribed: Bool
     var activeJourneysCount: Int
     var isLoading: Bool = false
+    @Presents var practice: PracticeFeature.State?
 
     var journey: Journey {
       journeyWithDuas.journey
@@ -45,6 +46,7 @@ struct JourneyDetailFeature {
     case duasLoaded([JourneyDuaFull])
     case subscribeToggled
     case duaTapped(Dua)
+    case practice(PresentationAction<PracticeFeature.Action>)
     case dismiss
   }
 
@@ -67,13 +69,27 @@ struct JourneyDetailFeature {
         // Handled by parent reducer
         return .none
 
-      case .duaTapped:
-        // TODO: Navigate to dua practice
+      case .duaTapped(let dua):
+        state.practice = PracticeFeature.State(dua: dua, targetCount: dua.repetitions)
+        return .none
+
+      case .practice(.presented(.navigateBack)):
+        state.practice = nil
+        return .none
+
+      case .practice(.presented(.navigateToNext)):
+        state.practice = nil
+        return .none
+
+      case .practice:
         return .none
 
       case .dismiss:
         return .none
       }
+    }
+    .ifLet(\.$practice, action: \.practice) {
+      PracticeFeature()
     }
   }
 }

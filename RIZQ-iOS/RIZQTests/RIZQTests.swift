@@ -159,6 +159,10 @@ final class RIZQTests: XCTestCase {
       $0.continuousClock = ImmediateClock()
     }
 
+    // Use non-exhaustive testing since profileLoaded now triggers evaluateAchievements
+    // which modifies achievement unlock state with Date() timestamps
+    store.exhaustivity = .off
+
     let profile = UserProfile(
       id: "test-user-123",
       userId: "test-user-123",
@@ -172,7 +176,7 @@ final class RIZQTests: XCTestCase {
     await store.send(.profileLoaded(profile)) {
       $0.isLoading = false
       $0.loadError = nil
-      $0.displayName = "Test User"
+      $0.profileDisplayName = "Test User"
       $0.streak = 7
       $0.totalXp = 500
       $0.level = 4
@@ -194,6 +198,9 @@ final class RIZQTests: XCTestCase {
       $0.continuousClock = clock
     }
 
+    // Use non-exhaustive since profileLoaded triggers evaluateAchievements
+    store.exhaustivity = .off
+
     let profile = UserProfile(
       id: "test-user-123",
       userId: "test-user-123",
@@ -207,7 +214,7 @@ final class RIZQTests: XCTestCase {
     await store.send(.profileLoaded(profile)) {
       $0.isLoading = false
       $0.loadError = nil
-      $0.displayName = "Test User"
+      $0.profileDisplayName = "Test User"
       $0.streak = 6
       $0.totalXp = 500
       $0.level = 4
@@ -235,6 +242,9 @@ final class RIZQTests: XCTestCase {
       $0.continuousClock = ImmediateClock()
     }
 
+    // Use non-exhaustive since profileLoaded triggers evaluateAchievements
+    store.exhaustivity = .off
+
     let profile = UserProfile(
       id: "test-user-123",
       userId: "test-user-123",
@@ -249,7 +259,7 @@ final class RIZQTests: XCTestCase {
     await store.send(.profileLoaded(profile)) {
       $0.isLoading = false
       $0.loadError = nil
-      $0.displayName = "Test User"
+      $0.profileDisplayName = "Test User"
       $0.streak = 5
       $0.totalXp = 500
       $0.level = 4
@@ -309,11 +319,14 @@ final class RIZQTests: XCTestCase {
 
   @MainActor
   func testHomeFeatureWeekActivitiesLoaded() async {
-    var state = HomeFeature.State()
+    let state = HomeFeature.State()
 
     let store = TestStore(initialState: state) {
       HomeFeature()
     }
+
+    // Use non-exhaustive since weekActivitiesLoaded triggers evaluateAchievements
+    store.exhaustivity = .off
 
     let activities = [
       UserActivity(id: 1, userId: "test", date: Date(), duasCompleted: [1, 2], xpEarned: 50),
@@ -396,13 +409,16 @@ final class RIZQTests: XCTestCase {
 
   @MainActor
   func testHomeFeatureShareQuoteTapped() async {
-    // Test shareQuoteTapped action (returns .none, no state change)
-    let store = TestStore(initialState: HomeFeature.State()) {
+    // Test shareQuoteTapped action sets shareText from dailyQuote
+    let state = HomeFeature.State()
+    let store = TestStore(initialState: state) {
       HomeFeature()
     }
 
-    await store.send(.shareQuoteTapped)
-    // No state changes expected
+    let quote = state.dailyQuote
+    await store.send(.shareQuoteTapped) {
+      $0.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from RIZQ App"
+    }
   }
 
   @MainActor
@@ -449,14 +465,15 @@ final class RIZQTests: XCTestCase {
 
   @MainActor
   func testHomeFeatureAchievementTapped() async {
-    // Test achievementTapped action (returns .none, no state change)
+    // Test achievementTapped action presents achievement detail
     let store = TestStore(initialState: HomeFeature.State()) {
       HomeFeature()
     }
 
     let achievement = Achievement.defaults[0]
-    await store.send(.achievementTapped(achievement))
-    // No state changes expected
+    await store.send(.achievementTapped(achievement)) {
+      $0.selectedAchievement = achievement
+    }
   }
 }
 
@@ -961,7 +978,7 @@ final class AdkharFeatureTests: XCTestCase {
 
     let morningHabits = [
       Habit(
-        id: 1, duaId: 1, titleEn: "Morning Remembrance",
+        id: 1, duaId: 1, categoryId: 1, titleEn: "Morning Remembrance",
         arabicText: "Test", transliteration: "Test", translation: "Test",
         source: nil, rizqBenefit: nil, propheticContext: nil,
         timeSlot: .morning, xpValue: 10, repetitions: 3
@@ -1020,7 +1037,7 @@ final class AdkharFeatureTests: XCTestCase {
   @MainActor
   func testToggleHabitCompletesHabit() async {
     let habit = Habit(
-      id: 1, duaId: 1, titleEn: "Test",
+      id: 1, duaId: 1, categoryId: nil, titleEn: "Test",
       arabicText: "Test", transliteration: nil, translation: "Test",
       source: nil, rizqBenefit: nil, propheticContext: nil,
       timeSlot: .morning, xpValue: 10, repetitions: 1
@@ -1047,7 +1064,7 @@ final class AdkharFeatureTests: XCTestCase {
   @MainActor
   func testToggleHabitUncompletesHabit() async {
     let habit = Habit(
-      id: 1, duaId: 1, titleEn: "Test",
+      id: 1, duaId: 1, categoryId: nil, titleEn: "Test",
       arabicText: "Test", transliteration: nil, translation: "Test",
       source: nil, rizqBenefit: nil, propheticContext: nil,
       timeSlot: .morning, xpValue: 10, repetitions: 1
@@ -1075,7 +1092,7 @@ final class AdkharFeatureTests: XCTestCase {
   @MainActor
   func testQuickPracticeRequestedOpensSheet() async {
     let habit = Habit(
-      id: 1, duaId: 1, titleEn: "Test",
+      id: 1, duaId: 1, categoryId: nil, titleEn: "Test",
       arabicText: "Test", transliteration: nil, translation: "Test",
       source: nil, rizqBenefit: nil, propheticContext: nil,
       timeSlot: .morning, xpValue: 10, repetitions: 3
@@ -1102,7 +1119,7 @@ final class AdkharFeatureTests: XCTestCase {
   @MainActor
   func testIncrementRepetition() async {
     let habit = Habit(
-      id: 1, duaId: 1, titleEn: "Test",
+      id: 1, duaId: 1, categoryId: nil, titleEn: "Test",
       arabicText: "Test", transliteration: nil, translation: "Test",
       source: nil, rizqBenefit: nil, propheticContext: nil,
       timeSlot: .morning, xpValue: 10, repetitions: 5
@@ -1136,8 +1153,8 @@ final class AdkharFeatureTests: XCTestCase {
   func testProgressPercentageCalculation() async {
     var state = AdkharFeature.State()
     state.morningHabits = [
-      Habit(id: 1, duaId: 1, titleEn: "Test1", arabicText: "A", transliteration: nil, translation: "T", source: nil, rizqBenefit: nil, propheticContext: nil, timeSlot: .morning, xpValue: 10, repetitions: 1),
-      Habit(id: 2, duaId: 2, titleEn: "Test2", arabicText: "B", transliteration: nil, translation: "T", source: nil, rizqBenefit: nil, propheticContext: nil, timeSlot: .morning, xpValue: 10, repetitions: 1),
+      Habit(id: 1, duaId: 1, categoryId: nil, titleEn: "Test1", arabicText: "A", transliteration: nil, translation: "T", source: nil, rizqBenefit: nil, propheticContext: nil, timeSlot: .morning, xpValue: 10, repetitions: 1),
+      Habit(id: 2, duaId: 2, categoryId: nil, titleEn: "Test2", arabicText: "B", transliteration: nil, translation: "T", source: nil, rizqBenefit: nil, propheticContext: nil, timeSlot: .morning, xpValue: 10, repetitions: 1),
     ]
     state.completedIds = [1]
 
@@ -1306,6 +1323,286 @@ final class AchievementModelTests: XCTestCase {
 
     let unlocked = locked.unlocked()
     XCTAssertTrue(unlocked.accessibilityDescription.contains("unlocked"))
+  }
+}
+
+// MARK: - Achievement Unlock Feature Tests
+
+final class AchievementUnlockTests: XCTestCase {
+
+  @MainActor
+  func testEvaluateAchievementsUnlocksStreakBased() async {
+    // Set up state with a 7-day streak - should unlock "Getting Started" (3-day) and "Week Warrior" (7-day)
+    var state = HomeFeature.State()
+    state.streak = 7
+    state.level = 1
+    state.totalXp = 0
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    // All achievements start locked
+    XCTAssertTrue(store.state.achievements.allSatisfy { !$0.isUnlocked })
+
+    await store.send(.evaluateAchievements) {
+      // "getting-started" (3-day streak) and "week-warrior" (7-day streak) should be unlocked
+      let context = $0.achievementEvaluationContext
+      $0.achievements = $0.achievements.map { achievement in
+        if achievement.shouldUnlock(with: context) {
+          return achievement.unlocked()
+        }
+        return achievement
+      }
+      // First newly unlocked achievement shown as celebration
+      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
+    }
+
+    // Verify the right achievements were unlocked
+    let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
+    XCTAssertTrue(unlockedIds.contains("getting-started"))
+    XCTAssertTrue(unlockedIds.contains("week-warrior"))
+    XCTAssertFalse(unlockedIds.contains("fortnight-faithful"))  // Needs 14 days
+    XCTAssertFalse(unlockedIds.contains("first-step"))  // Needs totalDuas >= 1
+  }
+
+  @MainActor
+  func testEvaluateAchievementsUnlocksLevelBased() async {
+    // Set up state with level 5 - should unlock "Rising Star"
+    var state = HomeFeature.State()
+    state.streak = 0
+    state.level = 5
+    state.totalXp = 1500
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    await store.send(.evaluateAchievements) {
+      let context = $0.achievementEvaluationContext
+      $0.achievements = $0.achievements.map { achievement in
+        if achievement.shouldUnlock(with: context) {
+          return achievement.unlocked()
+        }
+        return achievement
+      }
+      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
+    }
+
+    let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
+    XCTAssertTrue(unlockedIds.contains("level-5"))
+    XCTAssertFalse(unlockedIds.contains("getting-started"))  // Needs streak >= 3
+  }
+
+  @MainActor
+  func testEvaluateAchievementsUnlocksDuasBased() async {
+    // Set up state with activity that has completed duas
+    var state = HomeFeature.State()
+    state.streak = 0
+    state.level = 1
+    state.totalXp = 0
+    state.todayActivity = UserActivity(
+      id: 1, userId: "test", date: Date(), duasCompleted: [1], xpEarned: 10
+    )
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    await store.send(.evaluateAchievements) {
+      let context = $0.achievementEvaluationContext
+      $0.achievements = $0.achievements.map { achievement in
+        if achievement.shouldUnlock(with: context) {
+          return achievement.unlocked()
+        }
+        return achievement
+      }
+      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
+    }
+
+    let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
+    XCTAssertTrue(unlockedIds.contains("first-step"))  // Needs totalDuas >= 1
+  }
+
+  @MainActor
+  func testEvaluateAchievementsNoUnlocksWhenNoProgress() async {
+    // Brand new user with no progress
+    let state = HomeFeature.State()
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    await store.send(.evaluateAchievements)
+    // No state changes expected - all achievements remain locked
+    XCTAssertTrue(store.state.achievements.allSatisfy { !$0.isUnlocked })
+    XCTAssertNil(store.state.newlyUnlockedAchievement)
+  }
+
+  @MainActor
+  func testEvaluateAchievementsDoesNotReUnlockAlreadyUnlocked() async {
+    // Set up state where an achievement is already unlocked
+    var state = HomeFeature.State()
+    state.streak = 7
+
+    // Pre-unlock "getting-started" with a specific date
+    let existingDate = Calendar.current.date(byAdding: .day, value: -5, to: Date())!
+    state.achievements = Achievement.defaults.map { achievement in
+      if achievement.id == "getting-started" {
+        return achievement.unlocked(at: existingDate)
+      }
+      return achievement
+    }
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    store.exhaustivity = .off
+
+    await store.send(.evaluateAchievements)
+
+    // The pre-unlocked achievement should keep its original date
+    let gettingStarted = store.state.achievements.first { $0.id == "getting-started" }!
+    XCTAssertTrue(gettingStarted.isUnlocked)
+    XCTAssertEqual(gettingStarted.unlockedAt, existingDate)
+
+    // "week-warrior" should now also be unlocked (newly)
+    let weekWarrior = store.state.achievements.first { $0.id == "week-warrior" }!
+    XCTAssertTrue(weekWarrior.isUnlocked)
+  }
+
+  @MainActor
+  func testDismissAchievementUnlock() async {
+    var state = HomeFeature.State()
+    state.newlyUnlockedAchievement = Achievement.defaults[0].unlocked()
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    }
+
+    await store.send(.dismissAchievementUnlock) {
+      $0.newlyUnlockedAchievement = nil
+    }
+  }
+
+  @MainActor
+  func testProfileLoadTriggersAchievementEvaluation() async {
+    // Test that profileLoaded sends evaluateAchievements
+    var state = HomeFeature.State()
+    state.userId = "test-user-123"
+    state.isLoading = true
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    store.exhaustivity = .off
+
+    let profile = UserProfile(
+      id: "test-user-123",
+      userId: "test-user-123",
+      displayName: "Test User",
+      streak: 3,
+      totalXp: 100,
+      level: 2
+    )
+
+    await store.send(.profileLoaded(profile)) {
+      $0.isLoading = false
+      $0.loadError = nil
+      $0.profileDisplayName = "Test User"
+      $0.streak = 3
+      $0.totalXp = 100
+      $0.level = 2
+    }
+
+    // Verify evaluateAchievements was received and "getting-started" (3-day streak) unlocked
+    await store.receive(\.evaluateAchievements)
+
+    let gettingStarted = store.state.achievements.first { $0.id == "getting-started" }!
+    XCTAssertTrue(gettingStarted.isUnlocked)
+  }
+
+  @MainActor
+  func testActivityLoadTriggersAchievementEvaluation() async {
+    // Test that activityLoaded sends evaluateAchievements
+    let state = HomeFeature.State()
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    store.exhaustivity = .off
+
+    let activity = UserActivity(
+      id: 1, userId: "test", date: Date(), duasCompleted: [1, 2, 3], xpEarned: 30
+    )
+
+    await store.send(.activityLoaded(activity))
+    await store.receive(\.evaluateAchievements)
+
+    // "first-step" should be unlocked (totalDuasCompleted = 3 >= 1)
+    let firstStep = store.state.achievements.first { $0.id == "first-step" }!
+    XCTAssertTrue(firstStep.isUnlocked)
+  }
+
+  @MainActor
+  func testAchievementEvaluationContextComputed() async {
+    var state = HomeFeature.State()
+    state.streak = 14
+    state.level = 5
+    state.totalXp = 1500
+    state.todayActivity = UserActivity(
+      id: 1, userId: "test", date: Date(), duasCompleted: [1, 2, 3, 4, 5], xpEarned: 50
+    )
+
+    let context = state.achievementEvaluationContext
+    XCTAssertEqual(context.currentStreak, 14)
+    XCTAssertEqual(context.totalDuasCompleted, 5)
+    XCTAssertEqual(context.currentLevel, 5)
+  }
+
+  @MainActor
+  func testMultipleAchievementsUnlockedShowsFirst() async {
+    // When multiple achievements unlock at once, only the first is shown as celebration
+    var state = HomeFeature.State()
+    state.streak = 30
+    state.level = 5
+    state.todayActivity = UserActivity(
+      id: 1, userId: "test", date: Date(), duasCompleted: [1], xpEarned: 10
+    )
+
+    let store = TestStore(initialState: state) {
+      HomeFeature()
+    } withDependencies: {
+      $0.continuousClock = ImmediateClock()
+    }
+
+    store.exhaustivity = .off
+
+    await store.send(.evaluateAchievements)
+
+    // Multiple achievements should be unlocked
+    let unlockedCount = store.state.achievements.filter { $0.isUnlocked }.count
+    XCTAssertGreaterThan(unlockedCount, 1)
+
+    // But only one celebration overlay shown
+    XCTAssertNotNil(store.state.newlyUnlockedAchievement)
   }
 }
 
