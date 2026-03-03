@@ -6,25 +6,47 @@ import ComposableArchitecture
 @MainActor
 final class SettingsFeatureTests: XCTestCase {
 
+  // MARK: - Helpers
+
+  private let fixedDate = Date(timeIntervalSince1970: 1_000_000)
+
+  private func makeProfile(
+    displayName: String? = "Original Name",
+    streak: Int = 5,
+    totalXp: Int = 100,
+    level: Int = 2,
+    lastActiveDate: Date? = nil,
+    isAdmin: Bool = false
+  ) -> UserProfile {
+    UserProfile(
+      id: "test",
+      userId: "test",
+      displayName: displayName,
+      streak: streak,
+      totalXp: totalXp,
+      level: level,
+      lastActiveDate: lastActiveDate,
+      isAdmin: isAdmin,
+      createdAt: fixedDate,
+      updatedAt: fixedDate
+    )
+  }
+
+  private func makeUser(
+    name: String? = "Test"
+  ) -> AuthUser {
+    AuthUser(id: "test", email: "test@example.com", name: name)
+  }
+
   // MARK: - Display Name Tests
 
   func testEditDisplayNameTapped() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.profile = makeProfile()
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.profile = UserProfile(
-      id: "test",
-      userId: "test",
-      displayName: "Original Name",
-      streak: 5,
-      totalXp: 100,
-      level: 2,
-      lastActiveDate: nil,
-      isAdmin: false,
-      createdAt: Date(),
-      updatedAt: Date()
-    )
 
     await store.send(.editDisplayNameTapped) {
       $0.isEditingDisplayName = true
@@ -33,12 +55,13 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testCancelEditDisplayName() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.isEditingDisplayName = true
+    initialState.editedDisplayName = "New Name"
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.isEditingDisplayName = true
-    store.state.editedDisplayName = "New Name"
 
     await store.send(.cancelEditDisplayName) {
       $0.isEditingDisplayName = false
@@ -47,11 +70,12 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testSaveDisplayNameEmpty() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.editedDisplayName = "   "
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.editedDisplayName = "   "
 
     await store.send(.saveDisplayNameTapped) {
       $0.errorMessage = "Display name cannot be empty"
@@ -59,12 +83,13 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testSaveDisplayNameNotAuthenticated() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.editedDisplayName = "New Name"
+    initialState.user = nil
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.editedDisplayName = "New Name"
-    store.state.user = nil
 
     await store.send(.saveDisplayNameTapped) {
       $0.errorMessage = "Not authenticated"
@@ -72,54 +97,33 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testSaveDisplayNameSuccess() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    let updatedProfile = makeProfile(displayName: "New Name")
+
+    var initialState = SettingsFeature.State()
+    initialState.user = makeUser()
+    initialState.profile = makeProfile(displayName: "Original")
+    initialState.editedDisplayName = "New Name"
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     } withDependencies: {
-      $0.firestoreUserClient.updateDisplayName = { _, newName in
-        UserProfile(
-          id: "test",
-          userId: "test",
-          displayName: newName,
-          streak: 5,
-          totalXp: 100,
-          level: 2,
-          lastActiveDate: nil,
-          isAdmin: false,
-          createdAt: Date(),
-          updatedAt: Date()
-        )
-      }
+      $0.firestoreUserClient.updateDisplayName = { _, _ in updatedProfile }
       $0.continuousClock = ImmediateClock()
     }
-
-    store.state.user = AuthUser(id: "test", email: "test@example.com", name: "Test")
-    store.state.profile = UserProfile(
-      id: "test",
-      userId: "test",
-      displayName: "Original",
-      streak: 5,
-      totalXp: 100,
-      level: 2,
-      lastActiveDate: nil,
-      isAdmin: false,
-      createdAt: Date(),
-      updatedAt: Date()
-    )
-    store.state.editedDisplayName = "New Name"
 
     await store.send(.saveDisplayNameTapped) {
       $0.isSavingDisplayName = true
     }
 
-    await store.receive(.displayNameSaved("New Name")) {
+    await store.receive(\.displayNameSaved) {
       $0.isSavingDisplayName = false
       $0.isEditingDisplayName = false
-      $0.profile?.displayName = "New Name"
+      $0.profile = updatedProfile
       $0.successMessage = "Display name updated"
       $0.editedDisplayName = ""
     }
 
-    await store.receive(.clearSuccess) {
+    await store.receive(\.clearSuccess) {
       $0.successMessage = nil
     }
   }
@@ -160,13 +164,13 @@ final class SettingsFeatureTests: XCTestCase {
       $0.isLinkingAccount = .google
     }
 
-    await store.receive(.accountLinked(linkedAccount)) {
+    await store.receive(\.accountLinked) {
       $0.isLinkingAccount = nil
       $0.linkedAccounts = [linkedAccount]
       $0.successMessage = "Google account linked"
     }
 
-    await store.receive(.clearSuccess) {
+    await store.receive(\.clearSuccess) {
       $0.successMessage = nil
     }
   }
@@ -186,21 +190,21 @@ final class SettingsFeatureTests: XCTestCase {
       $0.isLinkingAccount = .google
     }
 
-    await store.receive(.linkAccountFailed("Link failed")) {
+    await store.receive(\.linkAccountFailed) {
       $0.isLinkingAccount = nil
       $0.errorMessage = "Link failed"
     }
   }
 
   func testUnlinkAccountNotAllowed() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
-      SettingsFeature()
-    }
-
-    // Only one linked account - shouldn't be able to unlink
-    store.state.linkedAccounts = [
+    var initialState = SettingsFeature.State()
+    initialState.linkedAccounts = [
       LinkedAccount(id: "1", provider: .google, providerAccountId: "google-123")
     ]
+
+    let store = TestStore(initialState: initialState) {
+      SettingsFeature()
+    }
 
     await store.send(.unlinkAccountTapped(.google)) {
       $0.errorMessage = "You must have at least one linked account"
@@ -208,18 +212,18 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testUnlinkAccountSuccess() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.linkedAccounts = [
+      LinkedAccount(id: "1", provider: .google, providerAccountId: "google-123"),
+      LinkedAccount(id: "2", provider: .github, providerAccountId: "github-123")
+    ]
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     } withDependencies: {
       $0.authClient.unlinkAccount = { _ in }
       $0.continuousClock = ImmediateClock()
     }
-
-    // Two linked accounts - can unlink one
-    store.state.linkedAccounts = [
-      LinkedAccount(id: "1", provider: .google, providerAccountId: "google-123"),
-      LinkedAccount(id: "2", provider: .github, providerAccountId: "github-123")
-    ]
 
     await store.send(.unlinkAccountTapped(.google)) {
       $0.providerToUnlink = .google
@@ -231,7 +235,7 @@ final class SettingsFeatureTests: XCTestCase {
       $0.isUnlinkingAccount = .google
     }
 
-    await store.receive(.accountUnlinked(.google)) {
+    await store.receive(\.accountUnlinked) {
       $0.isUnlinkingAccount = nil
       $0.providerToUnlink = nil
       $0.linkedAccounts = [
@@ -240,7 +244,7 @@ final class SettingsFeatureTests: XCTestCase {
       $0.successMessage = "Google account unlinked"
     }
 
-    await store.receive(.clearSuccess) {
+    await store.receive(\.clearSuccess) {
       $0.successMessage = nil
     }
   }
@@ -248,39 +252,30 @@ final class SettingsFeatureTests: XCTestCase {
   // MARK: - Reset Progress Tests
 
   func testResetProgressFlow() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
-      SettingsFeature()
-    } withDependencies: {
-      $0.firestoreUserClient.resetUserProgress = { userId in
-        UserProfile(
-          id: userId,
-          userId: userId,
-          displayName: nil,
-          streak: 0,
-          totalXp: 0,
-          level: 1,
-          lastActiveDate: nil,
-          isAdmin: false,
-          createdAt: Date(),
-          updatedAt: Date()
-        )
-      }
-      $0.continuousClock = ImmediateClock()
-    }
+    let resetProfile = makeProfile(
+      displayName: "Test User",
+      streak: 0,
+      totalXp: 0,
+      level: 1,
+      lastActiveDate: nil
+    )
 
-    store.state.user = AuthUser(id: "test", email: "test@example.com", name: nil)
-    store.state.profile = UserProfile(
-      id: "test",
-      userId: "test",
+    var initialState = SettingsFeature.State()
+    initialState.user = makeUser(name: nil)
+    initialState.profile = makeProfile(
       displayName: "Test User",
       streak: 10,
       totalXp: 500,
       level: 5,
-      lastActiveDate: Date(),
-      isAdmin: false,
-      createdAt: Date(),
-      updatedAt: Date()
+      lastActiveDate: fixedDate
     )
+
+    let store = TestStore(initialState: initialState) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.firestoreUserClient.resetUserProgress = { _ in resetProfile }
+      $0.continuousClock = ImmediateClock()
+    }
 
     await store.send(.resetProgressTapped) {
       $0.showingResetProgressAlert = true
@@ -291,34 +286,24 @@ final class SettingsFeatureTests: XCTestCase {
       $0.isResettingProgress = true
     }
 
-    await store.receive(.progressReset) {
+    await store.receive(\.progressReset) {
       $0.isResettingProgress = false
-      $0.profile = UserProfile(
-        id: $0.profile!.id,
-        userId: $0.profile!.userId,
-        displayName: $0.profile!.displayName,
-        streak: 0,
-        totalXp: 0,
-        level: 1,
-        lastActiveDate: nil,
-        isAdmin: $0.profile!.isAdmin,
-        createdAt: $0.profile!.createdAt,
-        updatedAt: $0.profile!.updatedAt
-      )
+      $0.profile = resetProfile
       $0.successMessage = "Progress has been reset"
     }
 
-    await store.receive(.clearSuccess) {
+    await store.receive(\.clearSuccess) {
       $0.successMessage = nil
     }
   }
 
   func testCancelResetProgress() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.showingResetProgressAlert = true
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.showingResetProgressAlert = true
 
     await store.send(.cancelResetProgress) {
       $0.showingResetProgressAlert = false
@@ -328,13 +313,14 @@ final class SettingsFeatureTests: XCTestCase {
   // MARK: - Sign Out Tests
 
   func testSignOutFlow() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.user = makeUser()
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     } withDependencies: {
       $0.authClient.signOut = { }
     }
-
-    store.state.user = AuthUser(id: "test", email: "test@example.com", name: "Test")
 
     await store.send(.signOutTapped) {
       $0.showingSignOutAlert = true
@@ -344,15 +330,16 @@ final class SettingsFeatureTests: XCTestCase {
       $0.showingSignOutAlert = false
     }
 
-    await store.receive(.signedOut)
+    await store.receive(\.signedOut)
   }
 
   func testCancelSignOut() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.showingSignOutAlert = true
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.showingSignOutAlert = true
 
     await store.send(.cancelSignOut) {
       $0.showingSignOutAlert = false
@@ -362,11 +349,12 @@ final class SettingsFeatureTests: XCTestCase {
   // MARK: - Error/Success Message Tests
 
   func testClearError() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.errorMessage = "Some error"
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.errorMessage = "Some error"
 
     await store.send(.clearError) {
       $0.errorMessage = nil
@@ -374,11 +362,12 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testClearSuccess() async {
-    let store = TestStore(initialState: SettingsFeature.State()) {
+    var initialState = SettingsFeature.State()
+    initialState.successMessage = "Success!"
+
+    let store = TestStore(initialState: initialState) {
       SettingsFeature()
     }
-
-    store.state.successMessage = "Success!"
 
     await store.send(.clearSuccess) {
       $0.successMessage = nil
