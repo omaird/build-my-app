@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Moon, Sun, RotateCcw, LogOut, Mail, User, Link2, Unlink, Loader2, Check, Settings, Sparkles, Flame, Trophy, Shield, ChevronRight } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { GoogleAuthProvider, linkWithPopup, unlink } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
-import { listAccounts, linkGoogleAccount, unlinkGoogleAccount } from "@/lib/auth-client";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
-// Account type from Better Auth
+// Account type derived from Firebase Auth provider data
 interface LinkedAccount {
   id: string;
   providerId: string;
@@ -34,6 +35,13 @@ interface LinkedAccount {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Map Firebase provider IDs to the canonical app provider IDs used in UI checks.
+const FIREBASE_PROVIDER_TO_APP: Record<string, string> = {
+  "google.com": "google",
+  "github.com": "github",
+  password: "credential",
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -73,19 +81,28 @@ export default function SettingsPage() {
 
   // Fetch linked accounts on mount
   useEffect(() => {
-    const fetchAccounts = async () => {
+    const loadAccounts = () => {
       try {
-        const result = await listAccounts();
-        if (result.data) {
-          setLinkedAccounts(result.data as LinkedAccount[]);
+        const fbUser = getFirebaseAuth().currentUser;
+        if (!fbUser) {
+          setLinkedAccounts([]);
+          return;
         }
+        const accounts: LinkedAccount[] = fbUser.providerData.map((info) => ({
+          id: info.uid || info.providerId,
+          providerId: FIREBASE_PROVIDER_TO_APP[info.providerId] ?? info.providerId,
+          accountId: info.uid || info.email || "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+        setLinkedAccounts(accounts);
       } catch (error) {
         console.error("Failed to fetch accounts:", error);
       } finally {
         setIsLoadingAccounts(false);
       }
     };
-    fetchAccounts();
+    loadAccounts();
   }, []);
 
   // Check if a provider is linked
@@ -96,14 +113,29 @@ export default function SettingsPage() {
   const handleLinkGoogle = async () => {
     setLinkingProvider("google");
     try {
-      await linkGoogleAccount();
-      // Redirect will happen, page will reload with updated accounts
+      const fbUser = getFirebaseAuth().currentUser;
+      if (!fbUser) throw new Error("Not signed in");
+      const provider = new GoogleAuthProvider();
+      const result = await linkWithPopup(fbUser, provider);
+      const updated: LinkedAccount[] = result.user.providerData.map((info) => ({
+        id: info.uid || info.providerId,
+        providerId: FIREBASE_PROVIDER_TO_APP[info.providerId] ?? info.providerId,
+        accountId: info.uid || info.email || "",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      setLinkedAccounts(updated);
+      toast({
+        title: "Account linked",
+        description: "Google account has been connected.",
+      });
     } catch (error) {
       toast({
         title: "Error",
         description: "Could not link Google account. Please try again.",
         variant: "destructive",
       });
+    } finally {
       setLinkingProvider(null);
     }
   };
@@ -122,7 +154,9 @@ export default function SettingsPage() {
 
     setUnlinkingProvider("google");
     try {
-      await unlinkGoogleAccount();
+      const fbUser = getFirebaseAuth().currentUser;
+      if (!fbUser) throw new Error("Not signed in");
+      await unlink(fbUser, "google.com");
       setLinkedAccounts(prev => prev.filter(acc => acc.providerId !== "google"));
       toast({
         title: "Account unlinked",

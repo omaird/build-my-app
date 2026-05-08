@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, User, Loader2, Sparkles as SparklesIcon, Check } from "lucide-react";
-import { signUp, signInWithGoogle } from "@/lib/auth-client";
+import { createUserWithEmailAndPassword, updateProfile as updateFirebaseProfile } from "firebase/auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +43,7 @@ import { Sparkles } from "@/components/animations/Sparkles";
 export default function SignUpPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signInWithGoogle } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,6 +55,7 @@ export default function SignUpPage() {
     setSocialLoading("google");
     try {
       await signInWithGoogle();
+      navigate("/");
     } catch (err) {
       toast({
         title: "Error",
@@ -95,30 +99,23 @@ export default function SignUpPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signUp.email({
-        email,
-        password,
-        name,
-        callbackURL: "/",
-      });
-
-      if (error) {
-        toast({
-          title: "Sign up failed",
-          description: error.message || "Could not create account. Please try again.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Account created!",
-          description: "Welcome to RIZQ. Let's start your journey.",
-        });
-        navigate("/");
+      const auth = getFirebaseAuth();
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      if (name && credential.user) {
+        await updateFirebaseProfile(credential.user, { displayName: name });
       }
-    } catch (err) {
+      localStorage.setItem("lastUsedProvider", "credential");
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
+        title: "Account created!",
+        description: "Welcome to RIZQ. Let's start your journey.",
+      });
+      navigate("/");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not create account. Please try again.";
+      toast({
+        title: "Sign up failed",
+        description: message,
         variant: "destructive",
       });
     } finally {

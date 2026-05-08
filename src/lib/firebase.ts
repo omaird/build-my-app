@@ -1,6 +1,7 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
 import {
+  connectFirestoreEmulator,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
@@ -10,6 +11,10 @@ import {
 let _app: FirebaseApp | undefined;
 let _auth: Auth | undefined;
 let _db: Firestore | undefined;
+
+function shouldUseEmulators(): boolean {
+  return import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
+}
 
 function getApp(): FirebaseApp {
   if (_app) return _app;
@@ -27,6 +32,9 @@ function getApp(): FirebaseApp {
 export function getFirebaseAuth(): Auth {
   if (_auth) return _auth;
   _auth = getAuth(getApp());
+  if (shouldUseEmulators()) {
+    connectAuthEmulator(_auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  }
   return _auth;
 }
 
@@ -37,6 +45,9 @@ export function getDb(): Firestore {
       tabManager: persistentMultipleTabManager(),
     }),
   });
+  if (shouldUseEmulators()) {
+    connectFirestoreEmulator(_db, '127.0.0.1', 8080);
+  }
   return _db;
 }
 

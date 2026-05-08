@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Loader2, Clock, Sparkles as SparklesIcon, ArrowLeft } from "lucide-react";
-import { signInWithGoogle, signInWithEmail, getLastUsedProvider } from "@/lib/auth-client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +37,7 @@ import { Sparkles } from "@/components/animations/Sparkles";
 export default function SignInPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -42,13 +45,14 @@ export default function SignInPage() {
   const [lastUsedProvider, setLastUsedProvider] = useState<string | null>(null);
 
   useEffect(() => {
-    setLastUsedProvider(getLastUsedProvider());
+    setLastUsedProvider(localStorage.getItem("lastUsedProvider"));
   }, []);
 
   const handleGoogleSignIn = async () => {
     setSocialLoading("google");
     try {
       await signInWithGoogle();
+      navigate("/");
     } catch (err) {
       toast({
         title: "Error",
@@ -74,25 +78,19 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signInWithEmail(email, password);
-
-      if (error) {
-        toast({
-          title: "Sign in failed",
-          description: error.message || "Invalid email or password.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
-        navigate("/");
-      }
-    } catch (err) {
+      await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+      localStorage.setItem("lastUsedProvider", "credential");
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
+        title: "Welcome back!",
+        description: "You have successfully signed in.",
+      });
+      navigate("/");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Invalid email or password.";
+      toast({
+        title: "Sign in failed",
+        description: message,
         variant: "destructive",
       });
     } finally {
