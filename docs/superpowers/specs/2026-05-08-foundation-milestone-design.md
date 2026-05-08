@@ -17,7 +17,7 @@ When the milestone is done:
 
 1. The web app reads and writes Firestore directly. Neon is dead code (deleted from web; iOS legacy clients deleted).
 2. Web auth is Firebase Auth (Google + GitHub providers), matching iOS.
-3. The admin panel uses Firebase Auth custom claims (`request.auth.token.admin == true`) for write authorization.
+3. The admin panel uses the existing Firestore rules `isAdmin()` helper (reads `user_profiles/{uid}.isAdmin == true`) for write authorization, with self-promotion blocked at the rules layer.
 4. iOS no longer refetches content on every tab switch. A single source-of-truth fetch lives in a new `ContentFeature` reducer; child features (Adkhar, Journeys, Library) consume from shared state via TCA scope. On Firestore failure or cold start, the user sees cached data — never `SampleData`.
 5. Existing user accounts in Neon are abandoned (fresh-start migration). Users sign in again on first visit; profiles auto-created in Firestore on first sign-in.
 6. The `SettingsPage` reset TODO is wired up.
@@ -72,21 +72,37 @@ Better Auth and `neon_auth` references are removed. `src/lib/auth-client.ts` is 
 
 ### 4.3 Admin Authorization
 
-The admin panel uses Firebase Auth custom claims for write authorization. A new CLI script `scripts/set-admin-claim.cjs` uses Firebase Admin SDK to toggle `admin: true` on a Firebase UID. This is run manually to bootstrap the first admin and to promote subsequent admins.
+The admin panel uses the **existing `isAdmin()` rules helper** in [firestore.rules](../../../firestore.rules), which reads `user_profiles/{uid}.isAdmin == true`. This pattern is already in use for user_profiles and user_activity reads; we extend it to content-collection writes. **No custom claims, no CLI script, no Admin SDK infra to deploy.**
 
-[firestore.rules](../../../firestore.rules) gains:
+Why this over custom claims:
+- Existing pattern. Consistency with current rules; no churn.
+- No 1-hour propagation gotcha; no token-refresh requirement.
+- Admin promotion is just a Firestore doc write, which the existing admin Users panel can perform directly.
+- Performance cost (one `get()` per content write) is negligible because content writes are admin-only and low-volume.
+
+[firestore.rules](../../../firestore.rules) gains write rules for content collections that call the existing `isAdmin()` helper:
 
 ```javascript
-match /duas/{id}        { allow read: if true; allow write: if request.auth.token.admin == true; }
-match /journeys/{id}    { allow read: if true; allow write: if request.auth.token.admin == true; }
-match /journey_duas/{id}{ allow read: if true; allow write: if request.auth.token.admin == true; }
-match /categories/{id}  { allow read: if true; allow write: if request.auth.token.admin == true; }
-match /collections/{id} { allow read: if true; allow write: if request.auth.token.admin == true; }
+match /duas/{id}         { allow read: if true; allow write: if isAdmin(); }
+match /journeys/{id}     { allow read: if true; allow write: if isAdmin(); }
+match /journey_duas/{id} { allow read: if true; allow write: if isAdmin(); }
+match /categories/{id}   { allow read: if true; allow write: if isAdmin(); }
+match /collections/{id}  { allow read: if true; allow write: if isAdmin(); }
 ```
 
-User data rules (owner-based) are unchanged.
+The `user_profiles/{uid}` write rule is also tightened so that the `isAdmin` field can only be set by an existing admin (not by the user themselves), preventing self-promotion:
 
-**No Cloud Functions are deployed.** The CLI script is the only new infra. Admin user management UI in the existing admin panel stays read-only for the claim itself; promotions go through the CLI for now.
+```javascript
+match /user_profiles/{userId} {
+  allow read: if isOwner(userId) || isAdmin();
+  allow update: if (isOwner(userId) && !('isAdmin' in request.resource.data.diff(resource.data).affectedKeys()))
+                || isAdmin();
+  allow create: if isOwner(userId);  // self-create on first sign-in; isAdmin defaults false
+  allow delete: if isAdmin();
+}
+```
+
+**Bootstrapping the first admin:** since no admin exists yet to promote anyone, the first admin is set by directly writing `isAdmin: true` to their `user_profiles/{uid}` doc using a one-off Firebase console action (or `scripts/bootstrap-first-admin.cjs` using Admin SDK if console is awkward — implementation-time judgment). Subsequent admins are promoted via the existing admin Users panel UI.
 
 ### 4.4 iOS — Content State
 
@@ -146,7 +162,7 @@ Firestore offline persistence is **also** enabled explicitly in [RIZQApp.swift](
 The hard rule throughout: **never have a state where the app is broken in production**. Each step deploys cleanly.
 
 **Step 1 — Prep (no behavior change).**
-Add `firebase` to `package.json`. Create `src/lib/firebase.ts`. Add `scripts/set-admin-claim.cjs`. Bootstrap the first admin's custom claim. Update `firestore.rules` for content collection writes; deploy rules. Web still runs entirely on Neon + Better Auth — none of this is wired in. Verifiable: app behaves identically; new env present.
+Add `firebase` to `package.json`. Create `src/lib/firebase.ts` (Auth + Firestore initialized from `VITE_FIREBASE_*`). Update `firestore.rules` to gate content writes on `isAdmin()` and to prevent self-promotion on `user_profiles.isAdmin`; deploy rules. Bootstrap the first admin via Firebase console (or one-off `scripts/bootstrap-first-admin.cjs`). Web still runs entirely on Neon + Better Auth — none of this is wired in. Verifiable: app behaves identically; new env present; rules tests pass.
 
 **Step 2 — Auth cutover.**
 Rewrite `AuthContext.tsx` for Firebase Auth Web. Existing users re-sign-in. On first sign-in, `user_profiles/{uid}` is auto-created in Firestore. Better Auth removed; `auth-client.ts` deleted. Content reads still come from Neon — there is **no read/write split** introduced by this step. App stays consistent.
@@ -157,7 +173,7 @@ User-visible disruption: the one-time re-sign-in moment. Communicated via a brie
 A single deploy switches the entire web data path simultaneously:
 - All read hooks → Firestore
 - All user-data hooks (`useActivity`, `useUserHabits`, `addXp`, `refreshProfile`) → Firestore subcollections
-- All admin write hooks (`hooks/admin/*`) → Firestore via client SDK guarded by custom claim
+- All admin write hooks (`hooks/admin/*`) → Firestore via client SDK guarded by `isAdmin()` rule
 
 After this deploy, the web app no longer touches Neon at all. The seed script is retired the moment this deploys. No manual sync windows. This is the highest-risk step and is exactly why it's atomic; gated behind a staging deploy + manual smoke test before production promotion.
 
@@ -183,13 +199,14 @@ Currently only [e2e/auth.spec.ts](../../../e2e/auth.spec.ts) and [e2e/admin-jour
 - **`auth.spec.ts`** — updated to test Firebase Auth flow (Google emulator). Verify `user_profiles/{uid}` doc is created on first sign-in.
 - **`practice.spec.ts`** (NEW) — golden path: sign in → open a dua → tap counter → verify XP recorded in Firestore (via emulator query).
 - **`journeys.spec.ts`** (NEW) — subscribe to a journey → verify habit appears on Daily Adkhar page.
-- **`admin-duas.spec.ts`** (NEW) — admin user (custom claim set in test setup) creates/updates/deletes a dua → verify Firestore write succeeded → verify a non-admin user sees the read but cannot write.
+- **`admin-duas.spec.ts`** (NEW) — admin user (`isAdmin: true` set on test profile in test setup) creates/updates/deletes a dua → verify Firestore write succeeded → verify a non-admin user sees the read but cannot write.
 
 All e2e tests run against the Firebase Local Emulator Suite (Auth + Firestore + Rules). No real Firebase project hit in CI.
 
 ### 6.2 Firestore Rules Tests (NEW)
 Use `@firebase/rules-unit-testing`. Coverage:
-- Anyone can read content collections; only `admin: true` can write.
+- Anyone can read content collections; only users with `user_profiles.isAdmin == true` can write.
+- A non-admin user cannot set their own `isAdmin: true` field (self-promotion is blocked).
 - A user can read/write their own `user_profiles/{uid}` doc; cannot read another user's.
 - A user can read/write their own `user_activity/{uid}/dates/*` subcollection; cannot read another user's.
 
@@ -223,8 +240,8 @@ Existing `RIZQSnapshotTests.swift` is preserved. Add snapshots for:
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| Firebase custom claim takes ~1 hour to propagate to existing tokens | Admin can't write immediately after promotion | After CLI sets claim, force token refresh via `auth.currentUser.getIdToken(true)` in admin onboarding; document this in `set-admin-claim.cjs`. |
-| Firestore quota costs from direct browser queries | Bill spike at scale | Enable web Firestore IndexedDB persistence (`enableIndexedDbPersistence` or new `persistentLocalCache`); tune React Query staleness; monitor in Firebase console for first 30 days post-cutover. |
+| Self-promotion to admin via direct Firestore write | Privilege escalation | Rule on `user_profiles.isAdmin` field forbids non-admin writers from changing it (see § 4.3). Rules tests assert this. |
+| Firestore quota costs from direct browser queries | Bill spike at scale | Enable web Firestore IndexedDB persistence (`persistentLocalCache`); tune React Query staleness; monitor in Firebase console for first 30 days post-cutover. |
 | Step 3 atomic deploy is large; if something breaks, every web user feels it | Production outage | (a) Full staging deploy first with manual smoke test against the real Firestore project (isolated test data). (b) Step 3 ships behind a `VITE_FIRESTORE_CUTOVER` env flag. The deploy contains both code paths; flipping the flag is the cutover, so rollback is one env change, not a redeploy. After 7 days stable, the flag and the dead-code path are removed in a follow-up. |
 | iOS `ContentFeature` not loaded yet when a child feature renders | Brief empty state on cold launch | Child features show a loading view if `content.isLoaded == false`. Cache makes this near-instant on subsequent launches. Acceptable. |
 | Existing users surprised by the re-sign-in | Confusion, abandonment | Brief notice on landing page; first-sign-in welcome message references continuity ("your progress starts fresh — here's why"). |
@@ -238,7 +255,7 @@ Captured for the implementation phase so they don't get re-litigated:
 |----------|--------|-----------|
 | Migration depth | C — full migration | Highest-leverage; eliminates two-source-of-truth permanently. |
 | User data fate | Fresh start | Pre-launch / small alpha; lossless migration not worth the complexity. |
-| Admin auth | Custom claims, client-side writes | Few admins; Firestore rules + custom claim is a clean and well-scaled gate without Cloud Functions. |
+| Admin auth | Existing `isAdmin()` rules helper reading `user_profiles.isAdmin` | Already the established pattern; no CLI/Admin SDK infra needed; no token-refresh propagation gotcha; admin Users panel can promote directly. Self-promotion blocked at the rules layer. |
 | iOS stability scope | B — targeted refactor | Removes the actual root cause (per-tab refetches + SampleData fallback) without overengineering. |
 | iOS content state location | Dedicated `ContentFeature` reducer | `AppFeature` must not become a god router; `ContentFeature` is independently testable, widget-reusable, and where future real-time listeners belong. |
 | iOS cache location | `CachedContentClient` wrapper | Cache rule is bug-prone; isolating it in a thin tested layer is correct. Keeps `FirestoreContentService` a thin SDK adapter. |
@@ -307,7 +324,7 @@ Where work splits cleanly into independent streams, parallel agents run via `sup
 
 | Step | Work-streams (run in parallel) | Skills per stream |
 |------|-------------------------------|-------------------|
-| **Step 1** | (a) `firebase.ts` plumbing, (b) `set-admin-claim.cjs` CLI, (c) `firestore.rules` update + rules tests | (a) Web TS subagent, (b) Web TS subagent, (c) Rules subagent |
+| **Step 1** | (a) `firebase.ts` plumbing, (b) `firestore.rules` update + rules tests, (c) optional `bootstrap-first-admin.cjs` if console route is awkward | (a) Web TS subagent, (b) Rules subagent, (c) Web TS subagent |
 | **Step 3** | (a) Read hooks (`useDuas` et al.), (b) User-data hooks (`useActivity`, `useUserHabits`, `addXp`), (c) Admin write hooks (`hooks/admin/*`) — all worktree-isolated | All (a–c) Web TS subagents; each invokes TDD, react-best-practices, context7, silent-failure-hunter |
 | **Step 5** | (a) `ContentFeature` reducer, (b) `CachedContentClient` wrapper, (c) Adkhar refactor, (d) Journeys refactor, (e) Library refactor, (f) `RIZQApp.swift` persistence enable | All iOS Swift subagents; (c)/(d)/(e) depend on (a) merging first, then run parallel |
 | **Step 7** | (a) SettingsPage reset wiring (web), (b) `.gitignore` + `autoforge/` cleanup, (c) `firebase-debug.log` removal | (a) Web TS subagent, (b)/(c) trivial — single-thread |
