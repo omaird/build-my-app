@@ -17,6 +17,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { getDb, getFirebaseAuth } from "@/lib/firebase";
+import { toast } from "@/hooks/use-toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -171,8 +172,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const loadedProfile = await getOrCreateProfile(fbUser);
         setProfile(loadedProfile);
       } catch (error) {
-        console.error("Failed to load user profile:", error);
-        setProfile(null);
+        // If the profile read/create fails (Firestore rules denial, network
+        // drop, etc.) we'd otherwise leave the user "authenticated" but with
+        // no profile — a zombie state with no recovery path. Sign them out so
+        // the listener fires again with fbUser === null and routes them back
+        // to sign-in cleanly.
+        console.error("Failed to load user profile, signing out:", error);
+        toast({
+          title: "Couldn't load your profile",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        try {
+          await firebaseSignOut(auth);
+        } catch (signOutError) {
+          console.error("Failed to sign out after profile load failure:", signOutError);
+        }
+        // Don't set profile here — the next listener fire will clear state.
       } finally {
         setIsLoadingProfile(false);
         setIsAuthLoading(false);

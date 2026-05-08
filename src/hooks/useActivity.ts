@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSql } from "@/lib/db";
+import { toast } from "@/hooks/use-toast";
 
 export interface DailyActivity {
   date: string;
@@ -84,6 +85,8 @@ export function useDailyActivity() {
 
       const today = getToday();
 
+      // Step 1: persist activity row + optimistic local update.
+      // If this fails, the user shouldn't see the dua marked complete.
       try {
         const sql = getSql();
 
@@ -122,13 +125,30 @@ export function useDailyActivity() {
             ...prev,
           ];
         });
-
-        // Update XP in profile (this also updates streak)
-        await addXp(xpEarned);
       } catch (error) {
         console.error("Error marking dua completed:", error);
-        // Refetch to sync state
+        toast({
+          title: "Couldn't save your practice",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+        // Resync local state from the server so the optimistic update is rolled back.
         fetchActivities();
+        return;
+      }
+
+      // Step 2: update XP/streak. If this fails (e.g. Firestore rules denial,
+      // transaction contention, network drop, "Profile not found"), the activity
+      // row is already persisted — surface a non-destructive notice and let
+      // the next completion retry the XP sync rather than re-throwing.
+      try {
+        await addXp(xpEarned);
+      } catch (error) {
+        console.error("Error syncing XP after dua completion:", error);
+        toast({
+          title: "Practice saved",
+          description: "But XP didn't sync. It'll retry next time.",
+        });
       }
     },
     [user, addXp, fetchActivities]

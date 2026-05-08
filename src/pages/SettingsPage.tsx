@@ -109,6 +109,9 @@ export default function SettingsPage() {
   const isProviderLinked = (providerId: string) =>
     linkedAccounts.some(acc => acc.providerId === providerId);
 
+  const getAuthErrorCode = (err: unknown): string =>
+    (err as { code?: string })?.code ?? "";
+
   // Handle linking Google account
   const handleLinkGoogle = async () => {
     setLinkingProvider("google");
@@ -130,11 +133,30 @@ export default function SettingsPage() {
         description: "Google account has been connected.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Could not link Google account. Please try again.",
-        variant: "destructive",
-      });
+      const code = getAuthErrorCode(error);
+      // User cancelled the popup — silent, not an error.
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        setLinkingProvider(null);
+        return;
+      }
+      if (code === "auth/credential-already-in-use") {
+        toast({
+          title: "Already in use",
+          description: "This Google account is already linked to a different RIZQ account.",
+          variant: "destructive",
+        });
+      } else if (code === "auth/provider-already-linked") {
+        toast({
+          title: "Already linked",
+          description: "Your Google account is already linked.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not link Google account. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLinkingProvider(null);
     }
@@ -163,11 +185,26 @@ export default function SettingsPage() {
         description: "Google account has been disconnected.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Could not unlink Google account. Please try again.",
-        variant: "destructive",
-      });
+      const code = getAuthErrorCode(error);
+      // Popup-cancel codes shouldn't normally surface for unlink, but mirror
+      // the link flow defensively.
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        setUnlinkingProvider(null);
+        return;
+      }
+      if (code === "auth/requires-recent-login") {
+        toast({
+          title: "Re-authentication required",
+          description: "Please sign in again to unlink this provider.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not unlink Google account. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setUnlinkingProvider(null);
     }

@@ -128,37 +128,57 @@ export default function SignUpPage() {
 
     setIsLoading(true);
 
+    // Step 1: create the auth account. If this fails, retrying is safe —
+    // surface the friendly auth error and bail out.
+    let createdUser: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>["user"] | null = null;
     try {
       const auth = getFirebaseAuth();
       const credential = await createUserWithEmailAndPassword(auth, email, password);
-      if (name && credential.user) {
-        await updateFirebaseProfile(credential.user, { displayName: name });
-        // The auth listener fires before updateFirebaseProfile resolves, so the
-        // initial user_profiles doc may be created with the fallback "Traveler"
-        // display name. Persist the entered name to Firestore explicitly so it
-        // wins regardless of listener ordering.
-        await setDoc(
-          doc(getDb(), "user_profiles", credential.user.uid),
-          { displayName: name, updatedAt: serverTimestamp() },
-          { merge: true }
-        );
-        await refreshProfile();
-      }
+      createdUser = credential.user;
       localStorage.setItem("lastUsedProvider", "credential");
-      toast({
-        title: "Account created!",
-        description: "Welcome to RIZQ. Let's start your journey.",
-      });
-      navigate("/");
     } catch (err) {
       toast({
         title: "Sign up failed",
         description: friendlyAuthError(err),
         variant: "destructive",
       });
+      setIsLoading(false);
+      return;
+    }
+
+    // Step 2: write display name to Firebase Auth + Firestore profile.
+    // If this fails AFTER the auth account exists, we must NOT report it as
+    // a sign-up failure (retrying would hit auth/email-already-in-use).
+    // Show a non-destructive notice and continue — the auth listener will
+    // populate the profile with the fallback display name.
+    try {
+      if (name && createdUser) {
+        await updateFirebaseProfile(createdUser, { displayName: name });
+        // The auth listener fires before updateFirebaseProfile resolves, so the
+        // initial user_profiles doc may be created with the fallback "Traveler"
+        // display name. Persist the entered name to Firestore explicitly so it
+        // wins regardless of listener ordering.
+        await setDoc(
+          doc(getDb(), "user_profiles", createdUser.uid),
+          { displayName: name, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+        await refreshProfile();
+      }
+      toast({
+        title: "Account created!",
+        description: "Welcome to RIZQ. Let's start your journey.",
+      });
+    } catch (err) {
+      console.error("Failed to persist display name after signup:", err);
+      toast({
+        title: "Account created",
+        description: "Set your display name in Settings.",
+      });
     } finally {
       setIsLoading(false);
     }
+    navigate("/");
   };
 
   return (
