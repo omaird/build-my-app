@@ -259,8 +259,84 @@ The milestone is complete when:
 8. The `SettingsPage` reset button works and clears the user's Firestore activity + progress data.
 9. `firebase-debug.log` is gitignored; `autoforge/` is no longer in the repo.
 
-## 10. Next Steps
+## 10. Execution Model — Multi-Agent + Skill-Driven
+
+Implementation **does not happen in a single linear session by the main agent**. The work is dispatched to specialized subagents, each of which invokes its own domain-specific skills. This is mandatory, not optional — we have the right skills available and using them is how we get correctness without me reinventing wheels.
+
+### 10.1 Top-level orchestration skills
+
+The main session that runs the implementation plan invokes:
+
+- **`superpowers:executing-plans`** — drives the plan top-to-bottom with review checkpoints.
+- **`superpowers:subagent-driven-development`** — dispatches tasks with no shared state to subagents.
+- **`superpowers:dispatching-parallel-agents`** — used wherever 2+ tasks are genuinely independent (see § 10.3).
+- **`superpowers:using-git-worktrees`** — each subagent works in an isolated worktree so parallel work can't collide.
+- **`superpowers:verification-before-completion`** — before any step is marked complete.
+- **`superpowers:requesting-code-review`** — at every major checkpoint (end of Step 2, end of Step 3, end of Step 5).
+
+### 10.2 Per-subagent skill invocations (mandatory)
+
+Every subagent invokes the relevant domain skills before writing code, not after. The main agent's prompt to each subagent explicitly names the skills it must invoke.
+
+**Web TypeScript / React subagents** (Steps 1, 2, 3, 4, 7-web):
+- `superpowers:test-driven-development` — write Playwright e2e or rules tests first.
+- `superpowers:brainstorming` is skipped (this spec already brainstormed); subagent goes straight to implementation.
+- `vercel:react-best-practices` — invoked after editing TSX files. Non-optional; recent commits show drift.
+- `context7` — used to look up Firebase Web SDK v10+ APIs, `@firebase/rules-unit-testing` patterns, React Query v5 patterns. Never trust training data on these.
+- `pr-review-toolkit:silent-failure-hunter` — invoked after Step 3 because that's where error handling silently regresses.
+- `superpowers:verification-before-completion` — `npm run build`, `npx playwright test`, manual smoke before claiming any step done.
+
+**iOS Swift / TCA subagents** (Step 5, Step 6 iOS, Step 7 iOS):
+- `superpowers:test-driven-development` — write `TestStore` reducer tests first.
+- `context7` — TCA 1.17 APIs, Firebase iOS SDK 11+ APIs. Especially important for `@Shared`, `@ObservableState`, and `PersistentCacheSettings`.
+- Follow [RIZQ-iOS/CLAUDE.md](../../../RIZQ-iOS/CLAUDE.md) conventions strictly (BindingReducer, becameActive, manual dependency registration, no `@DependencyClient` macro, etc.).
+- `superpowers:verification-before-completion` — `xcodebuild -scheme RIZQ -destination 'platform=iOS Simulator,name=iPhone 17' build` after every Swift change. Per CLAUDE.md, this is non-negotiable.
+
+**Firestore Rules subagent** (Step 1, plus Step 3 admin gates):
+- `context7` — Firestore Security Rules v2 syntax + `@firebase/rules-unit-testing` v3 patterns.
+- `superpowers:test-driven-development` — rules tests are written first; rules are the implementation.
+- `pr-review-toolkit:code-reviewer` — invoked specifically because rules are a security boundary.
+
+**Migration / cutover subagent** (Step 3 atomic cutover orchestration):
+- `superpowers:verification-before-completion` — staging deploy + manual smoke test before flag flip in prod.
+- `pr-review-toolkit:silent-failure-hunter` — looks for places the new Firestore code silently swallows errors that the old SQL code surfaced.
+
+### 10.3 Parallelization map
+
+Where work splits cleanly into independent streams, parallel agents run via `superpowers:dispatching-parallel-agents`:
+
+| Step | Work-streams (run in parallel) | Skills per stream |
+|------|-------------------------------|-------------------|
+| **Step 1** | (a) `firebase.ts` plumbing, (b) `set-admin-claim.cjs` CLI, (c) `firestore.rules` update + rules tests | (a) Web TS subagent, (b) Web TS subagent, (c) Rules subagent |
+| **Step 3** | (a) Read hooks (`useDuas` et al.), (b) User-data hooks (`useActivity`, `useUserHabits`, `addXp`), (c) Admin write hooks (`hooks/admin/*`) — all worktree-isolated | All (a–c) Web TS subagents; each invokes TDD, react-best-practices, context7, silent-failure-hunter |
+| **Step 5** | (a) `ContentFeature` reducer, (b) `CachedContentClient` wrapper, (c) Adkhar refactor, (d) Journeys refactor, (e) Library refactor, (f) `RIZQApp.swift` persistence enable | All iOS Swift subagents; (c)/(d)/(e) depend on (a) merging first, then run parallel |
+| **Step 7** | (a) SettingsPage reset wiring (web), (b) `.gitignore` + `autoforge/` cleanup, (c) `firebase-debug.log` removal | (a) Web TS subagent, (b)/(c) trivial — single-thread |
+
+Where work is sequential (Step 2 auth cutover, Step 4 decommission, Step 6 dead-code purge), a single subagent runs it.
+
+### 10.4 Worktree discipline
+
+Per `superpowers:using-git-worktrees`, each parallel subagent gets an isolated worktree. Branch naming: `m1-step{N}-{stream}` (e.g., `m1-step3-read-hooks`, `m1-step5-content-feature`). Worktrees are merged back to the milestone branch (`m1-foundation`) after each subagent's verification passes; the milestone branch merges to `main` only after the full step completes and review passes.
+
+### 10.5 Review checkpoints
+
+`superpowers:requesting-code-review` runs:
+
+1. **End of Step 2** (auth cutover) — before users re-sign-in. Reviewer: `pr-review-toolkit:code-reviewer` + `pr-review-toolkit:silent-failure-hunter`.
+2. **End of Step 3 staging deploy** (atomic cutover) — before the env flag flips in production. Reviewer: full `pr-review-toolkit:review-pr` workflow.
+3. **End of Step 5** (iOS refactor) — before merging to milestone branch. Reviewer: `pr-review-toolkit:code-reviewer` + `pr-review-toolkit:pr-test-analyzer` (test coverage of the new ContentFeature/CachedContentClient).
+4. **End of milestone** (post-Step 7) — full project review before merging `m1-foundation` to `main`. Reviewer: `validation:code-review` (project-specific) + `pr-review-toolkit:review-pr`.
+
+### 10.6 What this changes about the implementation plan
+
+The plan produced by `superpowers:writing-plans` must be structured so that:
+- Every step lists the agent type, the worktree branch, and the explicit skills the agent invokes — not implicit conventions.
+- Independent streams in a step are written as parallel-dispatch instructions, not sequential bullets.
+- Each step's "definition of done" includes the verification skill output and (where applicable) the code-review skill output.
+- The plan does not assume the main agent writes any code itself; it dispatches.
+
+## 11. Next Steps
 
 1. User reviews this spec.
-2. On approval, hand off to `superpowers:writing-plans` skill to produce the implementation plan with concrete steps, file diffs, and ordering.
-3. Implementation plan execution lives in a separate session per superpowers conventions.
+2. On approval, hand off to `superpowers:writing-plans` skill to produce the implementation plan, structured per § 10.6 (multi-agent dispatch, skill invocations explicit, parallelization called out).
+3. Implementation plan execution lives in a separate session via `superpowers:executing-plans` per superpowers conventions.
