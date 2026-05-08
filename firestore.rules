@@ -24,27 +24,27 @@ service cloud.firestore {
 
     match /duas/{duaId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /journeys/{journeyId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /journey_duas/{journeyDuaId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /collections/{collectionId} {
       allow read: if true;
-      allow write: if false;
+      allow write: if isAdmin();
     }
     
     // User profiles - users can read/write their own profile
@@ -54,10 +54,12 @@ service cloud.firestore {
     }
 
     match /user_profiles/{userId} {
-      // Users can read/write their own profile
-      // Admins can read all profiles and update admin status
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);  // self-create on first sign-in
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && !('isAdmin' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow delete: if isAdmin();
     }
 
     // User activity - users can read/write their own activity
