@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Mail, Lock, Loader2, Clock, Sparkles as SparklesIcon, ArrowLeft } from "lucide-react";
-import { signInWithGoogle, signInWithEmail, getLastUsedProvider } from "@/lib/auth-client";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { useAuth } from "@/contexts/AuthContext";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +34,33 @@ const itemVariants = {
 
 import { Sparkles } from "@/components/animations/Sparkles";
 
+function getAuthErrorCode(err: unknown): string {
+  return (err as { code?: string })?.code ?? "";
+}
+
+function friendlyAuthError(err: unknown): string {
+  switch (getAuthErrorCode(err)) {
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+    case "auth/invalid-credential":
+      return "Invalid email or password.";
+    case "auth/email-already-in-use":
+      return "An account with this email already exists.";
+    case "auth/weak-password":
+      return "Password is too weak. Use at least 6 characters.";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please try again later.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+}
+
 export default function SignInPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signInWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -42,14 +68,21 @@ export default function SignInPage() {
   const [lastUsedProvider, setLastUsedProvider] = useState<string | null>(null);
 
   useEffect(() => {
-    setLastUsedProvider(getLastUsedProvider());
+    setLastUsedProvider(localStorage.getItem("lastUsedProvider"));
   }, []);
 
   const handleGoogleSignIn = async () => {
     setSocialLoading("google");
     try {
       await signInWithGoogle();
+      navigate("/");
     } catch (err) {
+      const code = getAuthErrorCode(err);
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // User cancelled the popup — silent, not an error.
+        setSocialLoading(null);
+        return;
+      }
       toast({
         title: "Error",
         description: "Could not sign in with Google. Please try again.",
@@ -74,25 +107,17 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signInWithEmail(email, password);
-
-      if (error) {
-        toast({
-          title: "Sign in failed",
-          description: error.message || "Invalid email or password.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully signed in.",
-        });
-        navigate("/");
-      }
+      await signInWithEmailAndPassword(getFirebaseAuth(), email, password);
+      localStorage.setItem("lastUsedProvider", "credential");
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully signed in.",
+      });
+      navigate("/");
     } catch (err) {
       toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
+        title: "Sign in failed",
+        description: friendlyAuthError(err),
         variant: "destructive",
       });
     } finally {
