@@ -21,7 +21,8 @@ test.describe('Firebase Auth flow', () => {
     const popupPromise = page.waitForEvent('popup');
     await page.click('button:has-text("Continue with Google")');
     const popup = await popupPromise;
-    await popup.waitForLoadState();
+    await popup.waitForLoadState('domcontentloaded');
+    await popup.waitForSelector('input[type="email"]');
     await popup.fill('input[type="email"]', 'newuser@example.com');
     await popup.fill('input[type="text"]', 'New User');
     await popup.click('button:has-text("Sign in with Google.com")');

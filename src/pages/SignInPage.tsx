@@ -34,6 +34,29 @@ const itemVariants = {
 
 import { Sparkles } from "@/components/animations/Sparkles";
 
+function getAuthErrorCode(err: unknown): string {
+  return (err as { code?: string })?.code ?? "";
+}
+
+function friendlyAuthError(err: unknown): string {
+  switch (getAuthErrorCode(err)) {
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+    case "auth/invalid-credential":
+      return "Invalid email or password.";
+    case "auth/email-already-in-use":
+      return "An account with this email already exists.";
+    case "auth/weak-password":
+      return "Password is too weak. Use at least 6 characters.";
+    case "auth/invalid-email":
+      return "Please enter a valid email address.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Please try again later.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+}
+
 export default function SignInPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -54,6 +77,12 @@ export default function SignInPage() {
       await signInWithGoogle();
       navigate("/");
     } catch (err) {
+      const code = getAuthErrorCode(err);
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        // User cancelled the popup — silent, not an error.
+        setSocialLoading(null);
+        return;
+      }
       toast({
         title: "Error",
         description: "Could not sign in with Google. Please try again.",
@@ -86,11 +115,9 @@ export default function SignInPage() {
       });
       navigate("/");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Invalid email or password.";
       toast({
         title: "Sign in failed",
-        description: message,
+        description: friendlyAuthError(err),
         variant: "destructive",
       });
     } finally {
