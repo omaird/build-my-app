@@ -38,6 +38,11 @@
       "name": "plan-item-implementer",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/plan-item-implementer.md",
       "description": "Implement one item from a RIZQ audit/execution plan doc end-to-end: read item spec, implement, verify with check-all.sh, commit, update plan-doc status marker. Use when draining items from any plan in docs/audit/*-execution-plan.md or docs/superpowers/plans/*.md — typically dispatched by the drain-plan skill, but also callable directly with a specific item number."
+    },
+    {
+      "name": "spec-boundary-filter",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/spec-boundary-filter.md",
+      "description": "Filter a list of audit findings against an in-flight spec doc, dropping (or marking 'owned by spec') any finding that the spec already covers. Returns a clean findings list plus a record of what was dropped and why. Use when an audit-cycle skill needs to dedupe its raw findings against a specific in-progress plan, or when manually asking 'which of these findings does the M1 spec already handle?' — typically invoked by audit-cycle but also callable directly."
     }
   ],
   "skills": [
@@ -65,6 +70,21 @@
       "name": "drain-plan",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/drain-plan.md",
       "description": "Drain items from a RIZQ audit/execution plan doc by dispatching plan-item-implementer subagents. Supports single-item, parallel-batch, and ralph-loop modes. Use when the user says 'drain the plan', 'run the audit plan', 'work through the M1 plan', or any phrasing that means execute items from a RIZQ plan doc. Args: plan-doc path; optional --mode={single|batch|loop}, --batch-size=N, --item=NN, --skip-verify-gates."
+    },
+    {
+      "name": "audit-cycle",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/audit-cycle.md",
+      "description": "Run a full RIZQ audit cycle end-to-end: dispatch parallel audit subagents (web/iOS/repo), apply the domain-knowledge severity rubric to re-grade findings, filter out items already owned by an in-flight spec, cluster atomic findings into PR-sized themes, and write the result as a plan doc that the drain-plan skill can execute. Use when the user says 'run an audit', 'do a deep dive on the app', 'audit the codebase', 'find improvements', 'tech-debt sweep', 'quarterly review', or any phrasing meaning survey what's wrong and give me a prioritized list. Args: optional --exclude-spec=<path>, --surfaces=<web,ios,repo>, --output=<path>, --max-items=<N>."
+    },
+    {
+      "name": "cluster-into-themes",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/cluster-into-themes.md",
+      "description": "Group a flat list of atomic audit findings into PR-sized themed clusters with rationale, so each theme becomes one reviewable PR. Use when an audit produces 20-50 atomic findings and you need to decide how to package them into branches. Typically called by the audit-cycle skill, but also useful manually when reorganizing an existing plan doc's items. Args: findings list (or path to a plan doc); optional --max-items-per-theme=N, --max-themes=N, --strategy=<by-concern|by-audience|by-file-overlap>."
+    },
+    {
+      "name": "plan-to-issues",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/plan-to-issues.md",
+      "description": "Mirror a RIZQ plan doc to GitHub issues using gh. For each item in §6 of the plan, create a GitHub issue with the item's title, body (dod/verify/hint), severity/type labels, and a link back to the plan doc. Optional bidirectional sync: write issue numbers back into the plan doc; close issues when items are marked done. Use when the user says 'turn this plan into GitHub issues', 'mirror to GitHub', 'create issues for everything', or wants public visibility on the audit-plan items. Args: plan-doc path; optional --dry-run, --sync-back, --close-completed, --milestone=<title>, --repo=<owner/name>."
     }
   ],
   "commands": [
