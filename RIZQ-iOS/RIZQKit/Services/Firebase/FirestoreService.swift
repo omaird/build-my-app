@@ -199,7 +199,7 @@ public actor FirestoreService {
       .collection("dates")
       .document(today)
 
-    try await db.runTransaction { transaction, errorPointer in
+    _ = try await db.runTransaction { transaction, errorPointer in
       do {
         let snapshot = try transaction.getDocument(docRef)
 
@@ -308,7 +308,7 @@ public actor FirestoreService {
       .collection("duas")
       .document(String(duaId))
 
-    try await db.runTransaction { transaction, errorPointer in
+    _ = try await db.runTransaction { transaction, errorPointer in
       do {
         let snapshot = try transaction.getDocument(docRef)
         let currentCount = snapshot.data()?["completedCount"] as? Int ?? 0

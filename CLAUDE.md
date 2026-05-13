@@ -60,7 +60,7 @@ RIZQ is a gamified Islamic dua (supplication) practice and habit-tracking app. U
 - **Web**: Neon PostgreSQL `user_profiles`, `user_activity` tables
 - **iOS**: Firebase Firestore `user_profiles`, `user_activity` collections
 
-> **Migration Note (January 2026)**: The iOS app has been **fully migrated** from Neon PostgreSQL to Firebase Firestore. Neon-related code is deprecated but preserved for potential rollback. See `RIZQ-iOS/CLAUDE.md` for the rollback procedure.
+> **Migration Note (May 2026)**: The iOS app uses Firebase Firestore exclusively. Neon-related code was deprecated in January 2026 and fully removed in May 2026.
 
 ## Project Structure
 

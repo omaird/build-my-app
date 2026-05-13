@@ -281,7 +281,7 @@ public actor FirebaseAuthService: AuthServiceProtocol {
     }
 
     do {
-      try await user.unlink(fromProvider: providerID)
+      _ = try await user.unlink(fromProvider: providerID)
     } catch let error as NSError {
       throw mapFirebaseError(error)
     }
