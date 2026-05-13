@@ -11,6 +11,10 @@ struct AppFeature {
   struct State: Equatable {
     var selectedTab: Tab = .home
     var isAuthenticated: Bool = false
+    /// Shared read-only content (duas/journeys/categories) fetched once on launch
+    /// and refreshable on demand. Child features consume this instead of fetching
+    /// independently.
+    var content = ContentFeature.State()
     var home = HomeFeature.State()
     var library = LibraryFeature.State()
     var adkhar = AdkharFeature.State()
@@ -55,6 +59,7 @@ struct AppFeature {
   enum Action {
     case onAppear
     case tabSelected(Tab)
+    case content(ContentFeature.Action)
     case home(HomeFeature.Action)
     case library(LibraryFeature.Action)
     case adkhar(AdkharFeature.Action)
@@ -73,8 +78,12 @@ struct AppFeature {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        // Check authentication state on app launch
-        return .send(.auth(.checkExistingSession))
+        // Check authentication state on app launch and kick off the shared
+        // content fetch in parallel.
+        return .merge(
+          .send(.auth(.checkExistingSession)),
+          .send(.content(.task))
+        )
 
       case .tabSelected(let tab):
         state.selectedTab = tab
@@ -163,9 +172,13 @@ struct AppFeature {
       case .admin:
         return .none
 
-      case .home, .library, .adkhar, .journeys, .settings, .auth:
+      case .content, .home, .library, .adkhar, .journeys, .settings, .auth:
         return .none
       }
+    }
+
+    Scope(state: \.content, action: \.content) {
+      ContentFeature()
     }
 
     Scope(state: \.home, action: \.home) {
