@@ -9,9 +9,10 @@ private let journeyLogger = Logger(subsystem: "com.rizq.app", category: "Journey
 struct JourneysFeature {
   @ObservableState
   struct State: Equatable {
-    // Initialize with sample data so content shows IMMEDIATELY
-    // This ensures user always sees journeys, even if Firestore is slow/failing
-    var journeys: [Journey] = SampleData.journeys
+    /// Content pushed by AppFeature from the shared ContentFeature. Empty until
+    /// the parent's first fetch settles (CachedContentClient typically returns
+    /// cached data within milliseconds on warm launches).
+    var journeys: [Journey] = []
     var subscribedJourneyIds: Set<Int> = []
     var isLoading: Bool = false
     var errorMessage: String? = nil
@@ -39,8 +40,11 @@ struct JourneysFeature {
   enum Action {
     case onAppear
     case becameActive  // Called when tab becomes active via programmatic navigation
-    case refreshJourneys  // Force refresh - clears current journeys and reloads
-    case journeysLoaded(Result<[Journey], Error>)
+    case refreshJourneys  // Passthrough — AppFeature listens and triggers .content(.refresh)
+    /// Pushed by AppFeature when ContentFeature's journey fetch settles.
+    case contentJourneysUpdated([Journey])
+    /// Pushed by AppFeature when ContentFeature reports a journey-fetch failure.
+    case contentJourneysFailed(String)
     case loadSubscribedIds
     case subscribedIdsLoaded(Set<Int>)
     case journeyTapped(Journey)
@@ -58,79 +62,38 @@ struct JourneysFeature {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        let journeyCount = state.journeys.count
-        journeyLogger.info("onAppear received, journeys.count: \(journeyCount, privacy: .public)")
-        // Always try to fetch from Firestore to get latest data
-        // Sample data is shown immediately, then replaced with Firestore data
-        journeyLogger.info("Starting to fetch journeys from Firestore...")
-        return .merge(
-          .run { [journeyService] send in
-            do {
-              let journeys = try await journeyService.fetchJourneys()
-              await send(.journeysLoaded(.success(journeys)))
-            } catch {
-              await send(.journeysLoaded(.failure(error)))
-            }
-          },
-          .send(.loadSubscribedIds)
-        )
+        // Content is owned by ContentFeature/AppFeature. Here we only need to
+        // pull user-data (subscribed IDs) and show a loading hint until content
+        // arrives via `.contentJourneysUpdated`.
+        if state.journeys.isEmpty {
+          state.isLoading = true
+          state.errorMessage = nil
+        }
+        return .send(.loadSubscribedIds)
 
       case .becameActive:
-        // Triggered when tab becomes active via programmatic navigation
-        // ALWAYS force load to ensure content shows - this is called explicitly when navigating
-        let journeyCount = state.journeys.count
-        let currentlyLoading = state.isLoading
-        journeyLogger.info("🎯 JourneysFeature.becameActive received! journeys.count: \(journeyCount, privacy: .public), isLoading: \(currentlyLoading, privacy: .public)")
-
-        // Force load regardless of current state when explicitly navigated to
-        // This ensures content always loads when user taps "Browse Journeys"
-        state.isLoading = true
-        state.errorMessage = nil
-        journeyLogger.info("🔄 Force loading journeys on becameActive...")
-        return .merge(
-          .run { [journeyService] send in
-            do {
-              let journeys = try await journeyService.fetchJourneys()
-              await send(.journeysLoaded(.success(journeys)))
-            } catch {
-              await send(.journeysLoaded(.failure(error)))
-            }
-          },
-          .send(.loadSubscribedIds)
-        )
+        // Tab became active via programmatic navigation. Subscribed IDs may have
+        // changed (user subscribed from another tab); journey list itself is
+        // refreshed by AppFeature pushing `.contentJourneysUpdated` if needed.
+        return .send(.loadSubscribedIds)
 
       case .refreshJourneys:
-        // Force refresh - clear current data and reload
-        journeyLogger.info("refreshJourneys: Force refreshing journeys...")
-        state.journeys = []
-        state.errorMessage = nil
+        // Passthrough — AppFeature observes this and triggers .content(.refresh).
         state.isLoading = true
-        return .merge(
-          .run { [journeyService] send in
-            do {
-              let journeys = try await journeyService.fetchJourneys()
-              await send(.journeysLoaded(.success(journeys)))
-            } catch {
-              await send(.journeysLoaded(.failure(error)))
-            }
-          },
-          .send(.loadSubscribedIds)
-        )
+        state.errorMessage = nil
+        return .none
 
-      case .journeysLoaded(.success(let journeys)):
-        journeyLogger.info("✅ journeysLoaded success: \(journeys.count, privacy: .public) journeys")
+      case .contentJourneysUpdated(let journeys):
+        journeyLogger.info("✅ contentJourneysUpdated: \(journeys.count, privacy: .public) journeys")
         state.isLoading = false
         state.errorMessage = nil
         state.journeys = journeys
-        if journeys.isEmpty {
-          journeyLogger.warning("⚠️ journeysLoaded completed but array is empty")
-        }
         return .none
 
-      case .journeysLoaded(.failure(let error)):
-        journeyLogger.error("❌ journeysLoaded failure: \(error.localizedDescription, privacy: .public)")
+      case .contentJourneysFailed(let message):
+        journeyLogger.error("❌ contentJourneysFailed: \(message, privacy: .public)")
         state.isLoading = false
-        state.errorMessage = "Failed to load journeys: \(error.localizedDescription)"
+        state.errorMessage = "Failed to load journeys: \(message)"
         return .none
 
       case .loadSubscribedIds:

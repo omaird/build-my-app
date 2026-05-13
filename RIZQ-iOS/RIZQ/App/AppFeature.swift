@@ -178,13 +178,22 @@ struct AppFeature {
       case let .content(.duasLoaded(duas)):
         return .send(.library(.contentDuasUpdated(duas)))
 
-      case let .content(.loadFailed(.duasFailed)):
-        // Children stay in their loading state; surfacing errors per-feature
-        // can come later if needed. Logged at ContentFeature level.
+      case let .content(.journeysLoaded(journeys)):
+        return .send(.journeys(.contentJourneysUpdated(journeys)))
+
+      case .content(.loadFailed(.duasFailed)):
+        // Library currently has no error UI separate from isLoading; left as a
+        // no-op for now. Logged at ContentFeature level.
+        return .none
+
+      case .content(.loadFailed(.journeysFailed)):
+        return .send(.journeys(.contentJourneysFailed("Couldn't reach the network")))
+
+      case .content(.loadFailed(.categoriesFailed)):
         return .none
 
       // Retry from a child fans out to a real content refresh.
-      case .library(.retryTapped):
+      case .library(.retryTapped), .journeys(.refreshJourneys):
         return .send(.content(.refresh))
 
       case .content, .home, .library, .adkhar, .journeys, .settings, .auth:
