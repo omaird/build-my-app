@@ -410,10 +410,9 @@ final class AuthClientTests: XCTestCase {
       $0.user = expectedUser
     }
 
-    await store.receive(\.authSuccess) { _ in
-      // authSuccess sets user and isLoading, but both are already
-      // at their expected values from authResponse, so no state change
-    }
+    // authSuccess sets user and isLoading, but both are already at their
+    // expected values from authResponse, so no state change is expected
+    await store.receive(\.authSuccess)
   }
 
   @MainActor

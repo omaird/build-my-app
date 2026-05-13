@@ -212,11 +212,11 @@ final class SettingsFeatureTests: XCTestCase {
   }
 
   func testUnlinkAccountSuccess() async {
+    let googleAccount = LinkedAccount(id: "1", provider: .google, providerAccountId: "google-123")
+    let githubAccount = LinkedAccount(id: "2", provider: .github, providerAccountId: "github-123")
+
     var initialState = SettingsFeature.State()
-    initialState.linkedAccounts = [
-      LinkedAccount(id: "1", provider: .google, providerAccountId: "google-123"),
-      LinkedAccount(id: "2", provider: .github, providerAccountId: "github-123")
-    ]
+    initialState.linkedAccounts = [googleAccount, githubAccount]
 
     let store = TestStore(initialState: initialState) {
       SettingsFeature()
@@ -238,9 +238,7 @@ final class SettingsFeatureTests: XCTestCase {
     await store.receive(\.accountUnlinked) {
       $0.isUnlinkingAccount = nil
       $0.providerToUnlink = nil
-      $0.linkedAccounts = [
-        LinkedAccount(id: "2", provider: .github, providerAccountId: "github-123")
-      ]
+      $0.linkedAccounts = [githubAccount]
       $0.successMessage = "Google account unlinked"
     }
 
