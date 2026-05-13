@@ -48,7 +48,7 @@ test.describe('Journey subscription -> Daily Adkhar', () => {
     });
   });
 
-  test('subscribing to a journey surfaces its dua as a habit on /daily-adkhar', async ({
+  test('subscribing to a journey surfaces its dua as a habit on /adkhar', async ({
     page,
   }) => {
     await page.goto('/signin');
@@ -64,10 +64,10 @@ test.describe('Journey subscription -> Daily Adkhar', () => {
       'button:has-text("Start This Journey"), button:has-text("Add to My Journeys")'
     );
 
-    // The subscribe action navigates home; explicitly walk to daily-adkhar.
-    await page.goto('/daily-adkhar');
+    // The subscribe action navigates home; explicitly walk to the adkhar page.
+    await page.goto('/adkhar');
 
     // The seeded dua should appear as a habit in the morning slot.
-    await expect(page.getByText('Morning Dhikr')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('Morning Dhikr')).toBeVisible({ timeout: 20_000 });
   });
 });

@@ -10,8 +10,8 @@ export default async function globalSetup(config: FullConfig) {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   try {
-    for (const path of ["/", "/signin", "/journeys", "/library", "/daily-adkhar", "/admin/duas"]) {
-      await page.goto(`${baseURL}${path}`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    for (const path of ["/", "/signin", "/journeys", "/library", "/adkhar", "/admin/duas"]) {
+      await page.goto(`${baseURL}${path}`, { waitUntil: "networkidle", timeout: 60_000 });
     }
   } finally {
     await browser.close();

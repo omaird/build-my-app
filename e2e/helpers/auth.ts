@@ -38,24 +38,16 @@ export async function signInAsEmulatorUser(
 ): Promise<void> {
   await runSignInPopup(page, email, displayName);
 
-  // The post-signin handler calls `navigate('/')`, which on a cold dev server
-  // forces Vite to compile the HomePage chunk for the first time. That cold
-  // compile routinely costs 5-10s, on top of which the popup-to-parent
-  // postMessage hop occasionally drops on the first try in the suite. If the
-  // URL doesn't change within a reasonable window, reload /signin (which
-  // clears the page's stuck `socialLoading` flag) and re-drive the popup once
-  // — Vite is warm by then, so the retry typically completes in <2s.
-  try {
-    await page.waitForURL((url) => !url.pathname.includes('signin'), {
-      timeout: 25_000,
-    });
-  } catch {
-    await page.goto('/signin');
-    await runSignInPopup(page, email, displayName);
-    await page.waitForURL((url) => !url.pathname.includes('signin'), {
-      timeout: 25_000,
-    });
-  }
+  // Cold Vite dev server can take 10-20s to compile the HomePage chunk on the
+  // very first sign-in after a fresh boot, on top of the popup-to-parent
+  // postMessage hop. We pre-warm routes in global-setup, but lazy imports
+  // inside HomePage (framer-motion, etc.) still compile on first hit. Give
+  // the redirect a generous window so cold-start doesn't masquerade as a real
+  // failure. Retrying the popup doesn't help — Firebase Auth is mid-flight and
+  // re-clicking the Google button is a no-op while `socialLoading` is true.
+  await page.waitForURL((url) => !url.pathname.includes('signin'), {
+    timeout: 60_000,
+  });
 
   // Dismiss the first-run WelcomeModal so it doesn't intercept later clicks.
   await page.evaluate(() => {
