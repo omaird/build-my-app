@@ -17,9 +17,9 @@ final class ContentFeatureTests: XCTestCase {
     let store = TestStore(initialState: ContentFeature.State()) {
       ContentFeature()
     } withDependencies: {
-      $0.firestoreContentClient.fetchAllDuas = { mockDuas }
-      $0.firestoreContentClient.fetchAllJourneys = { [] }
-      $0.firestoreContentClient.fetchAllCategories = { [] }
+      $0.cachedContentClient.fetchAllDuas = { mockDuas }
+      $0.cachedContentClient.fetchAllJourneys = { [] }
+      $0.cachedContentClient.fetchAllCategories = { [] }
     }
     // Non-exhaustive: we only care about the eventual settled state.
     store.exhaustivity = .off
@@ -48,9 +48,9 @@ final class ContentFeatureTests: XCTestCase {
     let store = TestStore(initialState: ContentFeature.State()) {
       ContentFeature()
     } withDependencies: {
-      $0.firestoreContentClient.fetchAllDuas = { throw TestError() }
-      $0.firestoreContentClient.fetchAllJourneys = { [] }
-      $0.firestoreContentClient.fetchAllCategories = { [] }
+      $0.cachedContentClient.fetchAllDuas = { throw TestError() }
+      $0.cachedContentClient.fetchAllJourneys = { [] }
+      $0.cachedContentClient.fetchAllCategories = { [] }
     }
     store.exhaustivity = .off
 

@@ -20,9 +20,8 @@ private let logger = Logger(subsystem: "com.rizq.app", category: "ContentFeature
 ///    `isLoading` is cleared. The other two fetches still run independently.
 ///
 /// ## Dependency wiring
-/// Currently consumes `\.firestoreContentClient` directly. Task 5.4 (post-merge of the
-/// Step-5 parallel branches) will rewire this to `\.cachedContentClient` so reads go
-/// through the on-disk cache layer.
+/// Consumes `\.cachedContentClient` so reads go through a last-known-good UserDefaults
+/// cache layer that wraps `FirestoreContentClient`.
 @Reducer
 struct ContentFeature {
   // MARK: - State
@@ -71,9 +70,7 @@ struct ContentFeature {
 
   // MARK: - Dependencies
 
-  // NOTE: temporarily wired against firestoreContentClient. Task 5.4 (after the
-  // Step-5 parallel branches merge) will swap this to `\.cachedContentClient`.
-  @Dependency(\.firestoreContentClient) var content
+  @Dependency(\.cachedContentClient) var content
 
   // MARK: - Body
 
