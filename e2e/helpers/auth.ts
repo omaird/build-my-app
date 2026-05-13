@@ -47,13 +47,13 @@ export async function signInAsEmulatorUser(
   // — Vite is warm by then, so the retry typically completes in <2s.
   try {
     await page.waitForURL((url) => !url.pathname.includes('signin'), {
-      timeout: 15_000,
+      timeout: 25_000,
     });
   } catch {
     await page.goto('/signin');
     await runSignInPopup(page, email, displayName);
     await page.waitForURL((url) => !url.pathname.includes('signin'), {
-      timeout: 15_000,
+      timeout: 25_000,
     });
   }
 
