@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   collection,
+  doc,
   documentId,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -267,13 +269,12 @@ async function fetchJourneyWithDuasFirestore(
   if (!journeyId) return null;
   const db = getDb();
 
-  const snap = await getDocs(
-    query(collection(db, "journeys"), where("id", "==", journeyId))
-  );
-  if (snap.empty) return null;
+  // Doc ids in `journeys/` match the numeric primary key (see seed-firestore.cjs),
+  // so we can read by doc id directly instead of issuing a `where` query.
+  const snap = await getDoc(doc(db, "journeys", String(journeyId)));
+  if (!snap.exists()) return null;
 
-  const d = snap.docs[0];
-  const journey = mapFsJourneyToFrontend(d.id, d.data() as FsJourneyDoc);
+  const journey = mapFsJourneyToFrontend(snap.id, snap.data() as FsJourneyDoc);
   const duas = await fetchJourneyDuasForJourneyFirestore(journeyId);
   return { ...journey, duas };
 }
@@ -303,6 +304,8 @@ async function fetchJourneysWithDuasFirestore(
   const db = getDb();
 
   // 1. Fetch matching journeys (`in` query, chunked to 30).
+  // Use `documentId()` since doc ids in `journeys/` match the numeric PK
+  // (see seed-firestore.cjs) — cheaper and avoids needing an index on `id`.
   const uniqueIds = Array.from(new Set(journeyIds));
   const chunkSize = 30;
   const chunks: number[][] = [];
@@ -314,7 +317,14 @@ async function fetchJourneysWithDuasFirestore(
   await Promise.all(
     chunks.map(async (chunk) => {
       const snap = await getDocs(
-        query(collection(db, "journeys"), where("id", "in", chunk))
+        query(
+          collection(db, "journeys"),
+          where(
+            documentId(),
+            "in",
+            chunk.map((id) => String(id))
+          )
+        )
       );
       for (const d of snap.docs) {
         const data = d.data() as FsJourneyDoc;
@@ -329,6 +339,8 @@ async function fetchJourneysWithDuasFirestore(
   if (!journeyDocs.length) return [];
 
   // 2. Fetch all journey_duas for those journeys (chunked `in`).
+  // `journey_duas` docs have their own composite ids, so we must filter on the
+  // `journeyId` field (not docId).
   const allLinks: FsJourneyDuaDoc[] = [];
   await Promise.all(
     chunks.map(async (chunk) => {
