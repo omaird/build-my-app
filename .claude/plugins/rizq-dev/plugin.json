@@ -33,6 +33,11 @@
       "name": "debugger",
       "path": "${CLAUDE_PLUGIN_ROOT}/agents/debugger.md",
       "description": "Debug issues by tracing through components, hooks, database queries, and auth flows."
+    },
+    {
+      "name": "plan-item-implementer",
+      "path": "${CLAUDE_PLUGIN_ROOT}/agents/plan-item-implementer.md",
+      "description": "Implement one item from a RIZQ audit/execution plan doc end-to-end: read item spec, implement, verify with check-all.sh, commit, update plan-doc status marker. Use when draining items from any plan in docs/audit/*-execution-plan.md or docs/superpowers/plans/*.md — typically dispatched by the drain-plan skill, but also callable directly with a specific item number."
     }
   ],
   "skills": [
@@ -55,6 +60,11 @@
       "name": "auth-patterns",
       "path": "${CLAUDE_PLUGIN_ROOT}/skills/auth-patterns.md",
       "description": "Authentication patterns: Better Auth, protected routes, user profiles"
+    },
+    {
+      "name": "drain-plan",
+      "path": "${CLAUDE_PLUGIN_ROOT}/skills/drain-plan.md",
+      "description": "Drain items from a RIZQ audit/execution plan doc by dispatching plan-item-implementer subagents. Supports single-item, parallel-batch, and ralph-loop modes. Use when the user says 'drain the plan', 'run the audit plan', 'work through the M1 plan', or any phrasing that means execute items from a RIZQ plan doc. Args: plan-doc path; optional --mode={single|batch|loop}, --batch-size=N, --item=NN, --skip-verify-gates."
     }
   ],
   "commands": [
