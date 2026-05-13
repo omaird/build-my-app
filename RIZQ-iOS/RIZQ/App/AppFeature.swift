@@ -172,6 +172,21 @@ struct AppFeature {
       case .admin:
         return .none
 
+      // Forward ContentFeature loads down to child features. Each child gets a
+      // single setter action; this is the parent-forwarding pattern in lieu of
+      // children peeking at sibling state.
+      case let .content(.duasLoaded(duas)):
+        return .send(.library(.contentDuasUpdated(duas)))
+
+      case let .content(.loadFailed(.duasFailed)):
+        // Children stay in their loading state; surfacing errors per-feature
+        // can come later if needed. Logged at ContentFeature level.
+        return .none
+
+      // Retry from a child fans out to a real content refresh.
+      case .library(.retryTapped):
+        return .send(.content(.refresh))
+
       case .content, .home, .library, .adkhar, .journeys, .settings, .auth:
         return .none
       }

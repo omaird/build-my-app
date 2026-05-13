@@ -704,21 +704,21 @@ final class PracticeFeatureTests: XCTestCase {
 final class LibraryFeatureTests: XCTestCase {
 
   @MainActor
-  func testOnAppearLoadsData() async {
+  func testOnAppearShowsLoadingUntilParentPushesContent() async {
+    // LibraryFeature no longer fetches; AppFeature (the parent) pushes content
+    // via `.contentDuasUpdated` once ContentFeature settles.
     let store = TestStore(initialState: LibraryFeature.State()) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchAllDuas = { Dua.demoData }
     }
 
     await store.send(.onAppear) {
       $0.isLoading = true
     }
 
-    await store.receive(\.duasLoaded) {
+    await store.send(.contentDuasUpdated(Dua.demoData)) {
       $0.isLoading = false
-      $0.duas = Dua.demoData
       $0.allDuas = Dua.demoData
+      $0.duas = Dua.demoData
     }
   }
 
@@ -732,26 +732,14 @@ final class LibraryFeatureTests: XCTestCase {
 
     let store = TestStore(initialState: state) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchDuasByCategory = { slug in
-        switch slug {
-        case .morning: return morningDuas
-        default: return []
-        }
-      }
     }
 
+    // Category filter is now an in-memory operation; no fetch + no isLoading flip.
     await store.send(.categorySelected(.morning)) {
       $0.selectedCategory = .morning
-      $0.isLoading = true
-    }
-
-    await store.receive(\.categoryDuasLoaded) {
-      $0.isLoading = false
       $0.duas = morningDuas
     }
 
-    // Verify filtering works - morning category has categoryId 1
     let results = store.state.filteredDuas
     XCTAssertTrue(results.allSatisfy { $0.categoryId == 1 })
 
@@ -760,7 +748,6 @@ final class LibraryFeatureTests: XCTestCase {
       $0.duas = Dua.demoData
     }
 
-    // All duas should be visible
     XCTAssertEqual(store.state.filteredDuas.count, Dua.demoData.count)
   }
 
@@ -812,19 +799,11 @@ final class LibraryFeatureTests: XCTestCase {
 
     let store = TestStore(initialState: state) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchDuasByCategory = { _ in morningDuas }
     }
 
-    // Filter by category first (morning = categoryId 1)
+    // Filter by category first (morning = categoryId 1) — now an in-memory op.
     await store.send(.categorySelected(.morning)) {
       $0.selectedCategory = .morning
-      $0.isLoading = true
-    }
-
-    // Must receive the category action before sending search
-    await store.receive(\.categoryDuasLoaded) {
-      $0.isLoading = false
       $0.duas = morningDuas
     }
 
