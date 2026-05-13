@@ -14,10 +14,11 @@ private let logger = Logger(subsystem: "com.rizq.app", category: "ContentFeature
 /// ## Lifecycle
 /// 1. Parent sends `.task` once on app launch.
 /// 2. Reducer fires three parallel `.run` effects (duas, journeys, categories).
-/// 3. Each fetch lands as `.duasLoaded`, `.journeysLoaded`, or `.categoriesLoaded`.
-/// 4. Receipt of `.categoriesLoaded` flips `isLoaded = true, isLoading = false`.
-/// 5. On any fetch error, `.loadFailed(.xxxFailed)` is emitted; `error` is set and
-///    `isLoading` is cleared. The other two fetches still run independently.
+/// 3. Each fetch lands as `.duasLoaded`, `.journeysLoaded`, or `.categoriesLoaded`,
+///    OR — on error — as `.loadFailed(.xxxFailed)`. Either counts as "settled".
+/// 4. Once all three have settled, `isLoaded = true, isLoading = false`. Consumers
+///    should also check `error` to know if data is partial (e.g. duas failed).
+/// 5. Fetches run independently — one failing does not cancel the other two.
 ///
 /// ## Dependency wiring
 /// Consumes `\.cachedContentClient` so reads go through a last-known-good UserDefaults
@@ -34,12 +35,21 @@ struct ContentFeature {
     var journeys: [Journey] = []
     /// All categories loaded from the content source.
     var categories: [DuaCategory] = []
-    /// True once all three content collections have arrived at least once.
+    /// True once ALL THREE fetches have settled (success or failure). Consumers
+    /// should also inspect `error` — `isLoaded` can be true with empty `duas` if
+    /// the duas fetch failed.
     var isLoaded: Bool = false
-    /// True while a fetch cycle is in flight.
+    /// True while at least one fetch in the current cycle is still in flight.
     var isLoading: Bool = false
-    /// Last fetch error encountered (per content type). Nil when no error.
+    /// Last fetch error encountered. Nil when no error in the current cycle.
     var error: ContentError?
+
+    // Per-type "settled" flags driving `isLoaded` / `isLoading`. Internal — exposed
+    // so tests can assert against them if needed, but consumers should read
+    // `isLoaded` / `isLoading` instead.
+    var duasSettled: Bool = false
+    var journeysSettled: Bool = false
+    var categoriesSettled: Bool = false
   }
 
   // MARK: - Errors
@@ -79,7 +89,11 @@ struct ContentFeature {
       switch action {
       case .task, .refresh:
         state.isLoading = true
+        state.isLoaded = false
         state.error = nil
+        state.duasSettled = false
+        state.journeysSettled = false
+        state.categoriesSettled = false
         logger.debug("Starting content fetch (task/refresh)")
         return .merge(
           .run { send in
@@ -113,23 +127,40 @@ struct ContentFeature {
 
       case let .duasLoaded(duas):
         state.duas = duas
+        state.duasSettled = true
+        Self.flipIfAllSettled(&state)
         return .none
 
       case let .journeysLoaded(journeys):
         state.journeys = journeys
+        state.journeysSettled = true
+        Self.flipIfAllSettled(&state)
         return .none
 
       case let .categoriesLoaded(categories):
         state.categories = categories
-        state.isLoaded = true
-        state.isLoading = false
+        state.categoriesSettled = true
+        Self.flipIfAllSettled(&state)
         return .none
 
       case let .loadFailed(err):
         state.error = err
-        state.isLoading = false
+        switch err {
+        case .duasFailed:       state.duasSettled = true
+        case .journeysFailed:   state.journeysSettled = true
+        case .categoriesFailed: state.categoriesSettled = true
+        }
+        Self.flipIfAllSettled(&state)
         return .none
       }
+    }
+  }
+
+  /// Flip `isLoaded`/`isLoading` when all three fetches have settled (success or fail).
+  private static func flipIfAllSettled(_ state: inout State) {
+    if state.duasSettled && state.journeysSettled && state.categoriesSettled {
+      state.isLoaded = true
+      state.isLoading = false
     }
   }
 }

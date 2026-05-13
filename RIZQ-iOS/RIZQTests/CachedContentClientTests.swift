@@ -76,13 +76,20 @@ final class CachedContentClientTests: XCTestCase {
     XCTAssertEqual(result, mockDuas)
   }
 
-  func testNetworkFailureWithEmptyCacheReturnsEmptyArray() async throws {
-    struct NetErr: Error {}
+  func testNetworkFailureWithEmptyCacheRethrows() async {
+    struct NetErr: Error, Equatable {}
     var underlying = FirestoreContentClient.testValue
     underlying.fetchAllDuas = { throw NetErr() }
     let cached = CachedContentClient(wrapping: underlying)
 
-    let result = try await cached.fetchAllDuas()
-    XCTAssertEqual(result, [])
+    do {
+      _ = try await cached.fetchAllDuas()
+      XCTFail("Expected rethrow when both network and cache are empty")
+    } catch is NetErr {
+      // Expected — the original network error surfaces so callers can show
+      // a real error state instead of an unexplained empty list.
+    } catch {
+      XCTFail("Expected NetErr, got \(error)")
+    }
   }
 }

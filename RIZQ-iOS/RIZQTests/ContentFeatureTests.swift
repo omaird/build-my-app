@@ -63,8 +63,54 @@ final class ContentFeatureTests: XCTestCase {
       $0.duas = []
       $0.journeys = []
       $0.categories = []
-      // categoriesLoaded fires after loadFailed and sets isLoaded=true.
+      // All three fetches settled (one failure + two successes), so isLoaded is true
+      // but `error` is set — consumers must check both.
       $0.isLoaded = true
+      $0.duasSettled = true
+      $0.journeysSettled = true
+      $0.categoriesSettled = true
+    }
+  }
+
+  // MARK: - Partial-loading state
+
+  /// `.categoriesLoaded` alone must NOT flip `isLoaded`. Guards against the prior
+  /// bug where receipt of categories was treated as "all done".
+  func testCategoriesLoadedAloneDoesNotMarkLoaded() async {
+    var initialState = ContentFeature.State()
+    initialState.isLoading = true  // simulate mid-fetch
+
+    let store = TestStore(initialState: initialState) {
+      ContentFeature()
+    }
+
+    await store.send(.categoriesLoaded([])) { state in
+      state.categories = []
+      state.categoriesSettled = true
+      // isLoaded MUST remain false — duas & journeys haven't settled yet.
+      state.isLoaded = false
+      state.isLoading = true
+    }
+  }
+
+  /// Once all three settled flags are true (mixed success + failure), `isLoaded`
+  /// flips true and `isLoading` flips false in the same step.
+  func testAllThreeSettledFlipsIsLoaded() async {
+    var initialState = ContentFeature.State()
+    initialState.isLoading = true
+    initialState.duasSettled = true
+    initialState.journeysSettled = true
+    // Only categories outstanding.
+
+    let store = TestStore(initialState: initialState) {
+      ContentFeature()
+    }
+
+    await store.send(.categoriesLoaded([])) { state in
+      state.categories = []
+      state.categoriesSettled = true
+      state.isLoaded = true
+      state.isLoading = false
     }
   }
 }

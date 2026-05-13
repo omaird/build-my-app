@@ -9,7 +9,9 @@ private let logger = Logger(subsystem: "com.rizq.app", category: "CachedContentC
 /// UserDefaults cache. On each fetch:
 /// 1. Attempt the network call via the underlying client.
 /// 2. On success: JSON-encode the result and write to UserDefaults under the cache key.
-/// 3. On failure: read the cached value and return it. If no cache exists, return `[]`.
+/// 3. On failure: read the cached value and return it.
+/// 4. On failure with no cached value: rethrow the original network error so callers
+///    can surface the failure (e.g. show an error state on first launch with no network).
 ///
 /// Only the three list-fetch methods are exposed here. The remaining
 /// `FirestoreContentClient` methods (`fetchDuasByCategory`, `fetchJourneyDuas`) remain
@@ -52,8 +54,9 @@ struct CachedContentClient: Sendable {
 
   /// Build a fetch closure that tries `fetch()` and, on failure, falls back to the
   /// JSON-encoded last-known-good value in UserDefaults under `key`. On success the
-  /// result is written back to the cache. On both network failure and absent/corrupt
-  /// cache an empty array is returned.
+  /// result is written back to the cache. If both the network call AND the cache read
+  /// fail (e.g. first launch with no network), the original network error is rethrown
+  /// so callers can surface a real error state instead of silently showing empty data.
   private static func cachedFetch<T: Codable & Sendable>(
     key: String,
     fetch: @escaping @Sendable () async throws -> [T]
@@ -71,7 +74,8 @@ struct CachedContentClient: Sendable {
            let cached = try? makeDecoder().decode([T].self, from: data) {
           return cached
         }
-        return []
+        // No cache available — rethrow so callers can surface the failure.
+        throw error
       }
     }
   }
