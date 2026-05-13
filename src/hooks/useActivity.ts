@@ -5,9 +5,6 @@ import {
   doc,
   getDocs,
   increment,
-  limit,
-  orderBy,
-  query,
   serverTimestamp,
   setDoc,
   Timestamp,
@@ -40,15 +37,15 @@ async function fetchActivitiesFromFirestore(
   userId: string
 ): Promise<DailyActivity[]> {
   const db = getDb();
-  // Document IDs are `YYYY-MM-DD`, so __name__ desc = newest first.
-  const snap = await getDocs(
-    query(
-      collection(db, "user_activity", userId, "dates"),
-      orderBy("__name__", "desc"),
-      limit(30)
-    )
-  );
-  return snap.docs.map((d) => {
+  // Document IDs are `YYYY-MM-DD`. Firestore (and the emulator in particular)
+  // rejects `orderBy(documentId(), 'desc')` without a backing index, so we
+  // fetch unsorted and sort client-side. The collection is per-user and
+  // bounded by user lifetime, so this is cheap.
+  const snap = await getDocs(collection(db, "user_activity", userId, "dates"));
+  const sortedDocs = [...snap.docs]
+    .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+    .slice(0, 30);
+  return sortedDocs.map((d) => {
     const data = d.data() as { duasCompleted?: unknown; xpEarned?: unknown };
     // iOS writes `duasCompleted` as `[Int]`. Coerce each element to string for
     // the TS frontend type (which keeps the legacy `string[]` shape so callers

@@ -4,7 +4,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  limit as fsLimit,
   orderBy,
   query as fsQuery,
   serverTimestamp,
@@ -193,15 +192,16 @@ export function useAdminUserActivity(userId: string | null, limit: number = 30) 
 
       if (isFirestoreCutoverEnabled()) {
         const db = getDb();
-        // user_activity/{userId}/dates/{date}
+        // user_activity/{userId}/dates/{date}. Document IDs are `YYYY-MM-DD`.
+        // Firestore (and the emulator) rejects `orderBy(documentId(), 'desc')`
+        // without a backing index, so fetch unsorted and sort client-side.
         const snap = await getDocs(
-          fsQuery(
-            collection(db, 'user_activity', userId, 'dates'),
-            orderBy('__name__', 'desc'),
-            fsLimit(limit),
-          ),
+          collection(db, 'user_activity', userId, 'dates'),
         );
-        return snap.docs.map((d) => {
+        const sortedDocs = [...snap.docs]
+          .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+          .slice(0, limit);
+        return sortedDocs.map((d) => {
           const data = d.data() as FirestoreActivityDoc;
           return {
             date: d.id,

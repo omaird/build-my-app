@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDb } from '@/lib/firebase';
 
@@ -38,15 +38,16 @@ export function useFirestoreWeekActivity() {
       // `enabled: !!user` guarantees user is set when queryFn runs.
       const uid = user!.id;
       const db = getDb();
-      const snap = await getDocs(
-        query(
-          collection(db, 'user_activity', uid, 'dates'),
-          orderBy('__name__', 'desc'),
-          limit(7)
-        )
-      );
+      // Document IDs are `YYYY-MM-DD`. The emulator rejects
+      // `orderBy(documentId(), 'desc')` without a backing index, so we fetch
+      // unsorted and sort client-side. The collection is per-user; sub-10 docs
+      // for the 7-day window plus older history.
+      const snap = await getDocs(collection(db, 'user_activity', uid, 'dates'));
+      const sortedDocs = [...snap.docs]
+        .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .slice(0, 7);
 
-      return snap.docs.map((d) => {
+      return sortedDocs.map((d) => {
         const data = d.data() as {
           duasCompleted?: unknown;
           xpEarned?: unknown;
