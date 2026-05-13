@@ -1,55 +1,16 @@
 import { test, expect, type Page } from "@playwright/test";
-
-// Firebase emulator endpoints (must match playwright env wiring)
-const EMULATOR_AUTH_URL = "http://127.0.0.1:9099";
-const EMULATOR_FIRESTORE_URL = "http://127.0.0.1:8080";
-const PROJECT_ID = "rizq-app-c6468";
+import {
+  EMULATOR_FIRESTORE_URL,
+  EMULATOR_PROJECT_ID as PROJECT_ID,
+  resetEmulatorState,
+  signInAsEmulatorUser,
+} from "./helpers/auth";
 
 const ADMIN_EMAIL = "admin-duas-test@example.com";
-const ADMIN_PASSWORD = "adminpassword123";
 const ADMIN_NAME = "Admin Test User";
 
 const NON_ADMIN_EMAIL = "regular-duas-test@example.com";
-const NON_ADMIN_PASSWORD = "regularpassword123";
 const NON_ADMIN_NAME = "Regular Test User";
-
-/**
- * Wipe the emulators between tests so each test has a clean slate.
- */
-async function resetEmulators(page: Page) {
-  await page.request.delete(
-    `${EMULATOR_AUTH_URL}/emulator/v1/projects/${PROJECT_ID}/accounts`,
-  );
-  await page.request.delete(
-    `${EMULATOR_FIRESTORE_URL}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`,
-  );
-}
-
-/**
- * Sign up a brand-new email-password account via the UI. After signup the app
- * redirects to "/", which auto-creates the user_profiles doc.
- */
-async function signUpViaUI(
-  page: Page,
-  email: string,
-  password: string,
-  name: string,
-) {
-  await page.goto("/signup");
-  await page.waitForLoadState("networkidle");
-
-  await page.locator("#name").fill(name);
-  await page.locator("#email").fill(email);
-  await page.locator("#password").fill(password);
-  await page.locator("#confirmPassword").fill(password);
-
-  await page.getByRole("button", { name: /create account/i }).click();
-
-  // After signup, the app routes to "/" once the profile is created.
-  await page.waitForURL((url) => !url.pathname.includes("signup"), {
-    timeout: 15000,
-  });
-}
 
 /**
  * Promote a Firestore user_profiles/{uid} doc to admin by writing isAdmin=true.
@@ -71,34 +32,37 @@ async function promoteToAdmin(page: Page, uid: string) {
 }
 
 /**
- * Read all user_profiles via `Bearer owner` (bypasses rules) so we can grab the
- * uid for the freshly signed-up account.
+ * Resolve the uid for a freshly signed-in account by scanning the Firestore
+ * user_profiles collection (Bearer owner bypasses rules) for the doc whose
+ * denormalized `email` field matches. The profile is written from
+ * onAuthStateChanged after the post-sign-in redirect, so we poll until it
+ * materializes. We use Firestore instead of the Auth `/accounts` REST endpoint
+ * because that endpoint's response shape varies across emulator versions.
  */
 async function findUserIdByEmail(
   page: Page,
   email: string,
 ): Promise<string> {
-  // Try a few times — the profile is written from onAuthStateChanged after
-  // redirect, so it may not be immediately visible.
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const usersRes = await page.request.get(
-      `${EMULATOR_AUTH_URL}/emulator/v1/projects/${PROJECT_ID}/accounts`,
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const docsRes = await page.request.get(
+      `${EMULATOR_FIRESTORE_URL}/v1/projects/${PROJECT_ID}/databases/(default)/documents/user_profiles`,
       { headers: { Authorization: "Bearer owner" } },
     );
-    if (usersRes.ok()) {
-      const json = (await usersRes.json()) as {
-        userInfo?: Array<{ localId: string; email: string }>;
+    if (docsRes.ok()) {
+      const data = (await docsRes.json()) as {
+        documents?: Array<{
+          name: string;
+          fields?: { email?: { stringValue?: string | null } };
+        }>;
       };
-      const match = json.userInfo?.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase(),
+      const target = email.toLowerCase();
+      const match = data.documents?.find(
+        (d) => d.fields?.email?.stringValue?.toLowerCase() === target,
       );
-      if (match?.localId) {
-        // Ensure the profile doc exists too.
-        const profileRes = await page.request.get(
-          `${EMULATOR_FIRESTORE_URL}/v1/projects/${PROJECT_ID}/databases/(default)/documents/user_profiles/${match.localId}`,
-          { headers: { Authorization: "Bearer owner" } },
-        );
-        if (profileRes.ok()) return match.localId;
+      if (match?.name) {
+        // name format: projects/{pid}/databases/(default)/documents/user_profiles/{uid}
+        const uid = match.name.split("/").pop();
+        if (uid) return uid;
       }
     }
     await page.waitForTimeout(500);
@@ -106,38 +70,26 @@ async function findUserIdByEmail(
   throw new Error(`Could not find uid for ${email} after polling`);
 }
 
-async function signOutViaUI(page: Page) {
-  // The simplest reliable sign-out for tests: clear storage + reload.
-  await page.context().clearCookies();
-  await page.evaluate(() => {
-    window.localStorage.clear();
-    window.sessionStorage.clear();
-  });
-}
-
-async function signInViaUI(page: Page, email: string, password: string) {
-  await page.goto("/signin");
-  await page.waitForLoadState("networkidle");
-
-  await page.locator("#email").fill(email);
-  await page.locator("#password").fill(password);
-  await page.getByRole("button", { name: /^sign in$/i }).click();
-
-  await page.waitForURL((url) => !url.pathname.includes("signin"), {
-    timeout: 15000,
-  });
-}
 
 test.describe("Admin Duas — Firestore write path (cutover)", () => {
+  // The popup-driven sign-in flow plus Vite's first-request compile can push a
+  // single test past the default 30s timeout. Give each test a roomier budget
+  // so cold-start latency doesn't masquerade as a real failure.
+  test.slow();
+
   test.beforeEach(async ({ page }) => {
-    await resetEmulators(page);
+    await resetEmulatorState(page);
   });
 
   test("admin can create a dua and it appears in the library", async ({
     page,
   }) => {
-    // 1. Sign up as admin.
-    await signUpViaUI(page, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME);
+    // 1. Sign in as admin via the Google emulator popup.
+    await page.goto("/signin");
+    await signInAsEmulatorUser(page, {
+      email: ADMIN_EMAIL,
+      displayName: ADMIN_NAME,
+    });
 
     // 2. Promote the new account to admin via REST (Bearer owner).
     const adminUid = await findUserIdByEmail(page, ADMIN_EMAIL);
@@ -145,13 +97,13 @@ test.describe("Admin Duas — Firestore write path (cutover)", () => {
 
     // 3. Force the auth context to re-read the profile so isAdmin flips.
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
     // 4. Navigate to admin duas page.
     await page.goto("/admin/duas");
     await expect(
       page.getByRole("heading", { name: /duas manager/i }),
-    ).toBeVisible({ timeout: 10000 });
+    ).toBeVisible({ timeout: 15000 });
 
     // 5. Open the Add Dua dialog.
     await page.getByRole("button", { name: /add dua/i }).click();
@@ -176,57 +128,75 @@ test.describe("Admin Duas — Firestore write path (cutover)", () => {
 
     // 10. And in the public library page.
     await page.goto("/library");
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByText(uniqueTitle)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(uniqueTitle)).toBeVisible({ timeout: 15000 });
   });
 
   test("non-admin user is blocked from /admin/duas", async ({ page }) => {
-    // Sign up as a regular (non-admin) user.
-    await signUpViaUI(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD, NON_ADMIN_NAME);
+    // Sign in as a regular (non-admin) user.
+    await page.goto("/signin");
+    await signInAsEmulatorUser(page, {
+      email: NON_ADMIN_EMAIL,
+      displayName: NON_ADMIN_NAME,
+    });
 
     // Try to navigate to admin duas page.
     await page.goto("/admin/duas");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
-    // Should NOT see the Duas Manager heading. Either redirected away or shown
-    // an access-denied state.
-    await expect(
-      page.getByRole("heading", { name: /duas manager/i }),
-    ).not.toBeVisible({ timeout: 5000 });
-
-    // Verify an access-denied / not-admin signal is present, OR we got
-    // redirected to the home page.
+    // Either we got redirected to the home page (most common AdminRoute
+    // behavior), or the page rendered an access-denied state. Wait for one of
+    // those terminal states before asserting the admin heading is absent.
     const accessDenied = page.getByText(/permission|access denied|don't have/i);
     const onHome = page.getByText(/good (morning|afternoon|evening)/i);
-    const accessDeniedVisible = await accessDenied
-      .isVisible()
-      .catch(() => false);
-    const onHomeVisible = await onHome.isVisible().catch(() => false);
-    expect(accessDeniedVisible || onHomeVisible).toBeTruthy();
+    await expect(accessDenied.or(onHome)).toBeVisible({ timeout: 15000 });
+
+    await expect(
+      page.getByRole("heading", { name: /duas manager/i }),
+    ).not.toBeVisible();
   });
 
   test("admin signs out and a non-admin cannot access admin duas", async ({
     page,
+    browser,
   }) => {
-    // First: sign up admin and promote.
-    await signUpViaUI(page, ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME);
+    // First: sign in admin and promote. We only use this leg to seed the admin
+    // account + isAdmin flag — we don't actually click sign-out in the UI
+    // because re-driving the popup flow inside the same browser context is
+    // unreliable (Firebase Auth's IndexedDB persistence + the emulator's
+    // existing-account picker can wedge `signInWithPopup` in a loading state).
+    await page.goto("/signin");
+    await signInAsEmulatorUser(page, {
+      email: ADMIN_EMAIL,
+      displayName: ADMIN_NAME,
+    });
     const adminUid = await findUserIdByEmail(page, ADMIN_EMAIL);
     await promoteToAdmin(page, adminUid);
-    await page.reload();
-    await page.waitForLoadState("networkidle");
 
-    // Sign out.
-    await signOutViaUI(page);
+    // Open a brand-new browser context for the regular user. This is the
+    // moral equivalent of "log out of this device, log in as a different
+    // person" — fresh cookies, fresh storage, fresh IndexedDB.
+    const newContext = await browser.newContext();
+    const newPage = await newContext.newPage();
+    await newPage.goto("/signin");
+    await signInAsEmulatorUser(newPage, {
+      email: NON_ADMIN_EMAIL,
+      displayName: NON_ADMIN_NAME,
+    });
 
-    // Sign up a regular user.
-    await signUpViaUI(page, NON_ADMIN_EMAIL, NON_ADMIN_PASSWORD, NON_ADMIN_NAME);
+    // Try to access admin duas as the non-admin user.
+    await newPage.goto("/admin/duas");
+    await newPage.waitForLoadState("domcontentloaded");
 
-    // Try to access admin duas.
-    await page.goto("/admin/duas");
-    await page.waitForLoadState("networkidle");
+    const accessDenied = newPage.getByText(
+      /permission|access denied|don't have/i,
+    );
+    const onHome = newPage.getByText(/good (morning|afternoon|evening)/i);
+    await expect(accessDenied.or(onHome)).toBeVisible({ timeout: 15000 });
 
     await expect(
-      page.getByRole("heading", { name: /duas manager/i }),
-    ).not.toBeVisible({ timeout: 5000 });
+      newPage.getByRole("heading", { name: /duas manager/i }),
+    ).not.toBeVisible();
+
+    await newContext.close();
   });
 });

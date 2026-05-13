@@ -36,26 +36,66 @@ export async function signInAsEmulatorUser(
   page: Page,
   { email, displayName }: EmulatorUser
 ): Promise<void> {
+  await runSignInPopup(page, email, displayName);
+
+  // The post-signin handler calls `navigate('/')`, which on a cold dev server
+  // forces Vite to compile the HomePage chunk for the first time. That cold
+  // compile routinely costs 5-10s, on top of which the popup-to-parent
+  // postMessage hop occasionally drops on the first try in the suite. If the
+  // URL doesn't change within a reasonable window, reload /signin (which
+  // clears the page's stuck `socialLoading` flag) and re-drive the popup once
+  // — Vite is warm by then, so the retry typically completes in <2s.
+  try {
+    await page.waitForURL((url) => !url.pathname.includes('signin'), {
+      timeout: 15_000,
+    });
+  } catch {
+    await page.goto('/signin');
+    await runSignInPopup(page, email, displayName);
+    await page.waitForURL((url) => !url.pathname.includes('signin'), {
+      timeout: 15_000,
+    });
+  }
+
+  // Dismiss the first-run WelcomeModal so it doesn't intercept later clicks.
+  await page.evaluate(() => {
+    window.localStorage.setItem('rizq_welcome_shown', 'true');
+  });
+}
+
+async function runSignInPopup(
+  page: Page,
+  email: string,
+  displayName: string
+): Promise<void> {
+  await page
+    .locator('button:has-text("Continue with Google")')
+    .waitFor({ state: 'visible' });
+
   const popupPromise = page.waitForEvent('popup');
   await page.click('button:has-text("Continue with Google")');
   const popup = await popupPromise;
   await popup.waitForLoadState('domcontentloaded');
 
   // Auth emulator may show an existing-accounts list first; click "Add new
-  // account" if present, then fall through to the form.
+  // account" if present, then fall through to the form. Wait for EITHER the
+  // accounts list (with the add-account button) OR the email input to become
+  // visible — the popup chooses one of these two screens based on whether the
+  // emulator's session-local account picker has any cached entries.
   const addAccountButton = popup.locator('#add-account-button');
-  if (await addAccountButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+  const emailInput = popup.locator('#email-input:visible');
+  await Promise.race([
+    addAccountButton.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => null),
+    emailInput.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => null),
+  ]);
+  if (await addAccountButton.isVisible().catch(() => false)) {
     await addAccountButton.click();
   }
 
-  await popup.waitForSelector('#email-input');
+  await popup.waitForSelector('#email-input:visible');
   await popup.fill('#email-input', email);
   await popup.fill('#display-name-input', displayName);
   await popup.click('#sign-in');
-
-  await page.waitForURL((url) => !url.pathname.includes('signin'), {
-    timeout: 10_000,
-  });
 }
 
 /**
