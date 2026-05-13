@@ -51,11 +51,12 @@ export function useFirestoreWeekActivity() {
           duasCompleted?: unknown;
           xpEarned?: unknown;
         };
+        // iOS writes `duasCompleted` as `[Int]`. Coerce each element to string
+        // for the TS frontend type so cross-device reads stay consistent.
+        const raw = Array.isArray(data.duasCompleted) ? data.duasCompleted : [];
         return {
           date: d.id,
-          duasCompleted: Array.isArray(data.duasCompleted)
-            ? (data.duasCompleted as string[])
-            : [],
+          duasCompleted: raw.map((v) => String(v)),
           xpEarned: typeof data.xpEarned === 'number' ? data.xpEarned : 0,
         };
       });

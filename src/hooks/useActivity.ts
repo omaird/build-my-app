@@ -3,7 +3,6 @@ import {
   arrayUnion,
   collection,
   doc,
-  getDoc,
   getDocs,
   increment,
   limit,
@@ -11,6 +10,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSql } from "@/lib/db";
@@ -50,9 +50,12 @@ async function fetchActivitiesFromFirestore(
   );
   return snap.docs.map((d) => {
     const data = d.data() as { duasCompleted?: unknown; xpEarned?: unknown };
-    const duasCompleted = Array.isArray(data.duasCompleted)
-      ? (data.duasCompleted as string[])
-      : [];
+    // iOS writes `duasCompleted` as `[Int]`. Coerce each element to string for
+    // the TS frontend type (which keeps the legacy `string[]` shape so callers
+    // don't have to change). Tolerate string entries too in case legacy/test
+    // data exists.
+    const raw = Array.isArray(data.duasCompleted) ? data.duasCompleted : [];
+    const duasCompleted = raw.map((v) => String(v));
     const xpEarned = typeof data.xpEarned === "number" ? data.xpEarned : 0;
     return {
       date: d.id,
@@ -69,6 +72,12 @@ async function writeActivityToFirestore(
   duaId: string,
   xpEarned: number
 ): Promise<void> {
+  // iOS reads `duasCompleted` as `[Int]`. Coerce at the firestore boundary so
+  // web-written entries are visible to iOS readers.
+  const numericDuaId = Number(duaId);
+  if (!Number.isInteger(numericDuaId)) {
+    throw new Error(`Invalid duaId: ${duaId} (not an integer)`);
+  }
   const db = getDb();
   const ref = doc(db, "user_activity", userId, "dates", date);
   // Merge upsert: arrayUnion is idempotent (won't double-count a duaId).
@@ -78,12 +87,32 @@ async function writeActivityToFirestore(
   await setDoc(
     ref,
     {
-      duasCompleted: arrayUnion(duaId),
+      duasCompleted: arrayUnion(numericDuaId),
       xpEarned: increment(xpEarned),
       updatedAt: serverTimestamp(),
     },
     { merge: true }
   );
+}
+
+/**
+ * Coerce a Firestore `lastCompleted` value to a `YYYY-MM-DD` string for the
+ * TS frontend type. iOS writes Firestore `Timestamp`; legacy/test data may be
+ * a plain string or `Date`. Returns `null` for missing/unrecognised shapes.
+ */
+function lastCompletedToDateString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    // Legacy or test-seeded data: split off any time component.
+    return value.split("T")[0];
+  }
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString().split("T")[0];
+  }
+  if (value instanceof Date) {
+    return value.toISOString().split("T")[0];
+  }
+  return null;
 }
 
 async function fetchProgressFromFirestore(
@@ -98,54 +127,43 @@ async function fetchProgressFromFirestore(
       lastCompleted?: unknown;
     };
     return {
-      // Prefer the explicit field if present; fall back to the doc ID, since
-      // iOS writes both shapes.
-      duaId:
-        typeof data.duaId === "string"
-          ? data.duaId
-          : typeof data.duaId === "number"
-            ? String(data.duaId)
-            : d.id,
+      // iOS writes `duaId` as `Int` and uses `String(duaId)` for the doc ID.
+      // Prefer the explicit field, fall back to the doc ID. Always return a
+      // string to match the legacy frontend type.
+      duaId: data.duaId != null ? String(data.duaId) : d.id,
       completedCount:
         typeof data.completedCount === "number" ? data.completedCount : 0,
-      lastCompleted:
-        typeof data.lastCompleted === "string" ? data.lastCompleted : null,
+      lastCompleted: lastCompletedToDateString(data.lastCompleted),
     };
   });
 }
 
 async function writeProgressToFirestore(
   userId: string,
-  duaId: string,
-  today: string
+  duaId: string
 ): Promise<void> {
-  const db = getDb();
-  const ref = doc(db, "user_progress", userId, "duas", duaId);
-  // Read-then-write so we can keep `completedCount` monotonically increasing
-  // without depending on the doc already existing. `increment(1)` would work
-  // for an existing doc but Firestore Web SDK's `increment` initialises to
-  // the delta when the field is missing — which is fine — but we also need
-  // to set `duaId` on first write, so use a merge upsert.
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    await setDoc(
-      ref,
-      {
-        completedCount: increment(1),
-        lastCompleted: today,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-  } else {
-    await setDoc(ref, {
-      duaId,
-      completedCount: 1,
-      lastCompleted: today,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+  // iOS stores `duaId` as `Int` and uses `String(duaId)` for the doc ID.
+  // Coerce at the firestore boundary so cross-device reads stay consistent.
+  const numericDuaId = Number(duaId);
+  if (!Number.isInteger(numericDuaId)) {
+    throw new Error(`Invalid duaId: ${duaId} (not an integer)`);
   }
+  const db = getDb();
+  const ref = doc(db, "user_progress", userId, "duas", String(numericDuaId));
+  // Single merge upsert: `increment(1)` initialises a missing field to the
+  // delta, and `duaId` is set on first write and harmlessly re-set on
+  // subsequent merges. Atomic + idempotent — replaces the prior
+  // read-then-write branch.
+  await setDoc(
+    ref,
+    {
+      duaId: numericDuaId,
+      completedCount: increment(1),
+      lastCompleted: Timestamp.now(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +391,7 @@ export function useUserProgress() {
 
       try {
         if (isFirestoreCutoverEnabled()) {
-          await writeProgressToFirestore(user.id, duaId, today);
+          await writeProgressToFirestore(user.id, duaId);
         } else {
           const sql = getSql();
           await sql`
