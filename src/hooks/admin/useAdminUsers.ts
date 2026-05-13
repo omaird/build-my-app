@@ -1,5 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit as fsLimit,
+  orderBy,
+  query as fsQuery,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+} from 'firebase/firestore';
 import { getSql } from '@/lib/db';
+import { getDb, isFirestoreCutoverEnabled } from '@/lib/firebase';
 import type { AdminUser, AdminUserRow } from '@/types/admin';
 
 // =============================================================================
@@ -22,6 +35,48 @@ function mapDbUserToAdmin(row: AdminUserRow): AdminUser {
   };
 }
 
+interface FirestoreUserProfileDoc {
+  displayName?: string | null;
+  streak?: number;
+  totalXp?: number;
+  level?: number;
+  lastActiveDate?: string | null;
+  isAdmin?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  email?: string | null;
+  photoURL?: string | null;
+}
+
+function timestampToIso(value: unknown): string {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value;
+  return '';
+}
+
+function mapFsUserProfileToAdmin(
+  userId: string,
+  data: FirestoreUserProfileDoc,
+): AdminUser {
+  return {
+    userId,
+    // The auth account email/name/image live in Firebase Auth, not the
+    // profile doc. For an admin user listing we surface what the profile has.
+    // If the profile doc denormalises email/photoURL we'll pick them up here.
+    email: data.email ?? '',
+    name: data.displayName ?? null,
+    image: data.photoURL ?? null,
+    displayName: data.displayName ?? null,
+    streak: data.streak ?? 0,
+    totalXp: data.totalXp ?? 0,
+    level: data.level ?? 1,
+    lastActiveDate: data.lastActiveDate ?? null,
+    isAdmin: data.isAdmin ?? false,
+    createdAt: timestampToIso(data.createdAt),
+  };
+}
+
 // =============================================================================
 // QUERIES
 // =============================================================================
@@ -33,6 +88,16 @@ export function useAdminUsers() {
   return useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async (): Promise<AdminUser[]> => {
+      if (isFirestoreCutoverEnabled()) {
+        const db = getDb();
+        const snap = await getDocs(
+          fsQuery(collection(db, 'user_profiles'), orderBy('createdAt', 'desc')),
+        );
+        return snap.docs.map((d) =>
+          mapFsUserProfileToAdmin(d.id, d.data() as FirestoreUserProfileDoc),
+        );
+      }
+
       const sql = getSql();
       const result = await sql`
         SELECT
@@ -64,6 +129,17 @@ export function useAdminUser(userId: string | null) {
     queryKey: ['admin', 'users', userId],
     queryFn: async (): Promise<AdminUser | null> => {
       if (!userId) return null;
+
+      if (isFirestoreCutoverEnabled()) {
+        const db = getDb();
+        const snap = await getDoc(doc(db, 'user_profiles', userId));
+        if (!snap.exists()) return null;
+        return mapFsUserProfileToAdmin(
+          snap.id,
+          snap.data() as FirestoreUserProfileDoc,
+        );
+      }
+
       const sql = getSql();
       const result = await sql`
         SELECT
@@ -104,11 +180,37 @@ interface DbActivityRow {
   xp_earned: number;
 }
 
+interface FirestoreActivityDoc {
+  duasCompleted?: number[];
+  xpEarned?: number;
+}
+
 export function useAdminUserActivity(userId: string | null, limit: number = 30) {
   return useQuery({
     queryKey: ['admin', 'users', userId, 'activity', limit],
     queryFn: async (): Promise<UserActivitySummary[]> => {
       if (!userId) return [];
+
+      if (isFirestoreCutoverEnabled()) {
+        const db = getDb();
+        // user_activity/{userId}/dates/{date}
+        const snap = await getDocs(
+          fsQuery(
+            collection(db, 'user_activity', userId, 'dates'),
+            orderBy('__name__', 'desc'),
+            fsLimit(limit),
+          ),
+        );
+        return snap.docs.map((d) => {
+          const data = d.data() as FirestoreActivityDoc;
+          return {
+            date: d.id,
+            duasCompleted: data.duasCompleted?.length ?? 0,
+            xpEarned: data.xpEarned ?? 0,
+          };
+        });
+      }
+
       const sql = getSql();
       const result = await sql`
         SELECT
@@ -146,6 +248,15 @@ export function useToggleAdmin(currentUserId: string) {
       // Prevent self-demotion
       if (userId === currentUserId && !isAdmin) {
         throw new Error('You cannot remove your own admin privileges.');
+      }
+
+      if (isFirestoreCutoverEnabled()) {
+        const db = getDb();
+        await updateDoc(doc(db, 'user_profiles', userId), {
+          isAdmin,
+          updatedAt: serverTimestamp(),
+        });
+        return;
       }
 
       const sql = getSql();
@@ -187,6 +298,35 @@ export function useAdminStats() {
   return useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: async (): Promise<AdminStats> => {
+      if (isFirestoreCutoverEnabled()) {
+        const db = getDb();
+        const today = new Date().toISOString().slice(0, 10);
+        const [
+          duasSnap,
+          journeysSnap,
+          categoriesSnap,
+          collectionsSnap,
+          usersSnap,
+        ] = await Promise.all([
+          getDocs(collection(db, 'duas')),
+          getDocs(collection(db, 'journeys')),
+          getDocs(collection(db, 'categories')),
+          getDocs(collection(db, 'collections')),
+          getDocs(collection(db, 'user_profiles')),
+        ]);
+        const activeUsersToday = usersSnap.docs.filter(
+          (d) => (d.data() as { lastActiveDate?: string }).lastActiveDate === today,
+        ).length;
+        return {
+          totalDuas: duasSnap.size,
+          totalJourneys: journeysSnap.size,
+          totalCategories: categoriesSnap.size,
+          totalCollections: collectionsSnap.size,
+          totalUsers: usersSnap.size,
+          activeUsersToday,
+        };
+      }
+
       const sql = getSql();
       const result = await sql`
         SELECT

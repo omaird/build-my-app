@@ -27,6 +27,8 @@ export interface UserProfile {
   id?: string;
   userId: string;
   displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
   streak: number;
   totalXp: number;
   level: number;
@@ -97,6 +99,8 @@ function snapshotToProfile(userId: string, data: Record<string, unknown>): UserP
     id: userId,
     userId,
     displayName: (data.displayName as string | null | undefined) ?? null,
+    email: (data.email as string | null | undefined) ?? null,
+    photoURL: (data.photoURL as string | null | undefined) ?? null,
     streak: (data.streak as number | undefined) ?? 0,
     totalXp: (data.totalXp as number | undefined) ?? 0,
     level: (data.level as number | undefined) ?? 1,
@@ -124,12 +128,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const snapshot = await getDoc(ref);
 
       if (snapshot.exists()) {
-        return snapshotToProfile(fbUser.uid, snapshot.data() as Record<string, unknown>);
+        const data = snapshot.data() as Record<string, unknown>;
+        const profile = snapshotToProfile(fbUser.uid, data);
+
+        // Keep email/photoURL on the profile doc in sync with the auth account.
+        // The admin Users page reads these denormalized fields from the doc,
+        // so drift here means blank rows in the admin UI.
+        const fbEmail = fbUser.email ?? null;
+        const fbPhoto = fbUser.photoURL ?? null;
+        if (profile.email !== fbEmail || profile.photoURL !== fbPhoto) {
+          // Best-effort: don't block sign-in if this write fails.
+          try {
+            await updateDoc(ref, {
+              email: fbEmail,
+              photoURL: fbPhoto,
+              updatedAt: serverTimestamp(),
+            });
+            profile.email = fbEmail;
+            profile.photoURL = fbPhoto;
+          } catch (error) {
+            console.warn(
+              "Failed to refresh denormalized email/photoURL on user_profiles:",
+              error,
+            );
+          }
+        }
+
+        return profile;
       }
 
       const defaults = {
         userId: fbUser.uid,
         displayName: fbUser.displayName ?? "Traveler",
+        email: fbUser.email ?? null,
+        photoURL: fbUser.photoURL ?? null,
         streak: 0,
         totalXp: 0,
         level: 1,
@@ -144,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: fbUser.uid,
         userId: fbUser.uid,
         displayName: defaults.displayName,
+        email: defaults.email,
+        photoURL: defaults.photoURL,
         streak: 0,
         totalXp: 0,
         level: 1,
