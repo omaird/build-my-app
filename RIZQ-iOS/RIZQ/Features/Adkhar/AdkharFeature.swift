@@ -184,7 +184,6 @@ struct AdkharFeature {
     Reduce { state, action in
       switch action {
       case .onAppear, .refreshData:
-        adkharLogger.info("📱 AdkharFeature loading: fetching user-data + computing habits against pushed content")
         state.isLoading = true
         state.loadError = nil
 
@@ -252,8 +251,6 @@ struct AdkharFeature {
         state.morningHabits = morning
         state.anytimeHabits = anytime
         state.eveningHabits = evening
-        let totalCount = morning.count + anytime.count + evening.count
-        adkharLogger.info("✅ habitsLoaded: isLoading=false, totalHabits=\(totalCount, privacy: .public) (empty state should show if 0)")
         return .none
 
       case .loadFailed(let error):
@@ -417,21 +414,17 @@ struct AdkharFeature {
         return .none
 
       case .navigateToJourneys:
-        // Handled by parent AppFeature
-        adkharLogger.info("🚀 navigateToJourneys action sent from AdkharFeature - bubbling up to parent")
+        // Handled by parent AppFeature.
         return .none
 
       case .becameActive:
-        // Refresh data when tab becomes active to pick up any journey subscription changes
-        // Always refresh to ensure we have latest data (handles stuck loading state too)
-        let currentlyLoading = state.isLoading
-        adkharLogger.info("becameActive: Refreshing habits, isLoading: \(currentlyLoading, privacy: .public)")
+        // Refresh when tab becomes active to pick up any journey subscription
+        // changes the user made in another tab.
         return .send(.refreshData)
 
       case .filterByTimeSlot(let timeSlot):
-        // Set the filter - the view will respond by scrolling to this section
+        // Set the filter - the view will respond by scrolling to this section.
         state.selectedTimeSlotFilter = timeSlot
-        adkharLogger.info("filterByTimeSlot: Set filter to \(timeSlot?.rawValue ?? "nil", privacy: .public)")
         return .none
 
       case .clearTimeSlotFilter:

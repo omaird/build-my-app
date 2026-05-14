@@ -218,80 +218,33 @@ struct JourneysFeature {
 
 // MARK: - Journey Service Client
 
+/// Per-journey detail fetch only. The all-journeys master list is owned by
+/// `\.cachedContentClient` / `ContentFeature`; this client retains the
+/// per-journey expansion (`fetchJourneyDuas`) used by JourneyDetailFeature
+/// because it joins `JourneyDua` + `Dua` into the `JourneyDuaFull` view model.
 struct JourneyServiceClient: Sendable {
-  var fetchJourneys: @Sendable () async throws -> [Journey]
   var fetchJourneyDuas: @Sendable (Int) async throws -> [JourneyDuaFull]
 }
 
 extension JourneyServiceClient: DependencyKey {
   static let liveValue: JourneyServiceClient = {
-    // Use FirestoreContentService for content data (duas, journeys)
-    // This replaces the deprecated neonService which returns MockNeonService
     let firestoreContentService = FirestoreContentService()
 
     return JourneyServiceClient(
-      fetchJourneys: {
-        journeyLogger.info("🚀 Fetching journeys from Firestore...")
-        do {
-          // Add timeout to prevent hanging
-          let journeys = try await withThrowingTaskGroup(of: [Journey].self) { group in
-            group.addTask {
-              try await firestoreContentService.fetchAllJourneys()
-            }
-            group.addTask {
-              try await Task.sleep(for: .seconds(10))
-              throw NSError(domain: "JourneyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Firestore fetch timed out after 10 seconds"])
-            }
-            // Return the first successful result
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
-          }
-
-          journeyLogger.info("✅ Fetched \(journeys.count, privacy: .public) journeys from Firestore")
-
-          // If Firestore returns empty, fall back to sample data
-          if journeys.isEmpty {
-            journeyLogger.warning("⚠️ No journeys from Firestore - using SampleData fallback")
-            return SampleData.journeys
-          }
-
-          for journey in journeys.prefix(3) {
-            journeyLogger.info("  📍 Journey: \(journey.name, privacy: .public) (id: \(journey.id, privacy: .public), featured: \(journey.isFeatured, privacy: .public))")
-          }
-          return journeys
-        } catch {
-          journeyLogger.error("❌ Error fetching journeys: \(error.localizedDescription, privacy: .public)")
-          journeyLogger.warning("⚠️ Falling back to SampleData due to error")
-          // Return sample data as fallback when Firestore fails
-          return SampleData.journeys
-        }
-      },
       fetchJourneyDuas: { journeyId in
-        journeyLogger.info("Fetching duas for journey \(journeyId, privacy: .public) from Firestore...")
-        do {
-          // Fetch journey duas and all duas, then combine them
-          let journeyDuas = try await firestoreContentService.fetchJourneyDuas(journeyId)
-          let allDuas = try await firestoreContentService.fetchAllDuas()
-          let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
+        let journeyDuas = try await firestoreContentService.fetchJourneyDuas(journeyId)
+        let allDuas = try await firestoreContentService.fetchAllDuas()
+        let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
 
-          let fullDuas = journeyDuas.compactMap { journeyDua -> JourneyDuaFull? in
-            guard let dua = duasCache[journeyDua.duaId] else { return nil }
-            return JourneyDuaFull(journeyDua: journeyDua, dua: dua)
-          }
-
-          journeyLogger.info("Fetched \(fullDuas.count, privacy: .public) duas for journey \(journeyId, privacy: .public)")
-          return fullDuas
-        } catch {
-          journeyLogger.error("Error fetching journey duas: \(error.localizedDescription, privacy: .public)")
-          throw error
+        return journeyDuas.compactMap { mapping in
+          guard let dua = duasCache[mapping.duaId] else { return nil }
+          return JourneyDuaFull(journeyDua: mapping, dua: dua)
         }
       }
     )
   }()
 
   static let testValue: JourneyServiceClient = JourneyServiceClient(
-    fetchJourneys: { SampleData.journeys },
     fetchJourneyDuas: { journeyId in
       SampleData.journeyDuas.filter { $0.journeyDua.journeyId == journeyId }
     }

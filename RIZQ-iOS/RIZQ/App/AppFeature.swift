@@ -119,7 +119,6 @@ struct AppFeature {
         return .none
 
       case .home(.navigateToJourneys):
-        appLogger.info("🚀 Home -> Journeys navigation, switching tab...")
         state.selectedTab = .journeys
         return .run { send in
           try? await Task.sleep(for: .milliseconds(100))
@@ -137,13 +136,9 @@ struct AppFeature {
 
       // Handle navigation from Adkhar
       case .adkhar(.navigateToJourneys):
-        let previousTab = state.selectedTab.rawValue
         state.selectedTab = .journeys
-        let newTab = state.selectedTab.rawValue
-        appLogger.info("🚀 AppFeature received navigateToJourneys! Previous: \(previousTab, privacy: .public) -> Now: \(newTab, privacy: .public)")
-        // Send becameActive after a short delay to ensure tab switch completes
+        // Send becameActive after a short delay to ensure tab switch completes.
         return .run { send in
-          // Small delay to let SwiftUI process the tab change
           try? await Task.sleep(for: .milliseconds(100))
           await send(.journeys(.becameActive))
         }
