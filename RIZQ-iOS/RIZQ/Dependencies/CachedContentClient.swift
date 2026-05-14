@@ -20,6 +20,7 @@ struct CachedContentClient: Sendable {
   var fetchAllDuas: @Sendable () async throws -> [Dua]
   var fetchAllJourneys: @Sendable () async throws -> [Journey]
   var fetchAllCategories: @Sendable () async throws -> [DuaCategory]
+  var fetchAllJourneyDuas: @Sendable () async throws -> [JourneyDua]
 
   init(wrapping underlying: FirestoreContentClient) {
     self.fetchAllDuas = Self.cachedFetch(
@@ -33,6 +34,10 @@ struct CachedContentClient: Sendable {
     self.fetchAllCategories = Self.cachedFetch(
       key: "cached_categories",
       fetch: underlying.fetchAllCategories
+    )
+    self.fetchAllJourneyDuas = Self.cachedFetch(
+      key: "cached_journey_duas",
+      fetch: underlying.fetchAllJourneyDuas
     )
   }
 

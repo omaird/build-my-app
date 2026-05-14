@@ -35,7 +35,10 @@ struct ContentFeature {
     var journeys: [Journey] = []
     /// All categories loaded from the content source.
     var categories: [DuaCategory] = []
-    /// True once ALL THREE fetches have settled (success or failure). Consumers
+    /// Every journey-dua mapping. Used by AdkharService (via Adkhar / Home) to
+    /// construct user habits without re-fetching the master content.
+    var journeyDuas: [JourneyDua] = []
+    /// True once ALL FOUR fetches have settled (success or failure). Consumers
     /// should also inspect `error` — `isLoaded` can be true with empty `duas` if
     /// the duas fetch failed.
     var isLoaded: Bool = false
@@ -50,6 +53,7 @@ struct ContentFeature {
     var duasSettled: Bool = false
     var journeysSettled: Bool = false
     var categoriesSettled: Bool = false
+    var journeyDuasSettled: Bool = false
   }
 
   // MARK: - Errors
@@ -59,6 +63,7 @@ struct ContentFeature {
     case duasFailed
     case journeysFailed
     case categoriesFailed
+    case journeyDuasFailed
   }
 
   // MARK: - Actions
@@ -74,7 +79,9 @@ struct ContentFeature {
     case journeysLoaded([Journey])
     /// Internal: a categories fetch completed successfully.
     case categoriesLoaded([DuaCategory])
-    /// Internal: one of the three fetches threw.
+    /// Internal: a journey-duas fetch completed successfully.
+    case journeyDuasLoaded([JourneyDua])
+    /// Internal: one of the fetches threw.
     case loadFailed(ContentError)
   }
 
@@ -94,6 +101,7 @@ struct ContentFeature {
         state.duasSettled = false
         state.journeysSettled = false
         state.categoriesSettled = false
+        state.journeyDuasSettled = false
         logger.debug("Starting content fetch (task/refresh)")
         return .merge(
           .run { send in
@@ -122,6 +130,15 @@ struct ContentFeature {
               logger.error("fetchAllCategories failed: \(error.localizedDescription, privacy: .public)")
               await send(.loadFailed(.categoriesFailed))
             }
+          },
+          .run { send in
+            do {
+              let mappings = try await content.fetchAllJourneyDuas()
+              await send(.journeyDuasLoaded(mappings))
+            } catch {
+              logger.error("fetchAllJourneyDuas failed: \(error.localizedDescription, privacy: .public)")
+              await send(.loadFailed(.journeyDuasFailed))
+            }
           }
         )
 
@@ -143,12 +160,19 @@ struct ContentFeature {
         Self.flipIfAllSettled(&state)
         return .none
 
+      case let .journeyDuasLoaded(mappings):
+        state.journeyDuas = mappings
+        state.journeyDuasSettled = true
+        Self.flipIfAllSettled(&state)
+        return .none
+
       case let .loadFailed(err):
         state.error = err
         switch err {
-        case .duasFailed:       state.duasSettled = true
-        case .journeysFailed:   state.journeysSettled = true
-        case .categoriesFailed: state.categoriesSettled = true
+        case .duasFailed:        state.duasSettled = true
+        case .journeysFailed:    state.journeysSettled = true
+        case .categoriesFailed:  state.categoriesSettled = true
+        case .journeyDuasFailed: state.journeyDuasSettled = true
         }
         Self.flipIfAllSettled(&state)
         return .none
@@ -156,9 +180,12 @@ struct ContentFeature {
     }
   }
 
-  /// Flip `isLoaded`/`isLoading` when all three fetches have settled (success or fail).
+  /// Flip `isLoaded`/`isLoading` when all four fetches have settled (success or fail).
   private static func flipIfAllSettled(_ state: inout State) {
-    if state.duasSettled && state.journeysSettled && state.categoriesSettled {
+    if state.duasSettled
+        && state.journeysSettled
+        && state.categoriesSettled
+        && state.journeyDuasSettled {
       state.isLoaded = true
       state.isLoading = false
     }
