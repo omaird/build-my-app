@@ -27,7 +27,6 @@ export default defineConfig({
     timeout: 30000,
     env: {
       VITE_USE_FIREBASE_EMULATORS: "true",
-      VITE_FIRESTORE_CUTOVER: process.env.VITE_FIRESTORE_CUTOVER ?? "true",
       VITE_FIREBASE_API_KEY: "demo-api-key",
       VITE_FIREBASE_AUTH_DOMAIN: "rizq-app-c6468.firebaseapp.com",
       VITE_FIREBASE_PROJECT_ID: "rizq-app-c6468",

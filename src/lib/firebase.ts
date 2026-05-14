@@ -54,7 +54,3 @@ export function getDb(): Firestore {
   }
   return _db;
 }
-
-export function isFirestoreCutoverEnabled(): boolean {
-  return import.meta.env.VITE_FIRESTORE_CUTOVER === 'true';
-}

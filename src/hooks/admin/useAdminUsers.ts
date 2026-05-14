@@ -10,29 +10,12 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { getSql } from '@/lib/db';
-import { getDb, isFirestoreCutoverEnabled } from '@/lib/firebase';
-import type { AdminUser, AdminUserRow } from '@/types/admin';
+import { getDb } from '@/lib/firebase';
+import type { AdminUser } from '@/types/admin';
 
 // =============================================================================
 // MAPPERS
 // =============================================================================
-
-function mapDbUserToAdmin(row: AdminUserRow): AdminUser {
-  return {
-    userId: row.user_id,
-    email: row.email,
-    name: row.name,
-    image: row.image,
-    displayName: row.display_name,
-    streak: row.streak,
-    totalXp: row.total_xp,
-    level: row.level,
-    lastActiveDate: row.last_active_date,
-    isAdmin: row.is_admin,
-    createdAt: row.created_at,
-  };
-}
 
 interface FirestoreUserProfileDoc {
   displayName?: string | null;
@@ -87,35 +70,13 @@ export function useAdminUsers() {
   return useQuery({
     queryKey: ['admin', 'users'],
     queryFn: async (): Promise<AdminUser[]> => {
-      if (isFirestoreCutoverEnabled()) {
-        const db = getDb();
-        const snap = await getDocs(
-          fsQuery(collection(db, 'user_profiles'), orderBy('createdAt', 'desc')),
-        );
-        return snap.docs.map((d) =>
-          mapFsUserProfileToAdmin(d.id, d.data() as FirestoreUserProfileDoc),
-        );
-      }
-
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          up.user_id,
-          u.email,
-          u.name,
-          u.image,
-          up.display_name,
-          up.streak,
-          up.total_xp,
-          up.level,
-          up.last_active_date,
-          up.is_admin,
-          up.created_at
-        FROM user_profiles up
-        JOIN neon_auth."user" u ON up.user_id = u.id
-        ORDER BY up.created_at DESC
-      `;
-      return (result as AdminUserRow[]).map(mapDbUserToAdmin);
+      const db = getDb();
+      const snap = await getDocs(
+        fsQuery(collection(db, 'user_profiles'), orderBy('createdAt', 'desc')),
+      );
+      return snap.docs.map((d) =>
+        mapFsUserProfileToAdmin(d.id, d.data() as FirestoreUserProfileDoc),
+      );
     },
   });
 }
@@ -129,36 +90,13 @@ export function useAdminUser(userId: string | null) {
     queryFn: async (): Promise<AdminUser | null> => {
       if (!userId) return null;
 
-      if (isFirestoreCutoverEnabled()) {
-        const db = getDb();
-        const snap = await getDoc(doc(db, 'user_profiles', userId));
-        if (!snap.exists()) return null;
-        return mapFsUserProfileToAdmin(
-          snap.id,
-          snap.data() as FirestoreUserProfileDoc,
-        );
-      }
-
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          up.user_id,
-          u.email,
-          u.name,
-          u.image,
-          up.display_name,
-          up.streak,
-          up.total_xp,
-          up.level,
-          up.last_active_date,
-          up.is_admin,
-          up.created_at
-        FROM user_profiles up
-        JOIN neon_auth."user" u ON up.user_id = u.id
-        WHERE up.user_id = ${userId}::uuid
-      `;
-      if (!result.length) return null;
-      return mapDbUserToAdmin(result[0] as AdminUserRow);
+      const db = getDb();
+      const snap = await getDoc(doc(db, 'user_profiles', userId));
+      if (!snap.exists()) return null;
+      return mapFsUserProfileToAdmin(
+        snap.id,
+        snap.data() as FirestoreUserProfileDoc,
+      );
     },
     enabled: userId !== null,
   });
@@ -173,12 +111,6 @@ export interface UserActivitySummary {
   xpEarned: number;
 }
 
-interface DbActivityRow {
-  date: string;
-  duas_completed: number[] | null;
-  xp_earned: number;
-}
-
 interface FirestoreActivityDoc {
   duasCompleted?: number[];
   xpEarned?: number;
@@ -190,43 +122,24 @@ export function useAdminUserActivity(userId: string | null, limit: number = 30) 
     queryFn: async (): Promise<UserActivitySummary[]> => {
       if (!userId) return [];
 
-      if (isFirestoreCutoverEnabled()) {
-        const db = getDb();
-        // user_activity/{userId}/dates/{date}. Document IDs are `YYYY-MM-DD`.
-        // Firestore (and the emulator) rejects `orderBy(documentId(), 'desc')`
-        // without a backing index, so fetch unsorted and sort client-side.
-        const snap = await getDocs(
-          collection(db, 'user_activity', userId, 'dates'),
-        );
-        const sortedDocs = [...snap.docs]
-          .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
-          .slice(0, limit);
-        return sortedDocs.map((d) => {
-          const data = d.data() as FirestoreActivityDoc;
-          return {
-            date: d.id,
-            duasCompleted: data.duasCompleted?.length ?? 0,
-            xpEarned: data.xpEarned ?? 0,
-          };
-        });
-      }
-
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          date,
-          duas_completed,
-          xp_earned
-        FROM user_activity
-        WHERE user_id = ${userId}::uuid
-        ORDER BY date DESC
-        LIMIT ${limit}
-      `;
-      return (result as DbActivityRow[]).map(row => ({
-        date: row.date,
-        duasCompleted: row.duas_completed?.length || 0,
-        xpEarned: row.xp_earned,
-      }));
+      const db = getDb();
+      // user_activity/{userId}/dates/{date}. Document IDs are `YYYY-MM-DD`.
+      // Firestore (and the emulator) rejects `orderBy(documentId(), 'desc')`
+      // without a backing index, so fetch unsorted and sort client-side.
+      const snap = await getDocs(
+        collection(db, 'user_activity', userId, 'dates'),
+      );
+      const sortedDocs = [...snap.docs]
+        .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+        .slice(0, limit);
+      return sortedDocs.map((d) => {
+        const data = d.data() as FirestoreActivityDoc;
+        return {
+          date: d.id,
+          duasCompleted: data.duasCompleted?.length ?? 0,
+          xpEarned: data.xpEarned ?? 0,
+        };
+      });
     },
     enabled: userId !== null,
   });
@@ -250,21 +163,11 @@ export function useToggleAdmin(currentUserId: string) {
         throw new Error('You cannot remove your own admin privileges.');
       }
 
-      if (isFirestoreCutoverEnabled()) {
-        const db = getDb();
-        await updateDoc(doc(db, 'user_profiles', userId), {
-          isAdmin,
-          updatedAt: serverTimestamp(),
-        });
-        return;
-      }
-
-      const sql = getSql();
-      await sql`
-        UPDATE user_profiles
-        SET is_admin = ${isAdmin}, updated_at = NOW()
-        WHERE user_id = ${userId}::uuid
-      `;
+      const db = getDb();
+      await updateDoc(doc(db, 'user_profiles', userId), {
+        isAdmin,
+        updatedAt: serverTimestamp(),
+      });
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
@@ -285,66 +188,35 @@ export interface AdminStats {
   activeUsersToday: number;
 }
 
-interface DbStatsRow {
-  total_duas: number;
-  total_journeys: number;
-  total_categories: number;
-  total_collections: number;
-  total_users: number;
-  active_users_today: number;
-}
-
 export function useAdminStats() {
   return useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: async (): Promise<AdminStats> => {
-      if (isFirestoreCutoverEnabled()) {
-        const db = getDb();
-        const today = new Date().toISOString().slice(0, 10);
-        const [
-          duasSnap,
-          journeysSnap,
-          categoriesSnap,
-          collectionsSnap,
-          usersSnap,
-        ] = await Promise.all([
-          getDocs(collection(db, 'duas')),
-          getDocs(collection(db, 'journeys')),
-          getDocs(collection(db, 'categories')),
-          getDocs(collection(db, 'collections')),
-          getDocs(collection(db, 'user_profiles')),
-        ]);
-        const activeUsersToday = usersSnap.docs.filter(
-          (d) => (d.data() as { lastActiveDate?: string }).lastActiveDate === today,
-        ).length;
-        return {
-          totalDuas: duasSnap.size,
-          totalJourneys: journeysSnap.size,
-          totalCategories: categoriesSnap.size,
-          totalCollections: collectionsSnap.size,
-          totalUsers: usersSnap.size,
-          activeUsersToday,
-        };
-      }
-
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          (SELECT COUNT(*)::int FROM duas) as total_duas,
-          (SELECT COUNT(*)::int FROM journeys) as total_journeys,
-          (SELECT COUNT(*)::int FROM categories) as total_categories,
-          (SELECT COUNT(*)::int FROM collections) as total_collections,
-          (SELECT COUNT(*)::int FROM user_profiles) as total_users,
-          (SELECT COUNT(*)::int FROM user_profiles WHERE last_active_date = CURRENT_DATE) as active_users_today
-      `;
-      const row = result[0] as DbStatsRow;
+      const db = getDb();
+      const today = new Date().toISOString().slice(0, 10);
+      const [
+        duasSnap,
+        journeysSnap,
+        categoriesSnap,
+        collectionsSnap,
+        usersSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, 'duas')),
+        getDocs(collection(db, 'journeys')),
+        getDocs(collection(db, 'categories')),
+        getDocs(collection(db, 'collections')),
+        getDocs(collection(db, 'user_profiles')),
+      ]);
+      const activeUsersToday = usersSnap.docs.filter(
+        (d) => (d.data() as { lastActiveDate?: string }).lastActiveDate === today,
+      ).length;
       return {
-        totalDuas: row.total_duas,
-        totalJourneys: row.total_journeys,
-        totalCategories: row.total_categories,
-        totalCollections: row.total_collections,
-        totalUsers: row.total_users,
-        activeUsersToday: row.active_users_today,
+        totalDuas: duasSnap.size,
+        totalJourneys: journeysSnap.size,
+        totalCategories: categoriesSnap.size,
+        totalCollections: collectionsSnap.size,
+        totalUsers: usersSnap.size,
+        activeUsersToday,
       };
     },
   });

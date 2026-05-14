@@ -1,38 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { getSql, type DuaWithRelations, type Category, type Collection } from '@/lib/db';
-import { getDb, isFirestoreCutoverEnabled } from '@/lib/firebase';
+import { getDb } from '@/lib/firebase';
+import type { DuaWithRelations, Category, Collection } from '@/types/db-rows';
 import type { Dua, DuaCategory, DuaContext, DuaDifficulty } from '@/types/dua';
-
-// ---------------------------------------------------------------------------
-// Shared mapper (Neon path)
-// ---------------------------------------------------------------------------
-
-// Map database record to frontend Dua format
-function mapDbDuaToFrontend(dbDua: DuaWithRelations): Dua {
-  // Build context object from DB fields
-  const context: DuaContext = {
-    source: dbDua.source || null,
-    bestTime: dbDua.best_time || null,
-    benefits: dbDua.rizq_benefit || null,
-    story: dbDua.context || null,
-    propheticContext: dbDua.prophetic_context || null,
-    difficulty: (dbDua.difficulty as DuaDifficulty) || null,
-    estimatedDuration: dbDua.est_duration_sec || null,
-  };
-
-  return {
-    id: String(dbDua.id),
-    title: dbDua.title_en,
-    arabic: dbDua.arabic_text,
-    transliteration: dbDua.transliteration || '',
-    translation: dbDua.translation_en || '',
-    category: (dbDua.category_slug || 'morning') as DuaCategory,
-    xpValue: dbDua.xp_value,
-    repetitions: dbDua.repetitions,
-    context,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Firestore mappers
@@ -270,133 +240,42 @@ async function fetchCollectionsFirestore(): Promise<Collection[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Neon fetchers (preserve byte-for-byte the previous implementation)
+// Public hooks (Firestore-only post-decommission)
 // ---------------------------------------------------------------------------
 
-async function fetchDuasNeon(): Promise<Dua[]> {
-  const sql = getSql();
-  const result = await sql`
-    SELECT
-      d.*,
-      c.name as category_name,
-      c.slug as category_slug,
-      col.name as collection_name,
-      col.slug as collection_slug
-    FROM duas d
-    LEFT JOIN categories c ON d.category_id = c.id
-    LEFT JOIN collections col ON d.collection_id = col.id
-    ORDER BY d.id
-  `;
-  return (result as DuaWithRelations[]).map(mapDbDuaToFrontend);
-}
-
-async function fetchDuaNeon(id: number): Promise<DuaWithRelations | null> {
-  const sql = getSql();
-  const result = await sql`
-    SELECT
-      d.*,
-      c.name as category_name,
-      c.slug as category_slug,
-      col.name as collection_name,
-      col.slug as collection_slug
-    FROM duas d
-    LEFT JOIN categories c ON d.category_id = c.id
-    LEFT JOIN collections col ON d.collection_id = col.id
-    WHERE d.id = ${id}
-  `;
-  return (result[0] as DuaWithRelations) || null;
-}
-
-async function fetchDuasByCategoryNeon(
-  categorySlug: string
-): Promise<DuaWithRelations[]> {
-  const sql = getSql();
-  const result = await sql`
-    SELECT
-      d.*,
-      c.name as category_name,
-      c.slug as category_slug,
-      col.name as collection_name,
-      col.slug as collection_slug
-    FROM duas d
-    LEFT JOIN categories c ON d.category_id = c.id
-    LEFT JOIN collections col ON d.collection_id = col.id
-    WHERE c.slug = ${categorySlug}
-    ORDER BY d.id
-  `;
-  return result as DuaWithRelations[];
-}
-
-async function fetchCategoriesNeon(): Promise<Category[]> {
-  const sql = getSql();
-  const result = await sql`
-    SELECT * FROM categories ORDER BY name
-  `;
-  return result as Category[];
-}
-
-async function fetchCollectionsNeon(): Promise<Collection[]> {
-  const sql = getSql();
-  const result = await sql`
-    SELECT * FROM collections ORDER BY name
-  `;
-  return result as Collection[];
-}
-
-// ---------------------------------------------------------------------------
-// Public hooks (dual-path, keyed on isFirestoreCutoverEnabled())
-// ---------------------------------------------------------------------------
-
-// Fetch all duas with their category and collection info
 export function useDuas() {
-  const useFirestore = isFirestoreCutoverEnabled();
   return useQuery({
-    queryKey: ['duas', useFirestore],
-    queryFn: (): Promise<Dua[]> =>
-      useFirestore ? fetchDuasFirestore() : fetchDuasNeon(),
+    queryKey: ['duas'],
+    queryFn: fetchDuasFirestore,
   });
 }
 
-// Fetch a single dua by ID
 export function useDua(id: number) {
-  const useFirestore = isFirestoreCutoverEnabled();
   return useQuery({
-    queryKey: ['duas', id, useFirestore],
-    queryFn: (): Promise<DuaWithRelations | null> =>
-      useFirestore ? fetchDuaFirestore(id) : fetchDuaNeon(id),
+    queryKey: ['duas', id],
+    queryFn: () => fetchDuaFirestore(id),
     enabled: !!id,
   });
 }
 
-// Fetch duas by category slug
 export function useDuasByCategory(categorySlug: string) {
-  const useFirestore = isFirestoreCutoverEnabled();
   return useQuery({
-    queryKey: ['duas', 'category', categorySlug, useFirestore],
-    queryFn: (): Promise<DuaWithRelations[]> =>
-      useFirestore
-        ? fetchDuasByCategoryFirestore(categorySlug)
-        : fetchDuasByCategoryNeon(categorySlug),
+    queryKey: ['duas', 'category', categorySlug],
+    queryFn: () => fetchDuasByCategoryFirestore(categorySlug),
     enabled: !!categorySlug,
   });
 }
 
-// Fetch all categories
 export function useCategories() {
-  const useFirestore = isFirestoreCutoverEnabled();
   return useQuery({
-    queryKey: ['categories', useFirestore],
-    queryFn: (): Promise<Category[]> =>
-      useFirestore ? fetchCategoriesFirestore() : fetchCategoriesNeon(),
+    queryKey: ['categories'],
+    queryFn: fetchCategoriesFirestore,
   });
 }
 
-// Fetch all collections
 export function useCollections() {
-  const useFirestore = isFirestoreCutoverEnabled();
   return useQuery({
-    queryKey: ['collections', useFirestore],
-    queryFn: (): Promise<Collection[]> =>
-      useFirestore ? fetchCollectionsFirestore() : fetchCollectionsNeon(),
+    queryKey: ['collections'],
+    queryFn: fetchCollectionsFirestore,
   });
 }

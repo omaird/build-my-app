@@ -2,7 +2,8 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Route, Users, Folder } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { getSql } from "@/lib/db";
+import { collection, getCountFromServer, query, where } from "firebase/firestore";
+import { getDb } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const containerVariants = {
@@ -34,23 +35,25 @@ function useAdminDashboardStats() {
   return useQuery({
     queryKey: ["admin-dashboard-stats"],
     queryFn: async (): Promise<DashboardStats> => {
-      const sql = getSql();
+      const db = getDb();
 
-      // Run all count queries in parallel
-      const [duasResult, journeysResult, categoriesResult, usersResult, featuredResult] = await Promise.all([
-        sql`SELECT COUNT(*) as count FROM duas`,
-        sql`SELECT COUNT(*) as count FROM journeys`,
-        sql`SELECT COUNT(*) as count FROM categories`,
-        sql`SELECT COUNT(*) as count FROM user_profiles`,
-        sql`SELECT COUNT(*) as count FROM journeys WHERE is_featured = TRUE`,
+      // Run all count queries in parallel using Firestore's aggregation API.
+      const [duasCount, journeysCount, categoriesCount, usersCount, featuredCount] = await Promise.all([
+        getCountFromServer(collection(db, "duas")),
+        getCountFromServer(collection(db, "journeys")),
+        getCountFromServer(collection(db, "categories")),
+        getCountFromServer(collection(db, "user_profiles")),
+        getCountFromServer(
+          query(collection(db, "journeys"), where("isFeatured", "==", true)),
+        ),
       ]);
 
       return {
-        totalDuas: Number(duasResult[0]?.count || 0),
-        totalJourneys: Number(journeysResult[0]?.count || 0),
-        totalCategories: Number(categoriesResult[0]?.count || 0),
-        totalUsers: Number(usersResult[0]?.count || 0),
-        featuredJourneys: Number(featuredResult[0]?.count || 0),
+        totalDuas: duasCount.data().count,
+        totalJourneys: journeysCount.data().count,
+        totalCategories: categoriesCount.data().count,
+        totalUsers: usersCount.data().count,
+        featuredJourneys: featuredCount.data().count,
       };
     },
   });

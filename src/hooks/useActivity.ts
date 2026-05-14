@@ -10,8 +10,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import { getSql } from "@/lib/db";
-import { getDb, isFirestoreCutoverEnabled } from "@/lib/firebase";
+import { getDb } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 
 export interface DailyActivity {
@@ -30,7 +29,7 @@ export interface UserProgress {
 const getToday = () => new Date().toISOString().split("T")[0];
 
 // ---------------------------------------------------------------------------
-// Firestore helpers (only invoked when isFirestoreCutoverEnabled())
+// Firestore helpers
 // ---------------------------------------------------------------------------
 
 async function fetchActivitiesFromFirestore(
@@ -172,7 +171,7 @@ export function useDailyActivity() {
   const [activities, setActivities] = useState<DailyActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch activities from the active backend (Firestore when cutover, Neon otherwise).
+  // Fetch activities from Firestore.
   const fetchActivities = useCallback(async () => {
     if (!user) {
       setActivities([]);
@@ -181,31 +180,8 @@ export function useDailyActivity() {
     }
 
     try {
-      if (isFirestoreCutoverEnabled()) {
-        const formatted = await fetchActivitiesFromFirestore(user.id);
-        setActivities(formatted);
-      } else {
-        const sql = getSql();
-        const result = await sql`
-          SELECT
-            date::text,
-            duas_completed as "duasCompleted",
-            xp_earned as "xpEarned"
-          FROM user_activity
-          WHERE user_id = ${user.id}::uuid
-          ORDER BY date DESC
-          LIMIT 30
-        `;
-
-        const formattedActivities: DailyActivity[] = result.map((row) => ({
-          date: row.date as string,
-          completed: (row.duasCompleted as string[]).length > 0,
-          duasCompleted: row.duasCompleted as string[],
-          xpEarned: row.xpEarned as number,
-        }));
-
-        setActivities(formattedActivities);
-      }
+      const formatted = await fetchActivitiesFromFirestore(user.id);
+      setActivities(formatted);
     } catch (error) {
       console.error("Error fetching activities:", error);
     } finally {
@@ -242,21 +218,9 @@ export function useDailyActivity() {
       // Step 1: persist activity row + optimistic local update.
       // If this fails, the user shouldn't see the dua marked complete.
       try {
-        if (isFirestoreCutoverEnabled()) {
-          await writeActivityToFirestore(user.id, today, duaId, xpEarned);
-        } else {
-          const sql = getSql();
-          await sql`
-            INSERT INTO user_activity (user_id, date, duas_completed, xp_earned)
-            VALUES (${user.id}::uuid, ${today}::date, ARRAY[${duaId}], ${xpEarned})
-            ON CONFLICT (user_id, date)
-            DO UPDATE SET
-              duas_completed = array_append(user_activity.duas_completed, ${duaId}),
-              xp_earned = user_activity.xp_earned + ${xpEarned}
-          `;
-        }
+        await writeActivityToFirestore(user.id, today, duaId, xpEarned);
 
-        // Update local state optimistically (backend-agnostic).
+        // Update local state optimistically.
         setActivities((prev) => {
           const existing = prev.find((a) => a.date === today);
           if (existing) {
@@ -329,7 +293,7 @@ export function useUserProgress() {
   const [progress, setProgress] = useState<UserProgress[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch progress from the active backend.
+  // Fetch progress from Firestore.
   const fetchProgress = useCallback(async () => {
     if (!user) {
       setProgress([]);
@@ -338,28 +302,8 @@ export function useUserProgress() {
     }
 
     try {
-      if (isFirestoreCutoverEnabled()) {
-        const rows = await fetchProgressFromFirestore(user.id);
-        setProgress(rows);
-      } else {
-        const sql = getSql();
-        const result = await sql`
-          SELECT
-            dua_id::text as "duaId",
-            completed_count as "completedCount",
-            last_completed::text as "lastCompleted"
-          FROM user_progress
-          WHERE user_id = ${user.id}::uuid
-        `;
-
-        setProgress(
-          result.map((row) => ({
-            duaId: row.duaId as string,
-            completedCount: row.completedCount as number,
-            lastCompleted: row.lastCompleted as string | null,
-          }))
-        );
-      }
+      const rows = await fetchProgressFromFirestore(user.id);
+      setProgress(rows);
     } catch (error) {
       console.error("Error fetching progress:", error);
     } finally {
@@ -387,22 +331,9 @@ export function useUserProgress() {
       const today = getToday();
 
       try {
-        if (isFirestoreCutoverEnabled()) {
-          await writeProgressToFirestore(user.id, duaId);
-        } else {
-          const sql = getSql();
-          await sql`
-            INSERT INTO user_progress (user_id, dua_id, completed_count, last_completed)
-            VALUES (${user.id}::uuid, ${parseInt(duaId)}, 1, ${today}::date)
-            ON CONFLICT (user_id, dua_id)
-            DO UPDATE SET
-              completed_count = user_progress.completed_count + 1,
-              last_completed = ${today}::date,
-              updated_at = NOW()
-          `;
-        }
+        await writeProgressToFirestore(user.id, duaId);
 
-        // Update local state optimistically (backend-agnostic).
+        // Update local state optimistically.
         setProgress((prev) => {
           const existing = prev.find((p) => p.duaId === duaId);
           if (existing) {
