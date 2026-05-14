@@ -198,7 +198,7 @@ struct PracticeFeature {
           }
         }
 
-      case .completionSaved(let profile):
+      case .completionSaved:
         state.isSavingCompletion = false
         // Profile updated successfully - parent will be notified via delegate
         return .none

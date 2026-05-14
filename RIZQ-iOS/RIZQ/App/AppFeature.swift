@@ -11,6 +11,10 @@ struct AppFeature {
   struct State: Equatable {
     var selectedTab: Tab = .home
     var isAuthenticated: Bool = false
+    /// Shared read-only content (duas/journeys/categories) fetched once on launch
+    /// and refreshable on demand. Child features consume this instead of fetching
+    /// independently.
+    var content = ContentFeature.State()
     var home = HomeFeature.State()
     var library = LibraryFeature.State()
     var adkhar = AdkharFeature.State()
@@ -55,6 +59,7 @@ struct AppFeature {
   enum Action {
     case onAppear
     case tabSelected(Tab)
+    case content(ContentFeature.Action)
     case home(HomeFeature.Action)
     case library(LibraryFeature.Action)
     case adkhar(AdkharFeature.Action)
@@ -73,8 +78,12 @@ struct AppFeature {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        // Check authentication state on app launch
-        return .send(.auth(.checkExistingSession))
+        // Check authentication state on app launch and kick off the shared
+        // content fetch in parallel.
+        return .merge(
+          .send(.auth(.checkExistingSession)),
+          .send(.content(.task))
+        )
 
       case .tabSelected(let tab):
         state.selectedTab = tab
@@ -110,7 +119,6 @@ struct AppFeature {
         return .none
 
       case .home(.navigateToJourneys):
-        appLogger.info("🚀 Home -> Journeys navigation, switching tab...")
         state.selectedTab = .journeys
         return .run { send in
           try? await Task.sleep(for: .milliseconds(100))
@@ -128,13 +136,9 @@ struct AppFeature {
 
       // Handle navigation from Adkhar
       case .adkhar(.navigateToJourneys):
-        let previousTab = state.selectedTab.rawValue
         state.selectedTab = .journeys
-        let newTab = state.selectedTab.rawValue
-        appLogger.info("🚀 AppFeature received navigateToJourneys! Previous: \(previousTab, privacy: .public) -> Now: \(newTab, privacy: .public)")
-        // Send becameActive after a short delay to ensure tab switch completes
+        // Send becameActive after a short delay to ensure tab switch completes.
         return .run { send in
-          // Small delay to let SwiftUI process the tab change
           try? await Task.sleep(for: .milliseconds(100))
           await send(.journeys(.becameActive))
         }
@@ -163,9 +167,51 @@ struct AppFeature {
       case .admin:
         return .none
 
-      case .home, .library, .adkhar, .journeys, .settings, .auth:
+      // Forward ContentFeature loads down to child features. Each child gets a
+      // single setter action; this is the parent-forwarding pattern in lieu of
+      // children peeking at sibling state.
+      //
+      // Note on Adkhar/Home: they need duas AND journey-dua mappings together
+      // to compute habit lists, but the two fetches resolve independently. We
+      // forward on each event using the action payload for the freshly-arrived
+      // value and `state.content.{other}` for whatever's already settled. The
+      // last forward of a given fetch cycle has both values populated.
+      case let .content(.duasLoaded(duas)):
+        return .merge(
+          .send(.library(.contentDuasUpdated(duas))),
+          .send(.adkhar(.contentUpdated(duas: duas, journeyDuas: state.content.journeyDuas))),
+          .send(.home(.contentUpdated(duas: duas, journeyDuas: state.content.journeyDuas)))
+        )
+
+      case let .content(.journeysLoaded(journeys)):
+        return .send(.journeys(.contentJourneysUpdated(journeys)))
+
+      case let .content(.journeyDuasLoaded(mappings)):
+        return .merge(
+          .send(.adkhar(.contentUpdated(duas: state.content.duas, journeyDuas: mappings))),
+          .send(.home(.contentUpdated(duas: state.content.duas, journeyDuas: mappings)))
+        )
+
+      case .content(.loadFailed(.duasFailed)),
+           .content(.loadFailed(.categoriesFailed)),
+           .content(.loadFailed(.journeyDuasFailed)):
+        // No per-feature error surface for these yet — logged at ContentFeature.
+        return .none
+
+      case .content(.loadFailed(.journeysFailed)):
+        return .send(.journeys(.contentJourneysFailed("Couldn't reach the network")))
+
+      // Retry from a child fans out to a real content refresh.
+      case .library(.retryTapped), .journeys(.refreshJourneys):
+        return .send(.content(.refresh))
+
+      case .content, .home, .library, .adkhar, .journeys, .settings, .auth:
         return .none
       }
+    }
+
+    Scope(state: \.content, action: \.content) {
+      ContentFeature()
     }
 
     Scope(state: \.home, action: \.home) {

@@ -81,17 +81,19 @@ struct LibraryFeature {
     case binding(BindingAction<State>)
     case onAppear
     case setUserId(String?)
-    case duasLoaded(Result<[Dua], Error>)
+    /// Push the latest content fetched by the parent ContentFeature. Replaces
+    /// the prior self-fetch on `.onAppear` and the per-category Firestore round
+    /// trip; category filtering is now in-memory against `allDuas`.
+    case contentDuasUpdated([Dua])
     case categorySelected(CategorySlug?)
-    case categoryDuasLoaded(Result<[Dua], Error>)
     case duaTapped(Dua)
     case addToAdkharTapped(Dua)
     case referenceSheet(PresentationAction<DuaReferenceSheetFeature.Action>)
     case addToAdkharSheet(PresentationAction<AddToAdkharSheetFeature.Action>)
+    /// Passthrough — AppFeature listens for this and triggers a content refresh.
     case retryTapped
   }
 
-  @Dependency(\.firestoreContentClient) var contentClient
   @Dependency(\.continuousClock) var clock
 
   private enum CancelID { case search }
@@ -109,75 +111,30 @@ struct LibraryFeature {
         return .none
 
       case .onAppear:
-        guard state.allDuas.isEmpty else { return .none }
-        state.isLoading = true
-        state.errorMessage = nil
-
-        return .run { send in
-          do {
-            let duas = try await contentClient.fetchAllDuas()
-            await send(.duasLoaded(.success(duas)))
-          } catch {
-            await send(.duasLoaded(.failure(error)))
-          }
+        // Content comes from the parent ContentFeature. If it hasn't arrived
+        // yet (cold launch), `isLoading` reflects that state; AppFeature will
+        // push `.contentDuasUpdated` when the fetch settles.
+        if state.allDuas.isEmpty {
+          state.isLoading = true
+          state.errorMessage = nil
         }
+        return .none
 
       case .setUserId(let userId):
         state.userId = userId
         return .none
 
-      case .duasLoaded(.success(let duas)):
+      case .contentDuasUpdated(let duas):
         state.isLoading = false
         state.errorMessage = nil
-        state.duas = duas
         state.allDuas = duas
-        return .none
-
-      case .duasLoaded(.failure(let error)):
-        state.isLoading = false
-        state.errorMessage = error.localizedDescription
+        // Re-apply the current filter against the new content set.
+        state.duas = LibraryFeature.applyCategoryFilter(state.selectedCategory, to: duas)
         return .none
 
       case .categorySelected(let category):
         state.selectedCategory = category
-
-        guard let categorySlug = category else {
-          // "All" selected - restore cached duas
-          state.duas = state.allDuas
-          return .none
-        }
-
-        // Fetch category-specific duas from Firestore
-        state.isLoading = true
-        return .run { send in
-          do {
-            let duas = try await contentClient.fetchDuasByCategory(categorySlug)
-            await send(.categoryDuasLoaded(.success(duas)))
-          } catch {
-            await send(.categoryDuasLoaded(.failure(error)))
-          }
-        }
-
-      case .categoryDuasLoaded(.success(let duas)):
-        state.isLoading = false
-        state.duas = duas
-        return .none
-
-      case .categoryDuasLoaded(.failure(let error)):
-        state.isLoading = false
-        state.errorMessage = error.localizedDescription
-        // Fallback to client-side filtering on error
-        if let categorySlug = state.selectedCategory {
-          state.duas = state.allDuas.filter { dua in
-            // Match by category ID based on slug
-            switch categorySlug {
-            case .morning: return dua.categoryId == 1
-            case .evening: return dua.categoryId == 2
-            case .rizq: return dua.categoryId == 3
-            case .gratitude: return dua.categoryId == 4
-            }
-          }
-        }
+        state.duas = LibraryFeature.applyCategoryFilter(category, to: state.allDuas)
         return .none
 
       case .duaTapped(let dua):
@@ -209,9 +166,11 @@ struct LibraryFeature {
         return .none
 
       case .retryTapped:
+        // Clear local error; AppFeature observes this action and triggers
+        // `.content(.refresh)` on its end.
         state.errorMessage = nil
-        state.selectedCategory = nil
-        return .send(.onAppear)
+        state.isLoading = true
+        return .none
       }
     }
     .ifLet(\.$referenceSheet, action: \.referenceSheet) {
@@ -219,6 +178,25 @@ struct LibraryFeature {
     }
     .ifLet(\.$addToAdkharSheet, action: \.addToAdkharSheet) {
       AddToAdkharSheetFeature()
+    }
+  }
+
+  /// Filter a flat dua list by category slug. Keeps category-to-ID mapping in
+  /// one place; mirrors what the prior categoryDuasLoaded.failure path did as a
+  /// fallback. With ContentFeature always feeding `allDuas`, this is the
+  /// primary (no longer fallback) path.
+  private static func applyCategoryFilter(
+    _ slug: CategorySlug?,
+    to duas: [Dua]
+  ) -> [Dua] {
+    guard let slug else { return duas }
+    return duas.filter { dua in
+      switch slug {
+      case .morning:   return dua.categoryId == 1
+      case .evening:   return dua.categoryId == 2
+      case .rizq:      return dua.categoryId == 3
+      case .gratitude: return dua.categoryId == 4
+      }
     }
   }
 }

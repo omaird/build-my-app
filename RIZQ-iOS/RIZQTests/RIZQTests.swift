@@ -704,21 +704,21 @@ final class PracticeFeatureTests: XCTestCase {
 final class LibraryFeatureTests: XCTestCase {
 
   @MainActor
-  func testOnAppearLoadsData() async {
+  func testOnAppearShowsLoadingUntilParentPushesContent() async {
+    // LibraryFeature no longer fetches; AppFeature (the parent) pushes content
+    // via `.contentDuasUpdated` once ContentFeature settles.
     let store = TestStore(initialState: LibraryFeature.State()) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchAllDuas = { Dua.demoData }
     }
 
     await store.send(.onAppear) {
       $0.isLoading = true
     }
 
-    await store.receive(\.duasLoaded) {
+    await store.send(.contentDuasUpdated(Dua.demoData)) {
       $0.isLoading = false
-      $0.duas = Dua.demoData
       $0.allDuas = Dua.demoData
+      $0.duas = Dua.demoData
     }
   }
 
@@ -732,26 +732,14 @@ final class LibraryFeatureTests: XCTestCase {
 
     let store = TestStore(initialState: state) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchDuasByCategory = { slug in
-        switch slug {
-        case .morning: return morningDuas
-        default: return []
-        }
-      }
     }
 
+    // Category filter is now an in-memory operation; no fetch + no isLoading flip.
     await store.send(.categorySelected(.morning)) {
       $0.selectedCategory = .morning
-      $0.isLoading = true
-    }
-
-    await store.receive(\.categoryDuasLoaded) {
-      $0.isLoading = false
       $0.duas = morningDuas
     }
 
-    // Verify filtering works - morning category has categoryId 1
     let results = store.state.filteredDuas
     XCTAssertTrue(results.allSatisfy { $0.categoryId == 1 })
 
@@ -760,7 +748,6 @@ final class LibraryFeatureTests: XCTestCase {
       $0.duas = Dua.demoData
     }
 
-    // All duas should be visible
     XCTAssertEqual(store.state.filteredDuas.count, Dua.demoData.count)
   }
 
@@ -812,19 +799,11 @@ final class LibraryFeatureTests: XCTestCase {
 
     let store = TestStore(initialState: state) {
       LibraryFeature()
-    } withDependencies: {
-      $0.firestoreContentClient.fetchDuasByCategory = { _ in morningDuas }
     }
 
-    // Filter by category first (morning = categoryId 1)
+    // Filter by category first (morning = categoryId 1) — now an in-memory op.
     await store.send(.categorySelected(.morning)) {
       $0.selectedCategory = .morning
-      $0.isLoading = true
-    }
-
-    // Must receive the category action before sending search
-    await store.receive(\.categoryDuasLoaded) {
-      $0.isLoading = false
       $0.duas = morningDuas
     }
 
@@ -1343,22 +1322,15 @@ final class AchievementUnlockTests: XCTestCase {
     } withDependencies: {
       $0.continuousClock = ImmediateClock()
     }
+    // unlockedAt timestamps depend on Date() at reducer-call time, which we
+    // cannot predict precisely from the test side. Verify outcomes by inspecting
+    // state directly instead of asserting exhaustive state mutations.
+    store.exhaustivity = .off
 
     // All achievements start locked
     XCTAssertTrue(store.state.achievements.allSatisfy { !$0.isUnlocked })
 
-    await store.send(.evaluateAchievements) {
-      // "getting-started" (3-day streak) and "week-warrior" (7-day streak) should be unlocked
-      let context = $0.achievementEvaluationContext
-      $0.achievements = $0.achievements.map { achievement in
-        if achievement.shouldUnlock(with: context) {
-          return achievement.unlocked()
-        }
-        return achievement
-      }
-      // First newly unlocked achievement shown as celebration
-      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
-    }
+    await store.send(.evaluateAchievements)
 
     // Verify the right achievements were unlocked
     let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
@@ -1366,6 +1338,7 @@ final class AchievementUnlockTests: XCTestCase {
     XCTAssertTrue(unlockedIds.contains("week-warrior"))
     XCTAssertFalse(unlockedIds.contains("fortnight-faithful"))  // Needs 14 days
     XCTAssertFalse(unlockedIds.contains("first-step"))  // Needs totalDuas >= 1
+    XCTAssertNotNil(store.state.newlyUnlockedAchievement)
   }
 
   @MainActor
@@ -1381,17 +1354,9 @@ final class AchievementUnlockTests: XCTestCase {
     } withDependencies: {
       $0.continuousClock = ImmediateClock()
     }
+    store.exhaustivity = .off  // unlockedAt timestamp not predictable; verify via state inspection.
 
-    await store.send(.evaluateAchievements) {
-      let context = $0.achievementEvaluationContext
-      $0.achievements = $0.achievements.map { achievement in
-        if achievement.shouldUnlock(with: context) {
-          return achievement.unlocked()
-        }
-        return achievement
-      }
-      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
-    }
+    await store.send(.evaluateAchievements)
 
     let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
     XCTAssertTrue(unlockedIds.contains("level-5"))
@@ -1414,17 +1379,9 @@ final class AchievementUnlockTests: XCTestCase {
     } withDependencies: {
       $0.continuousClock = ImmediateClock()
     }
+    store.exhaustivity = .off  // unlockedAt timestamp not predictable; verify via state inspection.
 
-    await store.send(.evaluateAchievements) {
-      let context = $0.achievementEvaluationContext
-      $0.achievements = $0.achievements.map { achievement in
-        if achievement.shouldUnlock(with: context) {
-          return achievement.unlocked()
-        }
-        return achievement
-      }
-      $0.newlyUnlockedAchievement = $0.achievements.first { $0.isUnlocked }
-    }
+    await store.send(.evaluateAchievements)
 
     let unlockedIds = Set(store.state.achievements.filter { $0.isUnlocked }.map(\.id))
     XCTAssertTrue(unlockedIds.contains("first-step"))  // Needs totalDuas >= 1

@@ -56,6 +56,14 @@ struct AdkharFeature {
     /// Current streak (consecutive days of practice)
     var streak: Int = 0
 
+    // MARK: - Parent-Pushed Content
+    //
+    // Mirrored from ContentFeature via .contentUpdated. Used to recompute the
+    // habit lists locally instead of triggering another Firestore round trip.
+    // Default empty — habits stay empty until content arrives.
+    var availableDuas: [Dua] = []
+    var availableJourneyDuas: [JourneyDua] = []
+
     // MARK: - Error State
 
     /// Error message from failed data load, nil when no error
@@ -136,6 +144,10 @@ struct AdkharFeature {
   enum Action {
     case onAppear
     case refreshData
+    /// Parent-pushed master content. Stored locally and used as the source for
+    /// `computeHabits` on the next user-data refresh (or immediately if user
+    /// data is already loaded).
+    case contentUpdated(duas: [Dua], journeyDuas: [JourneyDua])
     case habitsLoaded(morning: [Habit], anytime: [Habit], evening: [Habit])
     case loadFailed(String)
     case streakLoaded(Int)
@@ -171,92 +183,67 @@ struct AdkharFeature {
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
-      case .onAppear:
-        adkharLogger.info("📱 AdkharFeature.onAppear: Starting to load habits...")
+      case .onAppear, .refreshData:
         state.isLoading = true
         state.loadError = nil
 
+        // Capture content snapshot for use inside the effect (state isn't
+        // accessible after we leave the reducer body).
+        let allDuas = state.availableDuas
+        let allJourneyDuas = state.availableJourneyDuas
+
         return .run { [adkharService, userHabitsClient] send in
           do {
-            // Fetch all habits (journey + custom) from storage and database
-            adkharLogger.info("📱 Fetching all habits from service...")
-            let habits = try await adkharService.fetchAllHabits()
-            adkharLogger.info("📱 Fetched habits - morning: \(habits.morning.count), anytime: \(habits.anytime.count), evening: \(habits.evening.count)")
+            // User-data: subscribed journeys + custom habits (local, fast).
+            async let activeJourneyIdsTask = adkharService.getActiveJourneyIds()
+            async let customHabitsTask = adkharService.getCustomHabits()
+            let activeJourneyIds = try await activeJourneyIdsTask
+            let customHabits = try await customHabitsTask
 
+            // Pure transformation — no network, no timeout, no fallback.
+            let habits = adkharService.computeHabits(
+              activeJourneyIds,
+              allDuas,
+              allJourneyDuas,
+              customHabits
+            )
             await send(.habitsLoaded(
               morning: habits.morning,
               anytime: habits.anytime,
               evening: habits.evening
             ))
 
-            // Fetch streak and today's completions (requires auth)
+            // Cloud user-data: streak + today's completions (requires auth).
             if let userId = adkharService.currentUserId() {
-              adkharLogger.info("📱 User logged in, fetching streak for: \(userId, privacy: .public)")
               let streak = try await adkharService.fetchStreak(userId)
               await send(.streakLoaded(streak))
 
-              // Restore today's completions from Firestore (cloud source of truth)
               let completedIds = try await adkharService.fetchTodayCompletions(userId)
               if !completedIds.isEmpty {
                 await send(.completionsRestored(completedIds))
-
-                // Sync cloud completions into local storage for offline access
                 do {
                   try await userHabitsClient.syncCompletionsFromCloud(completedIds)
-                  adkharLogger.info("📱 Synced \(completedIds.count) completions from cloud to local storage")
                 } catch {
-                  adkharLogger.error("📱 Failed to sync cloud completions to local storage: \(error.localizedDescription, privacy: .public)")
+                  adkharLogger.error("📱 Failed to sync cloud completions: \(error.localizedDescription, privacy: .public)")
                 }
               }
             } else {
-              adkharLogger.info("📱 No user logged in, setting streak to 0")
               await send(.streakLoaded(0))
             }
-
           } catch {
             adkharLogger.error("📱 Error loading habits: \(error.localizedDescription, privacy: .public)")
             await send(.loadFailed(error.localizedDescription))
           }
         }
 
-      case .refreshData:
-        state.isLoading = true
-        state.loadError = nil
-
-        return .run { [adkharService, userHabitsClient] send in
-          do {
-            let habits = try await adkharService.fetchAllHabits()
-
-            await send(.habitsLoaded(
-              morning: habits.morning,
-              anytime: habits.anytime,
-              evening: habits.evening
-            ))
-
-            if let userId = adkharService.currentUserId() {
-              let streak = try await adkharService.fetchStreak(userId)
-              await send(.streakLoaded(streak))
-
-              // Restore today's completions from Firestore (cloud source of truth)
-              let completedIds = try await adkharService.fetchTodayCompletions(userId)
-              if !completedIds.isEmpty {
-                await send(.completionsRestored(completedIds))
-
-                // Sync cloud completions into local storage for offline access
-                do {
-                  try await userHabitsClient.syncCompletionsFromCloud(completedIds)
-                } catch {
-                  adkharLogger.error("📱 Failed to sync cloud completions on refresh: \(error.localizedDescription, privacy: .public)")
-                }
-              }
-            } else {
-              await send(.streakLoaded(0))
-            }
-
-          } catch {
-            await send(.loadFailed(error.localizedDescription))
-          }
-        }
+      case let .contentUpdated(duas, journeyDuas):
+        // Cache the latest master content and trigger an immediate recompute.
+        // The recompute is cheap (pure local transformation) and ensures users
+        // who landed on Adkhar before content arrived see habits the moment
+        // ContentFeature settles.
+        state.availableDuas = duas
+        state.availableJourneyDuas = journeyDuas
+        return .send(.refreshData)
 
       case .habitsLoaded(let morning, let anytime, let evening):
         state.isLoading = false
@@ -264,8 +251,6 @@ struct AdkharFeature {
         state.morningHabits = morning
         state.anytimeHabits = anytime
         state.eveningHabits = evening
-        let totalCount = morning.count + anytime.count + evening.count
-        adkharLogger.info("✅ habitsLoaded: isLoading=false, totalHabits=\(totalCount, privacy: .public) (empty state should show if 0)")
         return .none
 
       case .loadFailed(let error):
@@ -429,21 +414,17 @@ struct AdkharFeature {
         return .none
 
       case .navigateToJourneys:
-        // Handled by parent AppFeature
-        adkharLogger.info("🚀 navigateToJourneys action sent from AdkharFeature - bubbling up to parent")
+        // Handled by parent AppFeature.
         return .none
 
       case .becameActive:
-        // Refresh data when tab becomes active to pick up any journey subscription changes
-        // Always refresh to ensure we have latest data (handles stuck loading state too)
-        let currentlyLoading = state.isLoading
-        adkharLogger.info("becameActive: Refreshing habits, isLoading: \(currentlyLoading, privacy: .public)")
+        // Refresh when tab becomes active to pick up any journey subscription
+        // changes the user made in another tab.
         return .send(.refreshData)
 
       case .filterByTimeSlot(let timeSlot):
-        // Set the filter - the view will respond by scrolling to this section
+        // Set the filter - the view will respond by scrolling to this section.
         state.selectedTimeSlotFilter = timeSlot
-        adkharLogger.info("filterByTimeSlot: Set filter to \(timeSlot?.rawValue ?? "nil", privacy: .public)")
         return .none
 
       case .clearTimeSlotFilter:
@@ -489,12 +470,26 @@ func getGreeting() -> String {
 
 // MARK: - Adkhar Service Client
 
-/// Dependency client for fetching habits from subscribed journeys and managing completions
+/// Dependency client for habit-related operations.
+///
+/// Habit construction is now a **pure transformation** over pre-fetched master
+/// content (duas + journey-dua mappings) and user-data (active journey IDs +
+/// custom habits). Callers fetch content via ContentFeature/cachedContentClient
+/// and user-data via this client + habitStorage, then call `computeHabits` to
+/// assemble the habit lists.
 struct AdkharServiceClient: Sendable {
-  /// Fetches habits grouped by time slot from all subscribed journeys and custom habits
-  var fetchAllHabits: @Sendable () async throws -> (morning: [Habit], anytime: [Habit], evening: [Habit])
-  /// Fetches habits grouped by time slot from specified journeys only
-  var fetchHabitsForJourneys: @Sendable ([Int]) async throws -> (morning: [Habit], anytime: [Habit], evening: [Habit])
+  /// Pure transformation: combines master content + user-data into time-slotted
+  /// habit lists. No I/O, no errors. Replaces the prior `fetchAllHabits` which
+  /// did its own content fetching, timeout, and SampleData fallback (now
+  /// redundant because CachedContentClient handles offline resilience and
+  /// content is owned by ContentFeature).
+  var computeHabits: @Sendable (
+    _ activeJourneyIds: [Int],
+    _ allDuas: [Dua],
+    _ allJourneyDuas: [JourneyDua],
+    _ customHabits: [CustomHabit]
+  ) -> (morning: [Habit], anytime: [Habit], evening: [Habit])
+
   /// Fetches the user's current streak
   var fetchStreak: @Sendable (String) async throws -> Int
   /// Records a dua completion and awards XP
@@ -503,180 +498,35 @@ struct AdkharServiceClient: Sendable {
   var fetchTodayCompletions: @Sendable (String) async throws -> Set<Int>
   /// Gets active journey IDs from local storage
   var getActiveJourneyIds: @Sendable () async throws -> [Int]
+  /// Gets user-added custom habits from local storage
+  var getCustomHabits: @Sendable () async throws -> [CustomHabit]
   /// Gets the current authenticated user's ID (nil if not signed in)
   var currentUserId: @Sendable () -> String?
 }
 
 extension AdkharServiceClient: DependencyKey {
   static let liveValue: AdkharServiceClient = {
-    // Use FirestoreContentService for content data (duas, journeys)
-    // This fixes the issue where neonService falls back to MockNeonService
-    // when Neon credentials are not configured (Firebase-only setup)
-    let firestoreContentService = FirestoreContentService()
     let firestoreService = FirestoreService()
     let habitStorage = ServiceContainer.shared.habitStorage
 
-    // Helper function to convert JourneyDua + Dua to Habit
-    func convertToHabit(journeyDua: JourneyDua, dua: Dua) -> Habit {
-      Habit(
-        id: dua.id,
-        duaId: dua.id,
-        categoryId: dua.categoryId,
-        titleEn: dua.titleEn,
-        arabicText: dua.arabicText,
-        transliteration: dua.transliteration,
-        translation: dua.translationEn,
-        source: dua.source,
-        rizqBenefit: dua.rizqBenefit,
-        propheticContext: dua.propheticContext,
-        timeSlot: journeyDua.timeSlot,
-        xpValue: dua.xpValue,
-        repetitions: dua.repetitions
-      )
-    }
-
-    // Helper to fetch journey habits with full dua data
-    func fetchJourneyHabits(journeyId: Int, duasCache: [Int: Dua]) async throws -> (morning: [Habit], anytime: [Habit], evening: [Habit]) {
-      var morning: [Habit] = []
-      var anytime: [Habit] = []
-      var evening: [Habit] = []
-
-      let journeyDuas = try await firestoreContentService.fetchJourneyDuas(journeyId)
-
-      for journeyDua in journeyDuas {
-        guard let dua = duasCache[journeyDua.duaId] else { continue }
-        let habit = convertToHabit(journeyDua: journeyDua, dua: dua)
-
-        switch journeyDua.timeSlot {
-        case .morning: morning.append(habit)
-        case .anytime: anytime.append(habit)
-        case .evening: evening.append(habit)
-        }
-      }
-
-      return (morning, anytime, evening)
-    }
-
     return AdkharServiceClient(
-      fetchAllHabits: {
-        adkharLogger.info("📱 fetchAllHabits: Starting...")
-
-        // Wrap in timeout to prevent hanging
-        do {
-          return try await withThrowingTaskGroup(of: (morning: [Habit], anytime: [Habit], evening: [Habit]).self) { group in
-            group.addTask {
-              // Main fetch logic
-              let journeyIds = try await habitStorage.getActiveJourneyIds()
-              adkharLogger.info("📱 fetchAllHabits: Got \(journeyIds.count) active journey IDs")
-
-              // Fetch all duas once and create a lookup cache
-              let allDuas = try await firestoreContentService.fetchAllDuas()
-              adkharLogger.info("📱 fetchAllHabits: Got \(allDuas.count) duas from Firestore")
-              let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
-
-              var morning: [Habit] = []
-              var anytime: [Habit] = []
-              var evening: [Habit] = []
-
-              // Fetch journey habits using Firestore
-              for journeyId in journeyIds {
-                let habits = try await fetchJourneyHabits(journeyId: journeyId, duasCache: duasCache)
-                morning.append(contentsOf: habits.morning)
-                anytime.append(contentsOf: habits.anytime)
-                evening.append(contentsOf: habits.evening)
-              }
-
-              // Fetch custom habits
-              let customHabits = try await habitStorage.getCustomHabits()
-              adkharLogger.info("📱 fetchAllHabits: Got \(customHabits.count) custom habits from storage")
-              for customHabit in customHabits {
-                adkharLogger.info("📱 fetchAllHabits: Processing custom habit duaId=\(customHabit.duaId), timeSlot=\(customHabit.timeSlot.rawValue)")
-                if let dua = duasCache[customHabit.duaId] {
-                  let habit = Habit(
-                    id: dua.id,
-                    duaId: dua.id,
-                    categoryId: dua.categoryId,
-                    titleEn: dua.titleEn,
-                    arabicText: dua.arabicText,
-                    transliteration: dua.transliteration,
-                    translation: dua.translationEn,
-                    source: dua.source,
-                    rizqBenefit: dua.rizqBenefit,
-                    propheticContext: dua.propheticContext,
-                    timeSlot: customHabit.timeSlot,
-                    xpValue: dua.xpValue,
-                    repetitions: dua.repetitions
-                  )
-
-                  switch customHabit.timeSlot {
-                  case .morning: morning.append(habit)
-                  case .anytime: anytime.append(habit)
-                  case .evening: evening.append(habit)
-                  }
-                }
-              }
-
-              // Sort by ID and remove duplicates
-              morning = Array(Set(morning)).sorted { $0.id < $1.id }
-              anytime = Array(Set(anytime)).sorted { $0.id < $1.id }
-              evening = Array(Set(evening)).sorted { $0.id < $1.id }
-
-              adkharLogger.info("📱 fetchAllHabits: Returning morning=\(morning.count), anytime=\(anytime.count), evening=\(evening.count)")
-              return (morning: morning, anytime: anytime, evening: evening)
-            }
-
-            // Timeout task - 8 seconds
-            group.addTask {
-              try await Task.sleep(for: .seconds(8))
-              adkharLogger.warning("📱 fetchAllHabits: Timeout after 8 seconds!")
-              throw NSError(domain: "AdkharService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Fetch timed out"])
-            }
-
-            // Return first result (success or timeout error)
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
-          }
-        } catch {
-          // On any error, return empty arrays so user sees "Browse Journeys" button
-          adkharLogger.error("📱 fetchAllHabits: Error - \(error.localizedDescription). Returning empty arrays.")
-          return (morning: [], anytime: [], evening: [])
-        }
-      },
-
-      fetchHabitsForJourneys: { journeyIds in
-        // Fetch all duas once and create a lookup cache
-        let allDuas = try await firestoreContentService.fetchAllDuas()
-        let duasCache = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
-
-        var morning: [Habit] = []
-        var anytime: [Habit] = []
-        var evening: [Habit] = []
-
-        for journeyId in journeyIds {
-          let habits = try await fetchJourneyHabits(journeyId: journeyId, duasCache: duasCache)
-          morning.append(contentsOf: habits.morning)
-          anytime.append(contentsOf: habits.anytime)
-          evening.append(contentsOf: habits.evening)
-        }
-
-        // Sort by ID for consistent ordering and remove duplicates
-        morning = Array(Set(morning)).sorted { $0.id < $1.id }
-        anytime = Array(Set(anytime)).sorted { $0.id < $1.id }
-        evening = Array(Set(evening)).sorted { $0.id < $1.id }
-
-        return (morning: morning, anytime: anytime, evening: evening)
+      computeHabits: { activeJourneyIds, allDuas, allJourneyDuas, customHabits in
+        computeHabitsImpl(
+          activeJourneyIds: activeJourneyIds,
+          allDuas: allDuas,
+          allJourneyDuas: allJourneyDuas,
+          customHabits: customHabits
+        )
       },
 
       fetchStreak: { userId in
-        // Use FirestoreService for user data
         let profile = try await firestoreService.fetchUserProfile(userId: userId)
         return profile?.streak ?? 0
       },
 
       recordCompletion: { userId, duaId, xpEarned in
-        // Use recordPracticeCompletion to update user_activity, user_progress, AND user_profiles.totalXp
-        // This ensures completions reflect on the Home page and XP is properly awarded
+        // Updates user_activity, user_progress, AND user_profiles.totalXp so
+        // completions reflect on Home and XP is properly awarded.
         _ = try await firestoreService.recordPracticeCompletion(
           userId: userId,
           duaId: duaId,
@@ -695,6 +545,10 @@ extension AdkharServiceClient: DependencyKey {
         try await habitStorage.getActiveJourneyIds()
       },
 
+      getCustomHabits: {
+        try await habitStorage.getCustomHabits()
+      },
+
       currentUserId: {
         Auth.auth().currentUser?.uid
       }
@@ -702,18 +556,17 @@ extension AdkharServiceClient: DependencyKey {
   }()
 
   static let testValue = AdkharServiceClient(
-    fetchAllHabits: { ([], [], []) },
-    fetchHabitsForJourneys: { _ in ([], [], []) },
+    computeHabits: { _, _, _, _ in ([], [], []) },
     fetchStreak: { _ in 7 },
     recordCompletion: { _, _, _ in },
     fetchTodayCompletions: { _ in [] },
     getActiveJourneyIds: { [] },
+    getCustomHabits: { [] },
     currentUserId: { "test-user-id" }
   )
 
   static let previewValue = AdkharServiceClient(
-    fetchAllHabits: {
-      // Return sample habits for previews
+    computeHabits: { _, _, _, _ in
       let morning = [
         Habit(
           id: 1, duaId: 1, categoryId: 1, titleEn: "Morning Remembrance",
@@ -738,24 +591,91 @@ extension AdkharServiceClient: DependencyKey {
       ]
       return (morning, [], evening)
     },
-    fetchHabitsForJourneys: { _ in
-      let morning = [
-        Habit(
-          id: 1, duaId: 1, categoryId: 1, titleEn: "Morning Remembrance",
-          arabicText: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ",
-          transliteration: "Asbahna wa asbahal mulku lillah",
-          translation: "We have reached the morning",
-          source: "Muslim", rizqBenefit: nil, propheticContext: nil,
-          timeSlot: .morning, xpValue: 10, repetitions: 3
-        )
-      ]
-      return (morning, [], [])
-    },
     fetchStreak: { _ in 7 },
     recordCompletion: { _, _, _ in },
     fetchTodayCompletions: { _ in [] },
     getActiveJourneyIds: { [1, 2] },
+    getCustomHabits: { [] },
     currentUserId: { "preview-user-id" }
+  )
+}
+
+// MARK: - Pure Habit Computation
+//
+// Extracted from the legacy `fetchAllHabits` closure so it can be unit-tested
+// and reused by both AdkharFeature and HomeFeature without re-fetching master
+// content. Assumes inputs are already loaded — caller is responsible for
+// supplying `allDuas` / `allJourneyDuas` via ContentFeature and the user-data
+// arrays via habitStorage.
+
+private func computeHabitsImpl(
+  activeJourneyIds: [Int],
+  allDuas: [Dua],
+  allJourneyDuas: [JourneyDua],
+  customHabits: [CustomHabit]
+) -> (morning: [Habit], anytime: [Habit], evening: [Habit]) {
+  let duasById = Dictionary(uniqueKeysWithValues: allDuas.map { ($0.id, $0) })
+  let activeJourneySet = Set(activeJourneyIds)
+
+  var morning: [Habit] = []
+  var anytime: [Habit] = []
+  var evening: [Habit] = []
+
+  // Journey habits: walk every mapping, keep only those in subscribed journeys.
+  for mapping in allJourneyDuas where activeJourneySet.contains(mapping.journeyId) {
+    guard let dua = duasById[mapping.duaId] else { continue }
+    let habit = Habit(
+      id: dua.id,
+      duaId: dua.id,
+      categoryId: dua.categoryId,
+      titleEn: dua.titleEn,
+      arabicText: dua.arabicText,
+      transliteration: dua.transliteration,
+      translation: dua.translationEn,
+      source: dua.source,
+      rizqBenefit: dua.rizqBenefit,
+      propheticContext: dua.propheticContext,
+      timeSlot: mapping.timeSlot,
+      xpValue: dua.xpValue,
+      repetitions: dua.repetitions
+    )
+    switch mapping.timeSlot {
+    case .morning: morning.append(habit)
+    case .anytime: anytime.append(habit)
+    case .evening: evening.append(habit)
+    }
+  }
+
+  // Custom habits: same shape but timeSlot comes from the custom record.
+  for customHabit in customHabits {
+    guard let dua = duasById[customHabit.duaId] else { continue }
+    let habit = Habit(
+      id: dua.id,
+      duaId: dua.id,
+      categoryId: dua.categoryId,
+      titleEn: dua.titleEn,
+      arabicText: dua.arabicText,
+      transliteration: dua.transliteration,
+      translation: dua.translationEn,
+      source: dua.source,
+      rizqBenefit: dua.rizqBenefit,
+      propheticContext: dua.propheticContext,
+      timeSlot: customHabit.timeSlot,
+      xpValue: dua.xpValue,
+      repetitions: dua.repetitions
+    )
+    switch customHabit.timeSlot {
+    case .morning: morning.append(habit)
+    case .anytime: anytime.append(habit)
+    case .evening: evening.append(habit)
+    }
+  }
+
+  // De-dupe (a dua may appear in multiple subscribed journeys) + stable sort.
+  return (
+    morning: Array(Set(morning)).sorted { $0.id < $1.id },
+    anytime: Array(Set(anytime)).sorted { $0.id < $1.id },
+    evening: Array(Set(evening)).sorted { $0.id < $1.id }
   )
 }
 

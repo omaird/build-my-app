@@ -10,6 +10,10 @@ public protocol FirestoreContentServiceProtocol: Sendable {
   func fetchAllCategories() async throws -> [DuaCategory]
   func fetchAllJourneys() async throws -> [Journey]
   func fetchJourneyDuas(_ journeyId: Int) async throws -> [JourneyDua]
+  /// Fetch every journey-dua mapping in one query. Replaces N per-journey
+  /// `fetchJourneyDuas(_:)` round trips when callers need the full graph
+  /// (e.g. AdkharService building habits across all subscribed journeys).
+  func fetchAllJourneyDuas() async throws -> [JourneyDua]
 }
 
 // MARK: - Live Implementation
@@ -134,6 +138,16 @@ public final class FirestoreContentService: FirestoreContentServiceProtocol, @un
   public func fetchJourneyDuas(_ journeyId: Int) async throws -> [JourneyDua] {
     let snapshot = try await db.collection(journeyDuasCollection)
       .whereField("journeyId", isEqualTo: journeyId)
+      .order(by: "sortOrder")
+      .getDocuments()
+
+    return snapshot.documents.compactMap { doc -> JourneyDua? in
+      try? mapDocumentToJourneyDua(doc.data(), documentId: doc.documentID)
+    }
+  }
+
+  public func fetchAllJourneyDuas() async throws -> [JourneyDua] {
+    let snapshot = try await db.collection(journeyDuasCollection)
       .order(by: "sortOrder")
       .getDocuments()
 
@@ -281,6 +295,10 @@ public final class MockFirestoreContentService: FirestoreContentServiceProtocol,
   }
 
   public func fetchJourneyDuas(_ journeyId: Int) async throws -> [JourneyDua] {
+    []
+  }
+
+  public func fetchAllJourneyDuas() async throws -> [JourneyDua] {
     []
   }
 }

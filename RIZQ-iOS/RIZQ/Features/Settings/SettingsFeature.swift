@@ -81,7 +81,7 @@ struct SettingsFeature {
     case editDisplayNameTapped
     case cancelEditDisplayName
     case saveDisplayNameTapped
-    case displayNameSaved(String)
+    case displayNameSaved(UserProfile)
     case displayNameSaveFailed(String)
 
     // Preferences
@@ -102,7 +102,7 @@ struct SettingsFeature {
     case resetProgressTapped
     case confirmResetProgress
     case cancelResetProgress
-    case progressReset
+    case progressReset(UserProfile)
     case resetProgressFailed(String)
 
     // Sign Out
@@ -210,30 +210,17 @@ struct SettingsFeature {
         let newName = state.editedDisplayName.trimmingCharacters(in: .whitespaces)
         return .run { [firestoreUserClient] send in
           do {
-            _ = try await firestoreUserClient.updateDisplayName(userId, newName)
-            await send(.displayNameSaved(newName))
+            let updatedProfile = try await firestoreUserClient.updateDisplayName(userId, newName)
+            await send(.displayNameSaved(updatedProfile))
           } catch {
             await send(.displayNameSaveFailed(error.localizedDescription))
           }
         }
 
-      case .displayNameSaved(let newName):
+      case .displayNameSaved(let profile):
         state.isSavingDisplayName = false
         state.isEditingDisplayName = false
-        if var profile = state.profile {
-          state.profile = UserProfile(
-            id: profile.id,
-            userId: profile.userId,
-            displayName: newName,
-            streak: profile.streak,
-            totalXp: profile.totalXp,
-            level: profile.level,
-            lastActiveDate: profile.lastActiveDate,
-            isAdmin: profile.isAdmin,
-            createdAt: profile.createdAt,
-            updatedAt: Date()
-          )
-        }
+        state.profile = profile
         state.successMessage = "Display name updated"
         state.editedDisplayName = ""
         return .run { send in
@@ -362,7 +349,7 @@ struct SettingsFeature {
         return .run { [firestoreUserClient] send in
           do {
             let profile = try await firestoreUserClient.resetUserProgress(userId)
-            await send(.progressReset)
+            await send(.progressReset(profile))
           } catch {
             await send(.resetProgressFailed(error.localizedDescription))
           }
@@ -372,22 +359,9 @@ struct SettingsFeature {
         state.showingResetProgressAlert = false
         return .none
 
-      case .progressReset:
+      case .progressReset(let profile):
         state.isResettingProgress = false
-        if let profile = state.profile {
-          state.profile = UserProfile(
-            id: profile.id,
-            userId: profile.userId,
-            displayName: profile.displayName,
-            streak: 0,
-            totalXp: 0,
-            level: 1,
-            lastActiveDate: nil,
-            isAdmin: profile.isAdmin,
-            createdAt: profile.createdAt,
-            updatedAt: Date()
-          )
-        }
+        state.profile = profile
         state.successMessage = "Progress has been reset"
         return .run { send in
           try await clock.sleep(for: .seconds(3))
