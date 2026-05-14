@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  arrayUnion,
+  collection,
+  doc,
+  getDocs,
+  increment,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+} from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSql } from "@/lib/db";
+import { getDb, isFirestoreCutoverEnabled } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
 
 export interface DailyActivity {
@@ -18,12 +29,150 @@ export interface UserProgress {
 
 const getToday = () => new Date().toISOString().split("T")[0];
 
+// ---------------------------------------------------------------------------
+// Firestore helpers (only invoked when isFirestoreCutoverEnabled())
+// ---------------------------------------------------------------------------
+
+async function fetchActivitiesFromFirestore(
+  userId: string
+): Promise<DailyActivity[]> {
+  const db = getDb();
+  // Document IDs are `YYYY-MM-DD`. Firestore (and the emulator in particular)
+  // rejects `orderBy(documentId(), 'desc')` without a backing index, so we
+  // fetch unsorted and sort client-side. The collection is per-user and
+  // bounded by user lifetime, so this is cheap.
+  const snap = await getDocs(collection(db, "user_activity", userId, "dates"));
+  const sortedDocs = [...snap.docs]
+    .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+    .slice(0, 30);
+  return sortedDocs.map((d) => {
+    const data = d.data() as { duasCompleted?: unknown; xpEarned?: unknown };
+    // iOS writes `duasCompleted` as `[Int]`. Coerce each element to string for
+    // the TS frontend type (which keeps the legacy `string[]` shape so callers
+    // don't have to change). Tolerate string entries too in case legacy/test
+    // data exists.
+    const raw = Array.isArray(data.duasCompleted) ? data.duasCompleted : [];
+    const duasCompleted = raw.map((v) => String(v));
+    const xpEarned = typeof data.xpEarned === "number" ? data.xpEarned : 0;
+    return {
+      date: d.id,
+      completed: duasCompleted.length > 0,
+      duasCompleted,
+      xpEarned,
+    };
+  });
+}
+
+async function writeActivityToFirestore(
+  userId: string,
+  date: string,
+  duaId: string,
+  xpEarned: number
+): Promise<void> {
+  // iOS reads `duasCompleted` as `[Int]`. Coerce at the firestore boundary so
+  // web-written entries are visible to iOS readers.
+  const numericDuaId = Number(duaId);
+  if (!Number.isInteger(numericDuaId)) {
+    throw new Error(`Invalid duaId: ${duaId} (not an integer)`);
+  }
+  const db = getDb();
+  const ref = doc(db, "user_activity", userId, "dates", date);
+  // Merge upsert: arrayUnion is idempotent (won't double-count a duaId).
+  // Note: this means re-completing the same dua on the same day still adds
+  // xpEarned — matches Neon's `array_append + xp_earned + ${xpEarned}` shape
+  // (which is also non-idempotent on xp). Keep them consistent.
+  await setDoc(
+    ref,
+    {
+      duasCompleted: arrayUnion(numericDuaId),
+      xpEarned: increment(xpEarned),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
+ * Coerce a Firestore `lastCompleted` value to a `YYYY-MM-DD` string for the
+ * TS frontend type. iOS writes Firestore `Timestamp`; legacy/test data may be
+ * a plain string or `Date`. Returns `null` for missing/unrecognised shapes.
+ */
+function lastCompletedToDateString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string") {
+    // Legacy or test-seeded data: split off any time component.
+    return value.split("T")[0];
+  }
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString().split("T")[0];
+  }
+  if (value instanceof Date) {
+    return value.toISOString().split("T")[0];
+  }
+  return null;
+}
+
+async function fetchProgressFromFirestore(
+  userId: string
+): Promise<UserProgress[]> {
+  const db = getDb();
+  const snap = await getDocs(collection(db, "user_progress", userId, "duas"));
+  return snap.docs.map((d) => {
+    const data = d.data() as {
+      duaId?: unknown;
+      completedCount?: unknown;
+      lastCompleted?: unknown;
+    };
+    return {
+      // iOS writes `duaId` as `Int` and uses `String(duaId)` for the doc ID.
+      // Prefer the explicit field, fall back to the doc ID. Always return a
+      // string to match the legacy frontend type.
+      duaId: data.duaId != null ? String(data.duaId) : d.id,
+      completedCount:
+        typeof data.completedCount === "number" ? data.completedCount : 0,
+      lastCompleted: lastCompletedToDateString(data.lastCompleted),
+    };
+  });
+}
+
+async function writeProgressToFirestore(
+  userId: string,
+  duaId: string
+): Promise<void> {
+  // iOS stores `duaId` as `Int` and uses `String(duaId)` for the doc ID.
+  // Coerce at the firestore boundary so cross-device reads stay consistent.
+  const numericDuaId = Number(duaId);
+  if (!Number.isInteger(numericDuaId)) {
+    throw new Error(`Invalid duaId: ${duaId} (not an integer)`);
+  }
+  const db = getDb();
+  const ref = doc(db, "user_progress", userId, "duas", String(numericDuaId));
+  // Single merge upsert: `increment(1)` initialises a missing field to the
+  // delta, and `duaId` is set on first write and harmlessly re-set on
+  // subsequent merges. Atomic + idempotent — replaces the prior
+  // read-then-write branch.
+  await setDoc(
+    ref,
+    {
+      duaId: numericDuaId,
+      completedCount: increment(1),
+      lastCompleted: Timestamp.now(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// useDailyActivity
+// ---------------------------------------------------------------------------
+
 export function useDailyActivity() {
   const { user, isAuthenticated, addXp } = useAuth();
   const [activities, setActivities] = useState<DailyActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch activities from database
+  // Fetch activities from the active backend (Firestore when cutover, Neon otherwise).
   const fetchActivities = useCallback(async () => {
     if (!user) {
       setActivities([]);
@@ -32,26 +181,31 @@ export function useDailyActivity() {
     }
 
     try {
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          date::text,
-          duas_completed as "duasCompleted",
-          xp_earned as "xpEarned"
-        FROM user_activity
-        WHERE user_id = ${user.id}::uuid
-        ORDER BY date DESC
-        LIMIT 30
-      `;
+      if (isFirestoreCutoverEnabled()) {
+        const formatted = await fetchActivitiesFromFirestore(user.id);
+        setActivities(formatted);
+      } else {
+        const sql = getSql();
+        const result = await sql`
+          SELECT
+            date::text,
+            duas_completed as "duasCompleted",
+            xp_earned as "xpEarned"
+          FROM user_activity
+          WHERE user_id = ${user.id}::uuid
+          ORDER BY date DESC
+          LIMIT 30
+        `;
 
-      const formattedActivities: DailyActivity[] = result.map((row) => ({
-        date: row.date,
-        completed: (row.duasCompleted as string[]).length > 0,
-        duasCompleted: row.duasCompleted as string[],
-        xpEarned: row.xpEarned as number,
-      }));
+        const formattedActivities: DailyActivity[] = result.map((row) => ({
+          date: row.date as string,
+          completed: (row.duasCompleted as string[]).length > 0,
+          duasCompleted: row.duasCompleted as string[],
+          xpEarned: row.xpEarned as number,
+        }));
 
-      setActivities(formattedActivities);
+        setActivities(formattedActivities);
+      }
     } catch (error) {
       console.error("Error fetching activities:", error);
     } finally {
@@ -88,19 +242,21 @@ export function useDailyActivity() {
       // Step 1: persist activity row + optimistic local update.
       // If this fails, the user shouldn't see the dua marked complete.
       try {
-        const sql = getSql();
+        if (isFirestoreCutoverEnabled()) {
+          await writeActivityToFirestore(user.id, today, duaId, xpEarned);
+        } else {
+          const sql = getSql();
+          await sql`
+            INSERT INTO user_activity (user_id, date, duas_completed, xp_earned)
+            VALUES (${user.id}::uuid, ${today}::date, ARRAY[${duaId}], ${xpEarned})
+            ON CONFLICT (user_id, date)
+            DO UPDATE SET
+              duas_completed = array_append(user_activity.duas_completed, ${duaId}),
+              xp_earned = user_activity.xp_earned + ${xpEarned}
+          `;
+        }
 
-        // Upsert: insert or update today's activity
-        await sql`
-          INSERT INTO user_activity (user_id, date, duas_completed, xp_earned)
-          VALUES (${user.id}::uuid, ${today}::date, ARRAY[${duaId}], ${xpEarned})
-          ON CONFLICT (user_id, date)
-          DO UPDATE SET
-            duas_completed = array_append(user_activity.duas_completed, ${duaId}),
-            xp_earned = user_activity.xp_earned + ${xpEarned}
-        `;
-
-        // Update local state optimistically
+        // Update local state optimistically (backend-agnostic).
         setActivities((prev) => {
           const existing = prev.find((a) => a.date === today);
           if (existing) {
@@ -164,12 +320,16 @@ export function useDailyActivity() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// useUserProgress
+// ---------------------------------------------------------------------------
+
 export function useUserProgress() {
   const { user, isAuthenticated } = useAuth();
   const [progress, setProgress] = useState<UserProgress[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch progress from database
+  // Fetch progress from the active backend.
   const fetchProgress = useCallback(async () => {
     if (!user) {
       setProgress([]);
@@ -178,23 +338,28 @@ export function useUserProgress() {
     }
 
     try {
-      const sql = getSql();
-      const result = await sql`
-        SELECT
-          dua_id::text as "duaId",
-          completed_count as "completedCount",
-          last_completed::text as "lastCompleted"
-        FROM user_progress
-        WHERE user_id = ${user.id}::uuid
-      `;
+      if (isFirestoreCutoverEnabled()) {
+        const rows = await fetchProgressFromFirestore(user.id);
+        setProgress(rows);
+      } else {
+        const sql = getSql();
+        const result = await sql`
+          SELECT
+            dua_id::text as "duaId",
+            completed_count as "completedCount",
+            last_completed::text as "lastCompleted"
+          FROM user_progress
+          WHERE user_id = ${user.id}::uuid
+        `;
 
-      setProgress(
-        result.map((row) => ({
-          duaId: row.duaId as string,
-          completedCount: row.completedCount as number,
-          lastCompleted: row.lastCompleted as string | null,
-        }))
-      );
+        setProgress(
+          result.map((row) => ({
+            duaId: row.duaId as string,
+            completedCount: row.completedCount as number,
+            lastCompleted: row.lastCompleted as string | null,
+          }))
+        );
+      }
     } catch (error) {
       console.error("Error fetching progress:", error);
     } finally {
@@ -222,20 +387,22 @@ export function useUserProgress() {
       const today = getToday();
 
       try {
-        const sql = getSql();
+        if (isFirestoreCutoverEnabled()) {
+          await writeProgressToFirestore(user.id, duaId);
+        } else {
+          const sql = getSql();
+          await sql`
+            INSERT INTO user_progress (user_id, dua_id, completed_count, last_completed)
+            VALUES (${user.id}::uuid, ${parseInt(duaId)}, 1, ${today}::date)
+            ON CONFLICT (user_id, dua_id)
+            DO UPDATE SET
+              completed_count = user_progress.completed_count + 1,
+              last_completed = ${today}::date,
+              updated_at = NOW()
+          `;
+        }
 
-        // Upsert: insert or update progress
-        await sql`
-          INSERT INTO user_progress (user_id, dua_id, completed_count, last_completed)
-          VALUES (${user.id}::uuid, ${parseInt(duaId)}, 1, ${today}::date)
-          ON CONFLICT (user_id, dua_id)
-          DO UPDATE SET
-            completed_count = user_progress.completed_count + 1,
-            last_completed = ${today}::date,
-            updated_at = NOW()
-        `;
-
-        // Update local state optimistically
+        // Update local state optimistically (backend-agnostic).
         setProgress((prev) => {
           const existing = prev.find((p) => p.duaId === duaId);
           if (existing) {

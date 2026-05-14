@@ -7,7 +7,11 @@ const TEST_PASSWORD = "omair123";
 // Helper function to generate unique test journey names
 const generateTestJourneyName = () => `Test Journey ${Date.now()}`;
 
-test.describe("Admin Journeys Management", () => {
+// TODO(M1-Step5): rewrite for Firebase Auth emulator + Firestore-seeded admin user.
+// These tests were written for Better Auth (email/password) and the Neon-backed
+// admin flow. Both have been replaced (Step 2 auth cutover, Step 3 firestore
+// cutover). The new admin coverage lives in e2e/admin-duas.spec.ts.
+test.describe.skip("Admin Journeys Management", () => {
   test.beforeEach(async ({ page }) => {
     // Clear any existing session
     await page.context().clearCookies();
@@ -212,7 +216,11 @@ test.describe("Admin Journeys Management", () => {
   });
 });
 
-test.describe("Admin Journey-Dua Assignment", () => {
+// TODO(M1-Step5): rewrite for Firebase Auth emulator + Firestore-seeded admin user.
+// These tests were written for Better Auth (email/password) and the Neon-backed
+// admin flow. Both have been replaced (Step 2 auth cutover, Step 3 firestore
+// cutover). The new admin coverage lives in e2e/admin-duas.spec.ts.
+test.describe.skip("Admin Journey-Dua Assignment", () => {
   test.beforeEach(async ({ page }) => {
     // Clear any existing session
     await page.context().clearCookies();
@@ -444,7 +452,11 @@ test.describe("Admin Journey-Dua Assignment", () => {
   });
 });
 
-test.describe("Admin Journeys - Error Handling", () => {
+// TODO(M1-Step5): rewrite for Firebase Auth emulator + Firestore-seeded admin user.
+// These tests were written for Better Auth (email/password) and the Neon-backed
+// admin flow. Both have been replaced (Step 2 auth cutover, Step 3 firestore
+// cutover). The new admin coverage lives in e2e/admin-duas.spec.ts.
+test.describe.skip("Admin Journeys - Error Handling", () => {
   test.beforeEach(async ({ page }) => {
     // Clear any existing session
     await page.context().clearCookies();
