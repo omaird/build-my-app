@@ -175,22 +175,36 @@ struct AppFeature {
       // Forward ContentFeature loads down to child features. Each child gets a
       // single setter action; this is the parent-forwarding pattern in lieu of
       // children peeking at sibling state.
+      //
+      // Note on Adkhar/Home: they need duas AND journey-dua mappings together
+      // to compute habit lists, but the two fetches resolve independently. We
+      // forward on each event using the action payload for the freshly-arrived
+      // value and `state.content.{other}` for whatever's already settled. The
+      // last forward of a given fetch cycle has both values populated.
       case let .content(.duasLoaded(duas)):
-        return .send(.library(.contentDuasUpdated(duas)))
+        return .merge(
+          .send(.library(.contentDuasUpdated(duas))),
+          .send(.adkhar(.contentUpdated(duas: duas, journeyDuas: state.content.journeyDuas))),
+          .send(.home(.contentUpdated(duas: duas, journeyDuas: state.content.journeyDuas)))
+        )
 
       case let .content(.journeysLoaded(journeys)):
         return .send(.journeys(.contentJourneysUpdated(journeys)))
 
-      case .content(.loadFailed(.duasFailed)):
-        // Library currently has no error UI separate from isLoading; left as a
-        // no-op for now. Logged at ContentFeature level.
+      case let .content(.journeyDuasLoaded(mappings)):
+        return .merge(
+          .send(.adkhar(.contentUpdated(duas: state.content.duas, journeyDuas: mappings))),
+          .send(.home(.contentUpdated(duas: state.content.duas, journeyDuas: mappings)))
+        )
+
+      case .content(.loadFailed(.duasFailed)),
+           .content(.loadFailed(.categoriesFailed)),
+           .content(.loadFailed(.journeyDuasFailed)):
+        // No per-feature error surface for these yet — logged at ContentFeature.
         return .none
 
       case .content(.loadFailed(.journeysFailed)):
         return .send(.journeys(.contentJourneysFailed("Couldn't reach the network")))
-
-      case .content(.loadFailed(.categoriesFailed)):
-        return .none
 
       // Retry from a child fans out to a real content refresh.
       case .library(.retryTapped), .journeys(.refreshJourneys):
