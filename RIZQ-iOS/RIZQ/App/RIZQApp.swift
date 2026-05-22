@@ -21,15 +21,28 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     // Configure emulator for local development (must happen after FirebaseApp.configure)
     #if DEBUG
     let useEmulator = ProcessInfo.processInfo.environment["USE_FIREBASE_EMULATOR"] == "true"
+    #else
+    let useEmulator = false
+    #endif
+
     if useEmulator {
+      #if DEBUG
       Auth.auth().useEmulator(withHost: "localhost", port: 9099)
       let settings = Firestore.firestore().settings
       settings.host = "localhost:8080"
       settings.isSSLEnabled = false
       Firestore.firestore().settings = settings
       logger.info("Firebase emulators configured")
+      #endif
+    } else {
+      // Enable an explicit on-disk persistent cache so the app works offline
+      // (airplane mode, flaky network) without falling back to UserDefaults.
+      // Settings MUST be written before any other Firestore call.
+      let settings = FirestoreSettings()
+      settings.cacheSettings = PersistentCacheSettings()
+      Firestore.firestore().settings = settings
+      logger.info("Firestore persistent cache enabled")
     }
-    #endif
 
     return true
   }

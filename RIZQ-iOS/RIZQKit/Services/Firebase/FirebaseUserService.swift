@@ -185,7 +185,7 @@ public actor FirebaseUserService: FirebaseUserServiceProtocol {
   public func addXp(userId: String, amount: Int) async throws -> UserProfile {
     logger.info("Adding \(amount) XP to user: \(userId)")
 
-    guard var profile = try await fetchUserProfile(userId: userId) else {
+    guard let profile = try await fetchUserProfile(userId: userId) else {
       throw FirebaseUserError.userNotFound(userId)
     }
 
@@ -318,7 +318,7 @@ public actor FirebaseUserService: FirebaseUserServiceProtocol {
       .collection("dates")
       .document(today)
 
-    try await db.runTransaction { transaction, errorPointer in
+    _ = try await db.runTransaction { transaction, errorPointer in
       do {
         let snapshot = try transaction.getDocument(docRef)
 
@@ -407,7 +407,7 @@ public actor FirebaseUserService: FirebaseUserServiceProtocol {
       .collection("duas")
       .document(String(duaId))
 
-    try await db.runTransaction { transaction, errorPointer in
+    _ = try await db.runTransaction { transaction, errorPointer in
       do {
         let snapshot = try transaction.getDocument(docRef)
         let currentCount = snapshot.data()?["completedCount"] as? Int ?? 0
@@ -578,7 +578,7 @@ public actor MockFirebaseUserService: FirebaseUserServiceProtocol {
   }
 
   public func updateDisplayName(userId: String, displayName: String) async throws -> UserProfile {
-    guard var profile = profiles[userId] else {
+    guard let profile = profiles[userId] else {
       throw FirebaseUserError.userNotFound(userId)
     }
     let updated = UserProfile(
@@ -605,7 +605,7 @@ public actor MockFirebaseUserService: FirebaseUserServiceProtocol {
   }
 
   public func addXp(userId: String, amount: Int) async throws -> UserProfile {
-    guard var profile = profiles[userId] else {
+    guard let profile = profiles[userId] else {
       throw FirebaseUserError.userNotFound(userId)
     }
 
@@ -721,7 +721,7 @@ public actor MockFirebaseUserService: FirebaseUserServiceProtocol {
   }
 
   public func resetUserProgress(userId: String) async throws -> UserProfile {
-    guard var profile = profiles[userId] else {
+    guard let profile = profiles[userId] else {
       throw FirebaseUserError.userNotFound(userId)
     }
     // Reset profile

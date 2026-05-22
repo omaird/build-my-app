@@ -24,9 +24,10 @@ public let rizqKitVersion = "1.0.0"
 // - LinkedAccount, SignUpRequest, SignInRequest
 //
 // Services:
-// - NeonService (database queries)
-// - APIClient (HTTP client)
-// - AuthService (authentication with OAuth + email/password)
+// - FirebaseAuthService (Firebase Authentication: email/password + OAuth)
+// - FirestoreContentService (content reads: duas, journeys, categories)
+// - FirebaseUserService (user data: profiles, activity, progress)
+// - FirebaseAdminService (admin CRUD operations)
 // - KeychainService (secure token storage)
 // - ServiceContainer (dependency injection)
 //

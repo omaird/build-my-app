@@ -306,6 +306,19 @@ struct SettingsView: View {
           set: { store.send(.notificationsToggled($0)) }
         )
       )
+
+      Divider()
+
+      SettingsRow.toggle(
+        icon: "speaker.wave.2.fill",
+        iconColor: Color.rizqPrimary,
+        title: "Sound effects",
+        subtitle: "Tasbih bead taps and completion chime",
+        isOn: Binding(
+          get: { store.soundEffectsEnabled },
+          set: { store.send(.soundEffectsToggled($0)) }
+        )
+      )
     }
   }
 
@@ -357,7 +370,7 @@ struct SettingsView: View {
 
   private var appInfoView: some View {
     VStack(spacing: RIZQSpacing.sm) {
-      Text("RIZQ App v1.0.0")
+      Text("Razzaq App v1.0.0")
         .font(.rizqSans(.footnote))
         .foregroundStyle(Color.rizqTextSecondary)
 

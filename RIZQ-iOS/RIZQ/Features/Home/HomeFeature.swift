@@ -116,6 +116,13 @@ struct HomeFeature {
     var showWelcomeSheet: Bool = false
     var loadError: String?
 
+    // MARK: - Parent-Pushed Content
+    //
+    // Mirrored from ContentFeature via .contentUpdated. Used to compute the
+    // total habit count (todaysProgress.total) without re-fetching master data.
+    var availableDuas: [Dua] = []
+    var availableJourneyDuas: [JourneyDua] = []
+
     // Share sheet state - text to share (nil when not showing)
     var shareText: String?
 
@@ -184,6 +191,9 @@ struct HomeFeature {
   enum Action: Equatable {
     case onAppear
     case refreshData
+    /// Parent-pushed master content. Stored locally and used to recompute the
+    /// total habit count whenever it (or user-data) updates.
+    case contentUpdated(duas: [Dua], journeyDuas: [JourneyDua])
     case setUserId(String?)
     case setAuthUser(id: String, name: String?, imageURL: String?)
     case profileLoaded(UserProfile)
@@ -219,35 +229,48 @@ struct HomeFeature {
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
-      case .onAppear:
+      case .onAppear, .refreshData:
         guard let userId = state.userId else {
-          // No user ID yet, wait for it to be set
+          // No user ID yet, wait for it to be set.
           return .none
         }
         state.isLoading = true
         state.loadError = nil
 
+        // Snapshot content for the effect — state isn't accessible after we
+        // leave the reducer body.
+        let allDuas = state.availableDuas
+        let allJourneyDuas = state.availableJourneyDuas
+
         return .run { [userId, adkharService] send in
-          // Fetch user profile from Firestore via FirestoreUserClient
           do {
+            // Profile (create if missing).
             if let profile = try await userClient.fetchUserProfile(userId) {
               await send(.profileLoaded(profile))
             } else {
-              // Create a new profile if none exists
               let newProfile = try await userClient.createUserProfile(userId, nil)
               await send(.profileLoaded(newProfile))
             }
 
-            // Fetch today's activity
+            // Today's activity + week calendar.
             let activity = try await userClient.fetchUserActivity(userId, Date())
             await send(.activityLoaded(activity))
 
-            // Fetch week activities for calendar
             let weekActivities = try await userClient.fetchWeekActivities(userId)
             await send(.weekActivitiesLoaded(weekActivities))
 
-            // Fetch total habits for progress display
-            let habits = try await adkharService.fetchAllHabits()
+            // Habit total: compute locally from parent-pushed content + user
+            // habit storage. No master-content fetch, no timeout.
+            async let activeJourneyIdsTask = adkharService.getActiveJourneyIds()
+            async let customHabitsTask = adkharService.getCustomHabits()
+            let activeJourneyIds = try await activeJourneyIdsTask
+            let customHabits = try await customHabitsTask
+            let habits = adkharService.computeHabits(
+              activeJourneyIds,
+              allDuas,
+              allJourneyDuas,
+              customHabits
+            )
             let totalHabits = habits.morning.count + habits.anytime.count + habits.evening.count
             let habitsProgress = TodayProgress(
               completed: activity?.duasCompleted.count ?? 0,
@@ -260,42 +283,13 @@ struct HomeFeature {
           }
         }
 
-      case .refreshData:
-        guard let userId = state.userId else { return .none }
-        state.isLoading = true
-        state.loadError = nil
-
-        return .run { [userId, adkharService] send in
-          do {
-            // Fetch profile - create if not found (consistent with onAppear)
-            if let profile = try await userClient.fetchUserProfile(userId) {
-              await send(.profileLoaded(profile))
-            } else {
-              // Create a new profile if none exists during refresh
-              let newProfile = try await userClient.createUserProfile(userId, nil)
-              await send(.profileLoaded(newProfile))
-            }
-
-            let activity = try await userClient.fetchUserActivity(userId, Date())
-            await send(.activityLoaded(activity))
-
-            // Fetch week activities for calendar
-            let weekActivities = try await userClient.fetchWeekActivities(userId)
-            await send(.weekActivitiesLoaded(weekActivities))
-
-            // Fetch total habits for progress display
-            let habits = try await adkharService.fetchAllHabits()
-            let totalHabits = habits.morning.count + habits.anytime.count + habits.evening.count
-            let habitsProgress = TodayProgress(
-              completed: activity?.duasCompleted.count ?? 0,
-              total: totalHabits,
-              xpEarned: activity?.xpEarned ?? 0
-            )
-            await send(.habitsProgressLoaded(habitsProgress))
-          } catch {
-            await send(.profileLoadFailed(error.localizedDescription))
-          }
-        }
+      case let .contentUpdated(duas, journeyDuas):
+        state.availableDuas = duas
+        state.availableJourneyDuas = journeyDuas
+        // If the user is already signed in, recompute the habit total now that
+        // content has changed. Otherwise wait for the user-id-set path to
+        // trigger the first load.
+        return state.userId != nil ? .send(.refreshData) : .none
 
       case .setUserId(let userId):
         state.userId = userId
@@ -446,7 +440,7 @@ struct HomeFeature {
       case .shareQuoteTapped:
         // Set share text to trigger share sheet in the view
         let quote = state.dailyQuote
-        state.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from RIZQ App"
+        state.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from Razzaq App"
         return .none
 
       case .dismissShare:

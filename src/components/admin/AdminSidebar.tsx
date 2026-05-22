@@ -72,7 +72,7 @@ export function AdminSidebar() {
           </div>
           <div>
             <h2 className="font-display text-lg font-semibold text-foreground">
-              RIZQ Admin
+              Razzaq Admin
             </h2>
             <p className="text-xs text-muted-foreground">Content Management</p>
           </div>

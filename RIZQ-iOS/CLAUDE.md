@@ -350,28 +350,6 @@ As of January 2026, the iOS app uses **Firebase Firestore exclusively** for all 
 | Admin operations | `\.adminService` | `FirebaseAdminService` |
 | Authentication | `\.authClient` | `FirebaseAuthService` |
 
-### Deprecated: Neon PostgreSQL
-
-The following Neon-related code is **deprecated but preserved** for potential rollback:
-
-| Deprecated File | Replacement |
-|-----------------|-------------|
-| `NeonService.swift` | `FirebaseUserService`, `FirestoreContentService` |
-| `NeonClient.swift` | `FirestoreUserClient`, `FirestoreContentClient` |
-| `AdminService.swift` | `FirebaseAdminService` |
-| `APIClient.swift` | Firebase services |
-| `FirebaseNeonService.swift` | Direct Firebase services |
-
-**Do NOT use deprecated Neon services in new code.**
-
-### Rollback Procedure (If Needed)
-
-If issues arise requiring Neon rollback:
-1. Revert `AdminServiceKey.liveValue` to use `AdminService` in `AdminDashboardFeature.swift`
-2. Update features to use `neonClient` instead of `firestoreUserClient`
-3. Restore `ServiceContainer` Neon initialization in `Dependencies.swift`
-4. Re-add Neon environment variables to `Info.plist`
-
 ## Dependencies
 
 ### Accessing Dependencies

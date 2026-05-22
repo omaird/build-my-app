@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Moon, Sun, RotateCcw, LogOut, Mail, User, Link2, Unlink, Loader2, Check, Settings, Sparkles, Flame, Trophy, Shield, ChevronRight } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
+import { GoogleAuthProvider, linkWithPopup, unlink } from "firebase/auth";
+import { collection, doc, getDocs, updateDoc, writeBatch } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import { listAccounts, linkGoogleAccount, unlinkGoogleAccount } from "@/lib/auth-client";
+import { getDb, getFirebaseAuth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
-// Account type from Better Auth
+// Account type derived from Firebase Auth provider data
 interface LinkedAccount {
   id: string;
   providerId: string;
@@ -34,6 +36,13 @@ interface LinkedAccount {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Map Firebase provider IDs to the canonical app provider IDs used in UI checks.
+const FIREBASE_PROVIDER_TO_APP: Record<string, string> = {
+  "google.com": "google",
+  "github.com": "github",
+  password: "credential",
+};
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -57,7 +66,8 @@ const itemVariants = {
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { user, profile, isAdmin, updateProfile, signOut } = useAuth();
+  const { user, profile, isAdmin, updateProfile, refreshProfile, signOut } = useAuth();
+  const [isResetting, setIsResetting] = useState(false);
   const { toast } = useToast();
   const [name, setName] = useState(profile?.displayName || user?.name || "");
   const [isDarkMode, setIsDarkMode] = useState(() =>
@@ -73,37 +83,83 @@ export default function SettingsPage() {
 
   // Fetch linked accounts on mount
   useEffect(() => {
-    const fetchAccounts = async () => {
+    const loadAccounts = () => {
       try {
-        const result = await listAccounts();
-        if (result.data) {
-          setLinkedAccounts(result.data as LinkedAccount[]);
+        const fbUser = getFirebaseAuth().currentUser;
+        if (!fbUser) {
+          setLinkedAccounts([]);
+          return;
         }
+        const accounts: LinkedAccount[] = fbUser.providerData.map((info) => ({
+          id: info.uid || info.providerId,
+          providerId: FIREBASE_PROVIDER_TO_APP[info.providerId] ?? info.providerId,
+          accountId: info.uid || info.email || "",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }));
+        setLinkedAccounts(accounts);
       } catch (error) {
         console.error("Failed to fetch accounts:", error);
       } finally {
         setIsLoadingAccounts(false);
       }
     };
-    fetchAccounts();
+    loadAccounts();
   }, []);
 
   // Check if a provider is linked
   const isProviderLinked = (providerId: string) =>
     linkedAccounts.some(acc => acc.providerId === providerId);
 
+  const getAuthErrorCode = (err: unknown): string =>
+    (err as { code?: string })?.code ?? "";
+
   // Handle linking Google account
   const handleLinkGoogle = async () => {
     setLinkingProvider("google");
     try {
-      await linkGoogleAccount();
-      // Redirect will happen, page will reload with updated accounts
-    } catch (error) {
+      const fbUser = getFirebaseAuth().currentUser;
+      if (!fbUser) throw new Error("Not signed in");
+      const provider = new GoogleAuthProvider();
+      const result = await linkWithPopup(fbUser, provider);
+      const updated: LinkedAccount[] = result.user.providerData.map((info) => ({
+        id: info.uid || info.providerId,
+        providerId: FIREBASE_PROVIDER_TO_APP[info.providerId] ?? info.providerId,
+        accountId: info.uid || info.email || "",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+      setLinkedAccounts(updated);
       toast({
-        title: "Error",
-        description: "Could not link Google account. Please try again.",
-        variant: "destructive",
+        title: "Account linked",
+        description: "Google account has been connected.",
       });
+    } catch (error) {
+      const code = getAuthErrorCode(error);
+      // User cancelled the popup — silent, not an error.
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        setLinkingProvider(null);
+        return;
+      }
+      if (code === "auth/credential-already-in-use") {
+        toast({
+          title: "Already in use",
+          description: "This Google account is already linked to a different Razzaq account.",
+          variant: "destructive",
+        });
+      } else if (code === "auth/provider-already-linked") {
+        toast({
+          title: "Already linked",
+          description: "Your Google account is already linked.",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not link Google account. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } finally {
       setLinkingProvider(null);
     }
   };
@@ -122,18 +178,35 @@ export default function SettingsPage() {
 
     setUnlinkingProvider("google");
     try {
-      await unlinkGoogleAccount();
+      const fbUser = getFirebaseAuth().currentUser;
+      if (!fbUser) throw new Error("Not signed in");
+      await unlink(fbUser, "google.com");
       setLinkedAccounts(prev => prev.filter(acc => acc.providerId !== "google"));
       toast({
         title: "Account unlinked",
         description: "Google account has been disconnected.",
       });
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Could not unlink Google account. Please try again.",
-        variant: "destructive",
-      });
+      const code = getAuthErrorCode(error);
+      // Popup-cancel codes shouldn't normally surface for unlink, but mirror
+      // the link flow defensively.
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        setUnlinkingProvider(null);
+        return;
+      }
+      if (code === "auth/requires-recent-login") {
+        toast({
+          title: "Re-authentication required",
+          description: "Please sign in again to unlink this provider.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Could not unlink Google account. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setUnlinkingProvider(null);
     }
@@ -188,14 +261,56 @@ export default function SettingsPage() {
     }
   };
 
-  const handleReset = () => {
-    // TODO: Implement reset functionality with database
-    setName("Traveler");
-    toast({
-      title: "Progress reset",
-      description: "All your progress has been cleared.",
-      variant: "destructive",
-    });
+  const handleReset = async () => {
+    if (!user || isResetting) return;
+    setIsResetting(true);
+    try {
+      const db = getDb();
+
+      // Reset gamification fields on user_profiles. `lastActiveDate: null` so the
+      // next completion starts a fresh streak rather than continuing the prior one.
+      await updateDoc(doc(db, "user_profiles", user.id), {
+        streak: 0,
+        totalXp: 0,
+        level: 1,
+        lastActiveDate: null,
+      });
+
+      // Delete the activity history (user_activity/{uid}/dates/*). Batched
+      // because Firestore caps single-document writes; activity rows are tiny
+      // so one batch comfortably fits the 500-op limit for typical users.
+      const datesRef = collection(db, "user_activity", user.id, "dates");
+      const datesSnap = await getDocs(datesRef);
+      if (!datesSnap.empty) {
+        const batch = writeBatch(db);
+        datesSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      // Same for per-dua progress under user_progress/{uid}/duas/*.
+      const progressRef = collection(db, "user_progress", user.id, "duas");
+      const progressSnap = await getDocs(progressRef);
+      if (!progressSnap.empty) {
+        const batch = writeBatch(db);
+        progressSnap.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      await refreshProfile();
+      toast({
+        title: "Progress reset",
+        description: "Streak, XP, and activity history cleared.",
+        variant: "destructive",
+      });
+    } catch (e) {
+      toast({
+        title: "Reset failed",
+        description: e instanceof Error ? e.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   return (
@@ -541,9 +656,20 @@ export default function SettingsPage() {
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-btn">Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-btn">
-                      Reset Everything
+                    <AlertDialogCancel className="rounded-btn" disabled={isResetting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleReset}
+                      disabled={isResetting}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-btn"
+                    >
+                      {isResetting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Resetting…
+                        </>
+                      ) : (
+                        "Reset Everything"
+                      )}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -557,7 +683,7 @@ export default function SettingsPage() {
           className="mt-8 text-center text-sm text-muted-foreground pb-4"
           variants={itemVariants}
         >
-          <p className="font-display font-semibold text-foreground">RIZQ</p>
+          <p className="font-display font-semibold text-foreground">Razzaq</p>
           <p className="text-xs">Version 1.0.0 (Demo)</p>
           <p className="mt-2 text-xs">
             A gamified dua practice app

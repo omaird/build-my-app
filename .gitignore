@@ -78,6 +78,9 @@ firebase-debug.*.log
 *.njsproj
 *.sln
 
+# VS Code workspace files (contain machine-local folder paths)
+*.code-workspace
+
 # Vim/Neovim
 *.sw?
 *.swp
@@ -111,3 +114,8 @@ test-results/
 *.bak
 *.tmp
 *.temp
+
+# -------------------------------------------
+# External sub-projects (not part of RIZQ)
+# -------------------------------------------
+autoforge/

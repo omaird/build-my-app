@@ -8,44 +8,19 @@ struct AppView: View {
   var body: some View {
     Group {
       if store.isAuthenticated {
-        TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
-          HomeView(store: store.scope(state: \.home, action: \.home))
-            .tabItem {
-              Label(AppFeature.Tab.home.title, systemImage: AppFeature.Tab.home.icon)
-            }
-            .tag(AppFeature.Tab.home)
-
-          LibraryView(store: store.scope(state: \.library, action: \.library))
-            .tabItem {
-              Label(AppFeature.Tab.library.title, systemImage: AppFeature.Tab.library.icon)
-            }
-            .tag(AppFeature.Tab.library)
-
-          AdkharView(store: store.scope(state: \.adkhar, action: \.adkhar))
-            .tabItem {
-              Label(AppFeature.Tab.adkhar.title, systemImage: AppFeature.Tab.adkhar.icon)
-            }
-            .tag(AppFeature.Tab.adkhar)
-
-          JourneysView(store: store.scope(state: \.journeys, action: \.journeys))
-            .tabItem {
-              Label(AppFeature.Tab.journeys.title, systemImage: AppFeature.Tab.journeys.icon)
-            }
-            .tag(AppFeature.Tab.journeys)
-
-          SettingsView(store: store.scope(state: \.settings, action: \.settings))
-            .tabItem {
-              Label(AppFeature.Tab.settings.title, systemImage: AppFeature.Tab.settings.icon)
-            }
-            .tag(AppFeature.Tab.settings)
-        }
-        .tint(.rizqPrimary)
-        // Admin Panel Full Screen Cover
-        .fullScreenCover(
-          item: $store.scope(state: \.admin, action: \.admin)
-        ) { adminStore in
-          AdminTabView(store: adminStore)
-        }
+        currentTabContent
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+          .background(Color.rizqBackground.ignoresSafeArea())
+          .safeAreaInset(edge: .bottom, spacing: 0) {
+            RIZQTabBar(
+              selectedTab: $store.selectedTab.sending(\.tabSelected)
+            )
+          }
+          .fullScreenCover(
+            item: $store.scope(state: \.admin, action: \.admin)
+          ) { adminStore in
+            AdminTabView(store: adminStore)
+          }
       } else {
         AuthView(store: store.scope(state: \.auth, action: \.auth))
       }
@@ -53,6 +28,22 @@ struct AppView: View {
     .preferredColorScheme(store.settings.isDarkMode ? .dark : .light)
     .onAppear {
       store.send(.onAppear)
+    }
+  }
+
+  @ViewBuilder
+  private var currentTabContent: some View {
+    switch store.selectedTab {
+    case .home:
+      HomeView(store: store.scope(state: \.home, action: \.home))
+    case .journeys:
+      JourneysView(store: store.scope(state: \.journeys, action: \.journeys))
+    case .adkhar:
+      AdkharView(store: store.scope(state: \.adkhar, action: \.adkhar))
+    case .library:
+      LibraryView(store: store.scope(state: \.library, action: \.library))
+    case .settings:
+      SettingsView(store: store.scope(state: \.settings, action: \.settings))
     }
   }
 }

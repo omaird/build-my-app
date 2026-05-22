@@ -76,11 +76,14 @@ struct QuickPracticeSheet: View {
       }
       .background(Color.rizqCard)
 
-      // Celebration Overlay
+      // Completion Toast — compact, non-blocking replacement for the
+      // previous full-screen overlay. Sheet content stays visible behind it.
       if showCelebration {
-        celebrationOverlay
+        CompletionToast(xpValue: habit.xpValue, isVisible: showCelebration)
+          .transition(.opacity)
       }
     }
+    .animation(.easeOut(duration: 0.2), value: showCelebration)
   }
 
   // MARK: - Sheet Header
@@ -276,46 +279,6 @@ struct QuickPracticeSheet: View {
     }
   }
 
-  // MARK: - Celebration Overlay
-  private var celebrationOverlay: some View {
-    ZStack {
-      Color.tealSuccess
-        .opacity(0.95)
-        .ignoresSafeArea()
-
-      VStack(spacing: 24) {
-        // Checkmark Circle
-        ZStack {
-          Circle()
-            .fill(Color.white.opacity(0.2))
-            .frame(width: 100, height: 100)
-
-          Image(systemName: "checkmark")
-            .font(.system(size: 48, weight: .bold))
-            .foregroundStyle(.white)
-        }
-        .scaleEffect(showCelebration ? 1 : 0)
-        .animation(.spring(response: 0.4, dampingFraction: 0.6), value: showCelebration)
-
-        VStack(spacing: 8) {
-          Text("MashaAllah!")
-            .font(.rizqDisplayBold(.largeTitle))
-            .foregroundStyle(.white)
-
-          Text("+\(habit.xpValue) XP earned")
-            .font(.rizqSans(.title3))
-            .foregroundStyle(.white.opacity(0.8))
-        }
-        .opacity(showCelebration ? 1 : 0)
-        .offset(y: showCelebration ? 0 : 20)
-        .animation(.easeOut(duration: 0.3).delay(0.2), value: showCelebration)
-      }
-    }
-    .transition(.opacity)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("Congratulations! MashaAllah! You earned \(habit.xpValue) XP")
-    .accessibilityAddTraits(.isModal)
-  }
 }
 
 #Preview {

@@ -1,19 +1,41 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
-import { useSession, signOut as authSignOut, extractGoogleProfilePicture } from "@/lib/auth-client";
-import { getSql } from "@/lib/db";
+import {
+  GithubAuthProvider,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  Timestamp,
+  updateDoc,
+} from "firebase/firestore";
+import { getDb, getFirebaseAuth } from "@/lib/firebase";
+import { toast } from "@/hooks/use-toast";
 
-// Types for user profile data stored in our database
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 export interface UserProfile {
-  id: string;
+  id?: string;
   userId: string;
   displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
   streak: number;
   totalXp: number;
   level: number;
   lastActiveDate: string | null;
   isAdmin: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface AuthUser {
@@ -30,6 +52,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithGithub: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateProfile: (updates: Partial<Pick<UserProfile, "displayName">>) => Promise<void>;
   addXp: (amount: number) => Promise<void>;
@@ -37,7 +61,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Level calculation functions
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 const calculateLevel = (xp: number): number => {
   let level = 1;
   while (50 * level * level + 50 * level <= xp) {
@@ -48,219 +75,290 @@ const calculateLevel = (xp: number): number => {
 
 const getToday = () => new Date().toISOString().split("T")[0];
 
+const getYesterday = () =>
+  new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
+
+function mapFirebaseUserToAuthUser(fbUser: FirebaseUser): AuthUser {
+  return {
+    id: fbUser.uid,
+    email: fbUser.email ?? "",
+    name: fbUser.displayName,
+    image: fbUser.photoURL,
+  };
+}
+
+function timestampToIsoString(value: unknown): string | undefined {
+  if (!value) return undefined;
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return undefined;
+}
+
+function snapshotToProfile(userId: string, data: Record<string, unknown>): UserProfile {
+  return {
+    id: userId,
+    userId,
+    displayName: (data.displayName as string | null | undefined) ?? null,
+    email: (data.email as string | null | undefined) ?? null,
+    photoURL: (data.photoURL as string | null | undefined) ?? null,
+    streak: (data.streak as number | undefined) ?? 0,
+    totalXp: (data.totalXp as number | undefined) ?? 0,
+    level: (data.level as number | undefined) ?? 1,
+    lastActiveDate: (data.lastActiveDate as string | null | undefined) ?? null,
+    isAdmin: (data.isAdmin as boolean | undefined) ?? false,
+    createdAt: timestampToIsoString(data.createdAt),
+    updatedAt: timestampToIsoString(data.updatedAt),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Provider
+// ---------------------------------------------------------------------------
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data: session, isPending } = useSession();
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
-  const user: AuthUser | null = session?.user ? {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-    image: session.user.image,
-  } : null;
+  const getOrCreateProfile = useCallback(
+    async (fbUser: FirebaseUser): Promise<UserProfile> => {
+      const db = getDb();
+      const ref = doc(db, "user_profiles", fbUser.uid);
+      const snapshot = await getDoc(ref);
 
-  // Fetch or create user profile when user logs in
-  const fetchOrCreateProfile = useCallback(async (userId: string, userName: string | null) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as Record<string, unknown>;
+        const profile = snapshotToProfile(fbUser.uid, data);
+
+        // Keep email/photoURL on the profile doc in sync with the auth account.
+        // The admin Users page reads these denormalized fields from the doc,
+        // so drift here means blank rows in the admin UI.
+        const fbEmail = fbUser.email ?? null;
+        const fbPhoto = fbUser.photoURL ?? null;
+        if (profile.email !== fbEmail || profile.photoURL !== fbPhoto) {
+          // Best-effort: don't block sign-in if this write fails.
+          try {
+            await updateDoc(ref, {
+              email: fbEmail,
+              photoURL: fbPhoto,
+              updatedAt: serverTimestamp(),
+            });
+            profile.email = fbEmail;
+            profile.photoURL = fbPhoto;
+          } catch (error) {
+            console.warn(
+              "Failed to refresh denormalized email/photoURL on user_profiles:",
+              error,
+            );
+          }
+        }
+
+        return profile;
+      }
+
+      const defaults = {
+        userId: fbUser.uid,
+        displayName: fbUser.displayName ?? "Traveler",
+        email: fbUser.email ?? null,
+        photoURL: fbUser.photoURL ?? null,
+        streak: 0,
+        totalXp: 0,
+        level: 1,
+        lastActiveDate: null,
+        isAdmin: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await setDoc(ref, defaults);
+
+      return {
+        id: fbUser.uid,
+        userId: fbUser.uid,
+        displayName: defaults.displayName,
+        email: defaults.email,
+        photoURL: defaults.photoURL,
+        streak: 0,
+        totalXp: 0,
+        level: 1,
+        lastActiveDate: null,
+        isAdmin: false,
+      };
+    },
+    [],
+  );
+
+  // Listen to Firebase auth state changes
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) {
+        setUser(null);
+        setProfile(null);
+        setIsAuthLoading(false);
+        return;
+      }
+
+      const mapped = mapFirebaseUserToAuthUser(fbUser);
+      setUser(mapped);
+      setIsLoadingProfile(true);
+      try {
+        const loadedProfile = await getOrCreateProfile(fbUser);
+        setProfile(loadedProfile);
+      } catch (error) {
+        // If the profile read/create fails (Firestore rules denial, network
+        // drop, etc.) we'd otherwise leave the user "authenticated" but with
+        // no profile — a zombie state with no recovery path. Sign them out so
+        // the listener fires again with fbUser === null and routes them back
+        // to sign-in cleanly.
+        console.error("Failed to load user profile, signing out:", error);
+        toast({
+          title: "Couldn't load your profile",
+          description: "Please sign in again.",
+          variant: "destructive",
+        });
+        try {
+          await firebaseSignOut(auth);
+        } catch (signOutError) {
+          console.error("Failed to sign out after profile load failure:", signOutError);
+        }
+        // Don't set profile here — the next listener fire will clear state.
+      } finally {
+        setIsLoadingProfile(false);
+        setIsAuthLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [getOrCreateProfile]);
+
+  // ---------------------------------------------------------------------
+  // Public actions
+  // ---------------------------------------------------------------------
+
+  const refreshProfile = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const fbUser = auth.currentUser;
+    if (!fbUser) return;
+
     setIsLoadingProfile(true);
     try {
-      const sql = getSql();
-
-      // Try to fetch existing profile
-      const existingProfiles = await sql`
-        SELECT
-          id, user_id as "userId", display_name as "displayName",
-          streak, total_xp as "totalXp", level,
-          last_active_date as "lastActiveDate",
-          is_admin as "isAdmin",
-          created_at as "createdAt", updated_at as "updatedAt"
-        FROM user_profiles
-        WHERE user_id = ${userId}::uuid
-      `;
-
-      if (existingProfiles.length > 0) {
-        const p = existingProfiles[0] as UserProfile;
-        // Check and update streak
-        const today = getToday();
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-
-        if (p.lastActiveDate !== today && p.lastActiveDate !== yesterday) {
-          // Streak broken - reset it
-          await sql`
-            UPDATE user_profiles
-            SET streak = 0, updated_at = NOW()
-            WHERE user_id = ${userId}::uuid
-          `;
-          p.streak = 0;
-        }
-        setProfile(p);
-      } else {
-        // Create new profile (is_admin defaults to FALSE)
-        const newProfiles = await sql`
-          INSERT INTO user_profiles (user_id, display_name, streak, total_xp, level)
-          VALUES (${userId}::uuid, ${userName || "Traveler"}, 0, 0, 1)
-          RETURNING
-            id, user_id as "userId", display_name as "displayName",
-            streak, total_xp as "totalXp", level,
-            last_active_date as "lastActiveDate",
-            is_admin as "isAdmin",
-            created_at as "createdAt", updated_at as "updatedAt"
-        `;
-        setProfile(newProfiles[0] as UserProfile);
-      }
-    } catch (error) {
-      console.error("Error fetching/creating profile:", error);
+      const loadedProfile = await getOrCreateProfile(fbUser);
+      setProfile(loadedProfile);
     } finally {
       setIsLoadingProfile(false);
     }
-  }, []);
+  }, [getOrCreateProfile]);
 
-  // Refresh profile from database
-  const refreshProfile = useCallback(async () => {
-    if (!user) return;
-    await fetchOrCreateProfile(user.id, user.name);
-  }, [user, fetchOrCreateProfile]);
+  const updateProfile = useCallback(
+    async (updates: Partial<Pick<UserProfile, "displayName">>) => {
+      const auth = getFirebaseAuth();
+      const fbUser = auth.currentUser;
+      if (!fbUser) return;
 
-  // Update profile in database
-  const updateProfile = useCallback(async (updates: Partial<Pick<UserProfile, "displayName">>) => {
-    if (!user || !profile) return;
+      const db = getDb();
+      const ref = doc(db, "user_profiles", fbUser.uid);
 
-    try {
-      const sql = getSql();
-      const result = await sql`
-        UPDATE user_profiles
-        SET
-          display_name = COALESCE(${updates.displayName ?? null}, display_name),
-          updated_at = NOW()
-        WHERE user_id = ${user.id}::uuid
-        RETURNING
-          id, user_id as "userId", display_name as "displayName",
-          streak, total_xp as "totalXp", level,
-          last_active_date as "lastActiveDate",
-          is_admin as "isAdmin",
-          created_at as "createdAt", updated_at as "updatedAt"
-      `;
-      if (result.length > 0) {
-        setProfile(result[0] as UserProfile);
+      const patch: Record<string, unknown> = {
+        updatedAt: serverTimestamp(),
+      };
+      if (updates.displayName !== undefined) {
+        patch.displayName = updates.displayName;
       }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      throw error;
-    }
-  }, [user, profile]);
 
-  // Add XP and update streak/level
+      await updateDoc(ref, patch);
+      await refreshProfile();
+    },
+    [refreshProfile],
+  );
+
   const addXp = useCallback(async (amount: number) => {
-    if (!user || !profile) return;
+    const auth = getFirebaseAuth();
+    const fbUser = auth.currentUser;
+    if (!fbUser) return;
 
-    try {
-      const sql = getSql();
-      const today = getToday();
-      const isNewDay = profile.lastActiveDate !== today;
-      const newXp = profile.totalXp + amount;
-      const newLevel = calculateLevel(newXp);
-      const newStreak = isNewDay ? profile.streak + 1 : profile.streak;
+    const db = getDb();
+    const ref = doc(db, "user_profiles", fbUser.uid);
+    const today = getToday();
+    const yesterday = getYesterday();
 
-      const result = await sql`
-        UPDATE user_profiles
-        SET
-          total_xp = ${newXp},
-          level = ${newLevel},
-          streak = ${newStreak},
-          last_active_date = ${today}::date,
-          updated_at = NOW()
-        WHERE user_id = ${user.id}::uuid
-        RETURNING
-          id, user_id as "userId", display_name as "displayName",
-          streak, total_xp as "totalXp", level,
-          last_active_date as "lastActiveDate",
-          is_admin as "isAdmin",
-          created_at as "createdAt", updated_at as "updatedAt"
-      `;
-      if (result.length > 0) {
-        setProfile(result[0] as UserProfile);
+    const updated = await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(ref);
+      if (!snap.exists()) {
+        throw new Error("Profile not found");
       }
-    } catch (error) {
-      console.error("Error adding XP:", error);
-      throw error;
-    }
-  }, [user, profile]);
+      const data = snap.data() as Record<string, unknown>;
+      const currentXp = (data.totalXp as number | undefined) ?? 0;
+      const currentStreak = (data.streak as number | undefined) ?? 0;
+      const lastActive = (data.lastActiveDate as string | null | undefined) ?? null;
 
-  // Sign out handler
-  const handleSignOut = useCallback(async () => {
-    await authSignOut();
-    setProfile(null);
+      const newXp = currentXp + amount;
+      const newLevel = calculateLevel(newXp);
+      let newStreak: number;
+      if (lastActive === today) {
+        newStreak = currentStreak;
+      } else if (lastActive === yesterday) {
+        newStreak = currentStreak + 1;
+      } else {
+        newStreak = 1;
+      }
+
+      transaction.update(ref, {
+        totalXp: newXp,
+        level: newLevel,
+        streak: newStreak,
+        lastActiveDate: today,
+        updatedAt: serverTimestamp(),
+      });
+
+      return {
+        ...snapshotToProfile(fbUser.uid, data),
+        totalXp: newXp,
+        level: newLevel,
+        streak: newStreak,
+        lastActiveDate: today,
+      } as UserProfile;
+    });
+
+    setProfile(updated);
   }, []);
 
-  // Sync Google profile picture to user record if missing
-  const syncGoogleProfilePicture = useCallback(async () => {
-    if (!user || user.image) return; // Skip if no user or already has image
+  const handleSignOut = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    await firebaseSignOut(auth);
+    // onAuthStateChanged listener will clear user/profile state
+  }, []);
 
-    try {
-      const sql = getSql();
+  const signInWithGoogle = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    localStorage.setItem("lastUsedProvider", "google");
+  }, []);
 
-      // Query the Google account's idToken directly from the database
-      const accounts = await sql`
-        SELECT "idToken"
-        FROM neon_auth.account
-        WHERE "userId" = ${user.id}::uuid
-          AND "providerId" = 'google'
-          AND "idToken" IS NOT NULL
-        LIMIT 1
-      `;
-
-      if (accounts.length === 0 || !accounts[0].idToken) return;
-
-      const pictureUrl = extractGoogleProfilePicture(accounts[0].idToken);
-      if (!pictureUrl) return;
-
-      // Update the user's image in the database
-      await sql`
-        UPDATE neon_auth.user
-        SET image = ${pictureUrl}
-        WHERE id = ${user.id}::uuid AND (image IS NULL OR image = '')
-      `;
-
-      // Reload the page to refresh the session with the new image
-      window.location.reload();
-    } catch (error) {
-      console.error("Failed to sync Google profile picture:", error);
-    }
-  }, [user]);
-
-  // Fetch profile when user changes
-  useEffect(() => {
-    if (user && !profile && !isLoadingProfile) {
-      fetchOrCreateProfile(user.id, user.name);
-    }
-    if (!user) {
-      setProfile(null);
-    }
-  }, [user, profile, isLoadingProfile, fetchOrCreateProfile]);
-
-  // Sync Google profile picture when user logs in
-  useEffect(() => {
-    if (user && !user.image) {
-      syncGoogleProfilePicture();
-    }
-  }, [user, syncGoogleProfilePicture]);
+  const signInWithGithub = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const provider = new GithubAuthProvider();
+    await signInWithPopup(auth, provider);
+    localStorage.setItem("lastUsedProvider", "github");
+  }, []);
 
   const value: AuthContextType = {
     user,
     profile,
-    isLoading: isPending || isLoadingProfile,
+    isLoading: isAuthLoading || isLoadingProfile,
     isAuthenticated: !!user,
     isAdmin: profile?.isAdmin ?? false,
     signOut: handleSignOut,
+    signInWithGoogle,
+    signInWithGithub,
     refreshProfile,
     updateProfile,
     addXp,
   };
 
   return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   );
 }
 
