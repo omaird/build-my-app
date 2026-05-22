@@ -70,6 +70,13 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: RIZQ-iOS
+        run: xcodegen generate
+
       - name: Build RIZQ scheme
         working-directory: RIZQ-iOS
         run: |
