@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
           Dashboard
         </h1>
         <p className="text-muted-foreground mt-1">
-          Overview of your RIZQ content and users
+          Overview of your Razzaq content and users
         </p>
       </motion.div>
 
@@ -149,7 +149,7 @@ export default function AdminDashboardPage() {
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
             <CardDescription>
-              Common tasks for managing your RIZQ content
+              Common tasks for managing your Razzaq content
             </CardDescription>
           </CardHeader>
           <CardContent>

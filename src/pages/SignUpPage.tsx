@@ -167,7 +167,7 @@ export default function SignUpPage() {
       }
       toast({
         title: "Account created!",
-        description: "Welcome to RIZQ. Let's start your journey.",
+        description: "Welcome to Razzaq. Let's start your journey.",
       });
     } catch (err) {
       console.error("Failed to persist display name after signup:", err);

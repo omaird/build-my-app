@@ -63,7 +63,7 @@ export default function LandingPage() {
             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-gold-soft/30 to-primary/20 border border-primary/20 flex items-center justify-center">
                 <span className="text-xl">🤲</span>
             </div>
-            <span className="font-display text-2xl font-bold text-foreground">RIZQ</span>
+            <span className="font-display text-2xl font-bold text-foreground">Razzaq</span>
         </div>
         <div className="flex gap-4">
           <Link to="/signin">
@@ -255,7 +255,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="relative z-20 py-8 border-t border-border/40 bg-background/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} RIZQ. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Razzaq. All rights reserved.</p>
             <div className="flex gap-6">
                 <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
                 <Link to="/terms" className="hover:text-foreground transition-colors">Terms</Link>

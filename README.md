@@ -1,4 +1,4 @@
-# RIZQ
+# Razzaq
 
 A gamified Islamic dua (supplication) practice and habit-tracking app. Users practice authentic duas, build daily routines through "Journeys," earn XP, level up, and track streaks. Features a warm, luxury Islamic aesthetic with smooth animations and a mobile-first design.
 
@@ -15,7 +15,7 @@ A gamified Islamic dua (supplication) practice and habit-tracking app. Users pra
 
 ```bash
 git clone <YOUR_GIT_URL>
-cd rizq-app
+cd razzaq-app
 npm install
 ```
 
@@ -80,7 +80,7 @@ Navigate to **http://localhost:5173** in your browser. Sign in with Google or Gi
 ### Project Structure
 
 ```
-rizq-app/
+razzaq-app/
 ├── src/
 │   ├── components/
 │   │   ├── ui/              # shadcn/ui primitives

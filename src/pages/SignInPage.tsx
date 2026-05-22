@@ -177,7 +177,7 @@ export default function SignInPage() {
 
             <CardHeader className="text-center pb-2 pt-6">
               <motion.div variants={itemVariants}>
-                <CardTitle className="font-display text-2xl">Welcome to RIZQ</CardTitle>
+                <CardTitle className="font-display text-2xl">Welcome to Razzaq</CardTitle>
               </motion.div>
               <motion.div variants={itemVariants}>
                 <CardDescription className="text-muted-foreground">

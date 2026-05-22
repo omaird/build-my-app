@@ -144,7 +144,7 @@ export default function SettingsPage() {
       if (code === "auth/credential-already-in-use") {
         toast({
           title: "Already in use",
-          description: "This Google account is already linked to a different RIZQ account.",
+          description: "This Google account is already linked to a different Razzaq account.",
           variant: "destructive",
         });
       } else if (code === "auth/provider-already-linked") {
@@ -683,7 +683,7 @@ export default function SettingsPage() {
           className="mt-8 text-center text-sm text-muted-foreground pb-4"
           variants={itemVariants}
         >
-          <p className="font-display font-semibold text-foreground">RIZQ</p>
+          <p className="font-display font-semibold text-foreground">Razzaq</p>
           <p className="text-xs">Version 1.0.0 (Demo)</p>
           <p className="mt-2 text-xs">
             A gamified dua practice app
