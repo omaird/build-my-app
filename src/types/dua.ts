@@ -24,7 +24,7 @@ export interface Dua {
   context: DuaContext;
 }
 
-export type DuaCategory = "morning" | "evening" | "rizq" | "gratitude";
+export type DuaCategory = "morning" | "evening" | "rizq" | "gratitude" | "foundation";
 
 // Helper to check if dua has any displayable context
 export function hasContext(dua: Dua): boolean {

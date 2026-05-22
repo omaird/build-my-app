@@ -31,6 +31,10 @@ const categoryConfig: Record<DuaCategory, { className: string; label: string }> 
     className: "badge-gratitude",
     label: "Gratitude",
   },
+  foundation: {
+    className: "badge-foundation",
+    label: "Foundation",
+  },
 };
 
 export function DuaCard({

@@ -432,6 +432,11 @@
     @apply dark:bg-rose-900/30 dark:text-rose-200 dark:border-rose-700/30;
   }
 
+  .badge-foundation {
+    @apply bg-stone-100/80 text-stone-900 border border-stone-200/50;
+    @apply dark:bg-stone-900/30 dark:text-stone-200 dark:border-stone-700/30;
+  }
+
   /* Navigation active indicator */
   .nav-active {
     @apply relative;

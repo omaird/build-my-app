@@ -17,6 +17,7 @@ const categories: { value: DuaCategory | "all"; label: string; emoji: string }[]
   { value: "evening", label: "Evening", emoji: "🌙" },
   { value: "rizq", label: "Rizq", emoji: "💫" },
   { value: "gratitude", label: "Gratitude", emoji: "🤲" },
+  { value: "foundation", label: "Foundation", emoji: "🏛️" },
 ];
 
 const containerVariants = {
