@@ -177,6 +177,7 @@ struct AdkharFeature {
 
   @Dependency(\.continuousClock) var clock
   @Dependency(HapticClient.self) var haptics
+  @Dependency(SoundClient.self) var sound
   @Dependency(\.adkharService) var adkharService
   @Dependency(\.userHabitsClient) var userHabitsClient
 
@@ -186,6 +187,9 @@ struct AdkharFeature {
       case .onAppear, .refreshData:
         state.isLoading = true
         state.loadError = nil
+
+        // Pre-warm audio so the first counter tap has no decode latency.
+        sound.prepare()
 
         // Capture content snapshot for use inside the effect (state isn't
         // accessible after we leave the reducer body).
@@ -365,20 +369,19 @@ struct AdkharFeature {
           state.showCelebration = true
           state.completedIds.insert(habit.id)
 
-          return .run { [clock, haptics] send in
-            // Trigger completion haptics
+          return .run { [clock, haptics, sound] send in
+            // Audio + haptic land together with the toast appearing
+            sound.completion()
             haptics.counterComplete()
-            // Use do-catch to ensure celebrationFinished is always sent
             do {
               try await clock.sleep(for: .milliseconds(300))
             } catch {
               // Sleep cancelled - continue with celebration
             }
             haptics.celebration()
-            // Persist completion to Firestore
             await send(.habitCompleted(habit))
             do {
-              try await clock.sleep(for: .milliseconds(1200))
+              try await clock.sleep(for: .milliseconds(900))
             } catch {
               // Sleep cancelled - still finish celebration
             }
@@ -386,9 +389,10 @@ struct AdkharFeature {
           }
         }
 
-        // Tap haptic for each increment
-        return .run { _ in
+        // Tap feedback: haptic + soft bead sound
+        return .run { [haptics, sound] _ in
           haptics.counterIncrement()
+          sound.beadTap()
         }
 
       case .resetRepetitions:

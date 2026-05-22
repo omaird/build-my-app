@@ -20,6 +20,12 @@ struct SettingsFeature {
     // Preferences
     var isDarkMode: Bool = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
     var notificationsEnabled: Bool = UserDefaults.standard.bool(forKey: "rizq_notifications_enabled")
+    var soundEffectsEnabled: Bool = {
+      // Default ON when the key has never been set (matches SoundPlayer)
+      let key = SoundPlayer.soundEffectsEnabledKey
+      if UserDefaults.standard.object(forKey: key) == nil { return true }
+      return UserDefaults.standard.bool(forKey: key)
+    }()
 
     // Loading States
     var isLoading: Bool = false
@@ -87,6 +93,7 @@ struct SettingsFeature {
     // Preferences
     case darkModeToggled(Bool)
     case notificationsToggled(Bool)
+    case soundEffectsToggled(Bool)
 
     // Linked Accounts
     case linkAccountTapped(AuthProvider)
@@ -238,6 +245,11 @@ struct SettingsFeature {
       case .darkModeToggled(let isOn):
         state.isDarkMode = isOn
         UserDefaults.standard.set(isOn, forKey: "rizq_dark_mode")
+        return .none
+
+      case .soundEffectsToggled(let isOn):
+        state.soundEffectsEnabled = isOn
+        UserDefaults.standard.set(isOn, forKey: SoundPlayer.soundEffectsEnabledKey)
         return .none
 
       case .notificationsToggled(let isOn):

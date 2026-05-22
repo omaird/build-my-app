@@ -91,14 +91,15 @@ struct PracticeFeature {
 
   @Dependency(\.continuousClock) var clock
   @Dependency(\.haptics) var haptics
+  @Dependency(\.sound) var sound
   @Dependency(\.firestoreUserClient) var userClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        // Reset state when appearing
-        return .none
+        // Pre-warm audio so the first counter tap has no decode latency.
+        return .run { [sound] _ in sound.prepare() }
 
       case .setDua(let dua):
         state.dua = dua
@@ -127,9 +128,10 @@ struct PracticeFeature {
           }
         }
 
-        // Trigger counter tap haptic
-        return .run { _ in
+        // Tap feedback: haptic + soft bead sound
+        return .run { [haptics, sound] _ in
           haptics.counterIncrement()
+          sound.beadTap()
         }
 
       case .decrementCounter:
@@ -154,7 +156,8 @@ struct PracticeFeature {
 
         guard let dua = state.dua else {
           // Trigger celebration even without dua
-          return .run { _ in
+          return .run { [haptics, sound] _ in
+            sound.completion()
             haptics.counterComplete()
             try? await clock.sleep(for: .milliseconds(300))
             haptics.celebration()
@@ -166,8 +169,9 @@ struct PracticeFeature {
 
         // Persist XP if we have a user ID
         guard let userId = state.userId else {
-          // No user ID, just trigger celebration haptics
-          return .run { send in
+          // No user ID, just trigger celebration haptics + sound
+          return .run { [haptics, sound] send in
+            sound.completion()
             haptics.counterComplete()
             try? await clock.sleep(for: .milliseconds(300))
             haptics.celebration()
@@ -178,8 +182,9 @@ struct PracticeFeature {
 
         state.isSavingCompletion = true
 
-        return .run { [userId, duaId = dua.id, xp] send in
-          // Trigger celebration haptics immediately
+        return .run { [userId, duaId = dua.id, xp, haptics, sound] send in
+          // Audio + haptic land together with the visual celebration
+          sound.completion()
           haptics.counterComplete()
           try? await clock.sleep(for: .milliseconds(300))
           haptics.celebration()
