@@ -28,9 +28,9 @@ struct AppFeature {
 
   enum Tab: String, CaseIterable, Identifiable {
     case home
-    case library
-    case adkhar
     case journeys
+    case adkhar
+    case library
     case settings
 
     var id: String { rawValue }
