@@ -357,7 +357,7 @@ struct SettingsView: View {
 
   private var appInfoView: some View {
     VStack(spacing: RIZQSpacing.sm) {
-      Text("RIZQ App v1.0.0")
+      Text("Razzaq App v1.0.0")
         .font(.rizqSans(.footnote))
         .foregroundStyle(Color.rizqTextSecondary)
 

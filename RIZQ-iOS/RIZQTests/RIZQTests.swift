@@ -417,7 +417,7 @@ final class RIZQTests: XCTestCase {
 
     let quote = state.dailyQuote
     await store.send(.shareQuoteTapped) {
-      $0.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from RIZQ App"
+      $0.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from Razzaq App"
     }
   }
 

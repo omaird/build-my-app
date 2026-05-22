@@ -440,7 +440,7 @@ struct HomeFeature {
       case .shareQuoteTapped:
         // Set share text to trigger share sheet in the view
         let quote = state.dailyQuote
-        state.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from RIZQ App"
+        state.shareText = "\"\(quote.englishText)\"\n\n— \(quote.source)\n\nShared from Razzaq App"
         return .none
 
       case .dismissShare:
