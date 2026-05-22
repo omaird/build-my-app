@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Settings, BookOpen, Compass, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/BottomNav";
+import { ErrorState } from "@/components/ErrorState";
 import { useUserHabits } from "@/hooks/useUserHabits";
 import { useToast } from "@/hooks/use-toast";
 import { HabitTimeSlotSection } from "@/components/habits/HabitTimeSlotSection";
@@ -42,6 +43,9 @@ export default function DailyAdkharPage() {
     progress,
     activeJourneys,
     isLoading,
+    isError,
+    error,
+    refetch,
     nextUncompletedHabit,
     removeCustomHabit,
     todaysHabits,
@@ -75,6 +79,18 @@ export default function DailyAdkharPage() {
   };
 
   const allCompleted = progress.completed === progress.total && progress.total > 0;
+
+  if (isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <ErrorState
+          title="Failed to load your adkhar"
+          error={error}
+          onRetry={refetch}
+        />
+      </div>
+    );
+  }
 
   // Loading state
   if (isLoading) {

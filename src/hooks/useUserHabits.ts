@@ -58,15 +58,26 @@ export function useUserHabits() {
   });
 
   // Fetch all duas for enrichment
-  const { data: allDuas = [], isLoading: duasLoading } = useDuas();
+  const {
+    data: allDuas = [],
+    isLoading: duasLoading,
+    isError: duasError,
+    error: duasErrorValue,
+    refetch: refetchDuas,
+  } = useDuas();
 
   // Fetch all active journeys
   const journeyIds = useMemo(
     () => storage.activeJourneyIds.map((id) => parseInt(id, 10)),
     [storage.activeJourneyIds]
   );
-  const { data: activeJourneys = [], isLoading: journeysLoading } =
-    useJourneysWithDuas(journeyIds);
+  const {
+    data: activeJourneys = [],
+    isLoading: journeysLoading,
+    isError: journeysError,
+    error: journeysErrorValue,
+    refetch: refetchJourneys,
+  } = useJourneysWithDuas(journeyIds);
 
   // Persist to localStorage
   useEffect(() => {
@@ -315,8 +326,14 @@ export function useUserHabits() {
     })[0];
   }, [todaysHabits]);
 
-  // Loading state
+  // Loading + error state
   const isLoading = duasLoading || journeysLoading;
+  const isError = duasError || journeysError;
+  const error = duasErrorValue ?? journeysErrorValue ?? null;
+  const refetch = () => {
+    refetchDuas();
+    refetchJourneys();
+  };
 
   return {
     // State
@@ -329,6 +346,9 @@ export function useUserHabits() {
     hasHabits,
     nextUncompletedHabit,
     isLoading,
+    isError,
+    error,
+    refetch,
 
     // Actions
     addJourney,

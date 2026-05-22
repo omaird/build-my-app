@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Loader2, BookOpen } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { DuaCard } from "@/components/DuaCard";
+import { ErrorState } from "@/components/ErrorState";
 import { AddToAdkharSheet } from "@/components/habits/AddToAdkharSheet";
 import { useDuas } from "@/hooks/useDuas";
 import { useUserProgress } from "@/hooks/useActivity";
@@ -54,8 +55,7 @@ export default function LibraryPage() {
 
   const isInAdkhar = (duaId: string) => todaysHabits.some((h) => h.duaId === duaId);
 
-  // Fetch duas from Neon database
-  const { data: duas = [], isLoading, error } = useDuas();
+  const { data: duas = [], isLoading, isError, error, refetch } = useDuas();
 
   const filteredDuas = useMemo(() => {
     return duas.filter((dua) => {
@@ -159,25 +159,19 @@ export default function LibraryPage() {
 
         {/* Error State */}
         <AnimatePresence mode="wait">
-          {error && (
-            <motion.div
+          {isError && (
+            <ErrorState
               key="error"
-              className="rounded-islamic border-2 border-destructive/30 bg-destructive/5 p-6 text-center"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <p className="text-sm font-medium text-destructive">Failed to load duas</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {error instanceof Error ? error.message : "Unknown error"}
-              </p>
-            </motion.div>
+              title="Failed to load duas"
+              error={error}
+              onRetry={() => refetch()}
+            />
           )}
         </AnimatePresence>
 
         {/* Dua List */}
         <AnimatePresence mode="wait">
-          {!isLoading && !error && (
+          {!isLoading && !isError && (
             <motion.div
               key="list"
               className="space-y-3"
@@ -202,7 +196,7 @@ export default function LibraryPage() {
 
         {/* Empty State */}
         <AnimatePresence mode="wait">
-          {!isLoading && !error && filteredDuas.length === 0 && (
+          {!isLoading && !isError && filteredDuas.length === 0 && (
             <motion.div
               key="empty"
               className="flex flex-col items-center justify-center py-16 text-center"

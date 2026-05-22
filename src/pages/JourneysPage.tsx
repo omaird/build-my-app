@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ErrorState";
 import { JourneyList } from "@/components/journeys";
 import { useJourneys } from "@/hooks/useJourneys";
 import { useUserHabits } from "@/hooks/useUserHabits";
@@ -29,7 +30,7 @@ const itemVariants = {
 
 export default function JourneysPage() {
   const navigate = useNavigate();
-  const { data: journeys = [], isLoading } = useJourneys();
+  const { data: journeys = [], isLoading, isError, error, refetch } = useJourneys();
   const { storage } = useUserHabits();
 
   const activeJourneyIds: number[] = storage.activeJourneyIds.map((id) =>
@@ -55,6 +56,18 @@ export default function JourneysPage() {
           </div>
           <p className="text-sm text-muted-foreground">Loading journeys...</p>
         </motion.div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <ErrorState
+          title="Failed to load journeys"
+          error={error}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
