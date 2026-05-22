@@ -31,6 +31,8 @@ const getRecommendedTimeSlot = (category: DuaCategory): TimeSlot => {
       return "morning";
     case "gratitude":
       return "evening";
+    case "foundation":
+      return "anytime";
     default:
       return "anytime";
   }
