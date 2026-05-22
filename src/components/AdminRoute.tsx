@@ -1,6 +1,7 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, ShieldX } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -10,7 +11,6 @@ export function AdminRoute({ children }: AdminRouteProps) {
   const { isAuthenticated, isAdmin, isLoading } = useAuth();
   const location = useLocation();
 
-  // Show loading state while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -22,12 +22,10 @@ export function AdminRoute({ children }: AdminRouteProps) {
     );
   }
 
-  // Redirect to sign in if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // Show access denied for non-admin users
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -42,7 +40,9 @@ export function AdminRoute({ children }: AdminRouteProps) {
             You don't have permission to access the admin panel.
             Please contact an administrator if you believe this is an error.
           </p>
-          <Navigate to="/" replace />
+          <Button asChild variant="outline" className="mt-2">
+            <Link to="/">Return to home</Link>
+          </Button>
         </div>
       </div>
     );
