@@ -63,7 +63,7 @@ packages:
     from: "8.0.0"
   Satin:
     url: https://github.com/Hi-Rez/Satin
-    branch: main
+    revision: a91c469f517cef1946d5ed4dd9771df4843a30ef
 
 targets:
   RIZQ:
