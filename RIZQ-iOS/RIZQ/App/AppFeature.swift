@@ -191,6 +191,11 @@ struct AppFeature {
         // (replaces previously-hardcoded category-id literals).
         return .send(.library(.contentCategoriesUpdated(categories)))
 
+      // Forward HomeFeature's profile load to Adkhar so widget updates on
+      // habit completion use real XP/level instead of 0/100/1 placeholders.
+      case let .home(.profileLoaded(profile)):
+        return .send(.adkhar(.profileUpdated(totalXp: profile.totalXp, level: profile.level)))
+
       case let .content(.journeyDuasLoaded(mappings)):
         return .merge(
           .send(.adkhar(.contentUpdated(duas: state.content.duas, journeyDuas: mappings))),

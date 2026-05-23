@@ -1,5 +1,4 @@
 import ComposableArchitecture
-import FirebaseAuth
 import Foundation
 import os.log
 import SwiftUI
@@ -55,6 +54,12 @@ struct AdkharFeature {
     var isLoading: Bool = false
     /// Current streak (consecutive days of practice)
     var streak: Int = 0
+    /// User's total XP (mirrored from HomeFeature's profile load via parent
+    /// forwarding). Used to compute accurate widget updates instead of the
+    /// previously-hardcoded 0/100/1 placeholder values.
+    var profileTotalXp: Int = 0
+    /// User's current level (mirrored alongside `profileTotalXp`).
+    var profileLevel: Int = 1
 
     // MARK: - Parent-Pushed Content
     //
@@ -148,6 +153,8 @@ struct AdkharFeature {
     /// `computeHabits` on the next user-data refresh (or immediately if user
     /// data is already loaded).
     case contentUpdated(duas: [Dua], journeyDuas: [JourneyDua])
+    /// Parent-pushed user profile (totalXp/level) for accurate widget updates.
+    case profileUpdated(totalXp: Int, level: Int)
     case habitsLoaded(morning: [Habit], anytime: [Habit], evening: [Habit])
     case loadFailed(String)
     case streakLoaded(Int)
@@ -180,6 +187,7 @@ struct AdkharFeature {
   @Dependency(SoundClient.self) var sound
   @Dependency(\.adkharService) var adkharService
   @Dependency(\.userHabitsClient) var userHabitsClient
+  @Dependency(\.authClient) var authClient
 
   var body: some ReducerOf<Self> {
     Reduce { state, action in
@@ -196,7 +204,7 @@ struct AdkharFeature {
         let allDuas = state.availableDuas
         let allJourneyDuas = state.availableJourneyDuas
 
-        return .run { [adkharService, userHabitsClient] send in
+        return .run { [adkharService, userHabitsClient, authClient] send in
           do {
             // User-data: subscribed journeys + custom habits (local, fast).
             async let activeJourneyIdsTask = adkharService.getActiveJourneyIds()
@@ -218,7 +226,8 @@ struct AdkharFeature {
             ))
 
             // Cloud user-data: streak + today's completions (requires auth).
-            if let userId = adkharService.currentUserId() {
+            // Routes through the injected authClient — no Firebase singleton.
+            if let userId = authClient.restoreSession()?.0.id {
               let streak = try await adkharService.fetchStreak(userId)
               await send(.streakLoaded(streak))
 
@@ -248,6 +257,13 @@ struct AdkharFeature {
         state.availableDuas = duas
         state.availableJourneyDuas = journeyDuas
         return .send(.refreshData)
+
+      case let .profileUpdated(totalXp, level):
+        // Mirrored from HomeFeature.profileLoaded via parent forwarding. Used
+        // for accurate widget projection on habit completion.
+        state.profileTotalXp = totalXp
+        state.profileLevel = level
+        return .none
 
       case .habitsLoaded(let morning, let anytime, let evening):
         state.isLoading = false
@@ -291,16 +307,25 @@ struct AdkharFeature {
         let streak = state.streak
         let xpEarned = habit.xpValue
         let duaId = habit.duaId
+        // Project forward what totalXp + level will be after this completion
+        // lands in Firestore. Mirrors the formula FirebaseUserService uses
+        // server-side so the widget reflects the new state immediately.
+        let newTotalXp = state.profileTotalXp + xpEarned
+        let newLevel = LevelCalculator.calculateLevel(from: newTotalXp)
+        let nextLevelXp = LevelCalculator.xpNeeded(for: newLevel)
+        // Update local mirror so the next completion stacks correctly.
+        state.profileTotalXp = newTotalXp
+        state.profileLevel = newLevel
 
-        return .run { [adkharService, userHabitsClient] _ in
+        return .run { [adkharService, userHabitsClient, authClient] _ in
           // Update widget with current progress
           WidgetDataManager.shared.updateDailyProgress(
             completedCount: completedCount,
             totalCount: totalCount,
             streak: streak,
-            currentXp: 0,
-            xpToNextLevel: 100,
-            level: 1
+            currentXp: newTotalXp,
+            xpToNextLevel: nextLevelXp,
+            level: newLevel
           )
 
           // Persist completion to local storage (fast, offline-safe cache)
@@ -311,8 +336,10 @@ struct AdkharFeature {
             adkharLogger.error("Failed to cache completion locally: \(error.localizedDescription, privacy: .public)")
           }
 
-          // Persist completion to Firestore (cloud source of truth)
-          guard let userId = adkharService.currentUserId() else { return }
+          // Persist completion to Firestore (cloud source of truth). Routes
+          // through the injected authClient instead of touching the Firebase
+          // singleton directly, so tests can override.
+          guard let userId = authClient.restoreSession()?.0.id else { return }
 
           do {
             try await adkharService.recordCompletion(userId, duaId, xpEarned)
@@ -505,7 +532,6 @@ struct AdkharServiceClient: Sendable {
   /// Gets user-added custom habits from local storage
   var getCustomHabits: @Sendable () async throws -> [CustomHabit]
   /// Gets the current authenticated user's ID (nil if not signed in)
-  var currentUserId: @Sendable () -> String?
 }
 
 extension AdkharServiceClient: DependencyKey {
@@ -553,9 +579,6 @@ extension AdkharServiceClient: DependencyKey {
         try await habitStorage.getCustomHabits()
       },
 
-      currentUserId: {
-        Auth.auth().currentUser?.uid
-      }
     )
   }()
 
@@ -566,7 +589,6 @@ extension AdkharServiceClient: DependencyKey {
     fetchTodayCompletions: { _ in [] },
     getActiveJourneyIds: { [] },
     getCustomHabits: { [] },
-    currentUserId: { "test-user-id" }
   )
 
   static let previewValue = AdkharServiceClient(
@@ -600,7 +622,6 @@ extension AdkharServiceClient: DependencyKey {
     fetchTodayCompletions: { _ in [] },
     getActiveJourneyIds: { [1, 2] },
     getCustomHabits: { [] },
-    currentUserId: { "preview-user-id" }
   )
 }
 
