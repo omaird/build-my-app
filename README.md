@@ -4,9 +4,8 @@ A gamified Islamic dua (supplication) practice and habit-tracking app. Users pra
 
 ## Prerequisites
 
-- **Node.js 18+** with npm
-- **Neon PostgreSQL** account (database)
-- **Firebase** account (authentication)
+- **Node.js 22+** with npm
+- **Firebase** account (Auth + Firestore — single source of truth for content and user data)
 - **Git** (optional, for cloning)
 
 ## Quick Start
@@ -21,13 +20,18 @@ npm install
 
 ### 2. Configure Environment
 
-Create a `.env` file in the root directory:
+Copy `.env.example` to `.env` and fill in your Firebase Web app values from
+the Firebase Console (Project Settings → General → Your apps):
 
 ```env
-VITE_DATABASE_URL=postgresql://...  # Neon connection string
-VITE_FIREBASE_API_KEY=...           # Firebase config
-VITE_FIREBASE_AUTH_DOMAIN=...
-VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=rizq-app-c6468.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=rizq-app-c6468
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+# Set to "true" to point the web app at the Firebase emulator suite (used by e2e tests)
+VITE_USE_FIREBASE_EMULATORS=false
 ```
 
 ### 3. Start Development Server
@@ -59,8 +63,8 @@ Navigate to **http://localhost:5173** in your browser. Sign in with Google or Gi
            ┌───────────────┴───────────────┐
            │                               │
    ┌───────▼───────┐             ┌─────────▼────────┐
-   │   Firebase    │             │  Neon PostgreSQL │
-   │     Auth      │             │   (Serverless)   │
+   │   Firebase    │             │     Firebase     │
+   │     Auth      │             │    Firestore     │
    └───────────────┘             └──────────────────┘
 ```
 
@@ -73,7 +77,7 @@ Navigate to **http://localhost:5173** in your browser. Sign in with Google or Gi
 | Animations | Framer Motion |
 | State (Server) | TanStack React Query v5 |
 | State (Client) | React Context + localStorage |
-| Database | Neon PostgreSQL (serverless) |
+| Database | Firebase Firestore (web + iOS share one backend) |
 | Auth | Firebase Authentication |
 | Testing | Playwright (E2E) |
 
@@ -104,8 +108,8 @@ razzaq-app/
 │   ├── contexts/
 │   │   └── AuthContext.tsx  # Auth + profile state
 │   ├── lib/
-│   │   ├── db.ts            # Neon SQL client
-│   │   └── auth-client.ts   # Firebase auth client
+│   │   ├── firebase.ts      # Firebase Web SDK init (Auth + Firestore)
+│   │   └── firestore-mappers.ts # Document ↔ frontend type mappers
 │   └── types/               # TypeScript definitions
 ├── RIZQ-iOS/                # Native iOS app (Swift/TCA)
 └── README.md
