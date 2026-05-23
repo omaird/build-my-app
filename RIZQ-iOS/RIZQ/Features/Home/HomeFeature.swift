@@ -201,6 +201,10 @@ struct HomeFeature {
     case activityLoaded(UserActivity?)
     case weekActivitiesLoaded([UserActivity])
     case habitsProgressLoaded(TodayProgress)
+    /// Forwarded by AppFeature from AdkharFeature's habitsLoaded. Home no
+    /// longer computes its own habit count — it consumes the one AdkharFeature
+    /// already produced from parent-pushed content.
+    case habitsCountUpdated(Int)
     case todaysHabitsLoaded([UserHabit])
     case streakIncremented
     case streakAnimationCompleted
@@ -237,12 +241,7 @@ struct HomeFeature {
         state.isLoading = true
         state.loadError = nil
 
-        // Snapshot content for the effect — state isn't accessible after we
-        // leave the reducer body.
-        let allDuas = state.availableDuas
-        let allJourneyDuas = state.availableJourneyDuas
-
-        return .run { [userId, adkharService] send in
+        return .run { [userId] send in
           do {
             // Profile (create if missing).
             if let profile = try await userClient.fetchUserProfile(userId) {
@@ -259,25 +258,10 @@ struct HomeFeature {
             let weekActivities = try await userClient.fetchWeekActivities(userId)
             await send(.weekActivitiesLoaded(weekActivities))
 
-            // Habit total: compute locally from parent-pushed content + user
-            // habit storage. No master-content fetch, no timeout.
-            async let activeJourneyIdsTask = adkharService.getActiveJourneyIds()
-            async let customHabitsTask = adkharService.getCustomHabits()
-            let activeJourneyIds = try await activeJourneyIdsTask
-            let customHabits = try await customHabitsTask
-            let habits = adkharService.computeHabits(
-              activeJourneyIds,
-              allDuas,
-              allJourneyDuas,
-              customHabits
-            )
-            let totalHabits = habits.morning.count + habits.anytime.count + habits.evening.count
-            let habitsProgress = TodayProgress(
-              completed: activity?.duasCompleted.count ?? 0,
-              total: totalHabits,
-              xpEarned: activity?.xpEarned ?? 0
-            )
-            await send(.habitsProgressLoaded(habitsProgress))
+            // Habit total no longer computed here — flows in via
+            // .habitsCountUpdated forwarded from AdkharFeature by AppFeature.
+            // The .activityLoaded handler above merges the existing total with
+            // the new completion/xp values when activity arrives.
           } catch {
             await send(.profileLoadFailed(error.localizedDescription))
           }
@@ -343,11 +327,15 @@ struct HomeFeature {
       case .activityLoaded(let activity):
         state.todayActivity = activity
         if let activity = activity {
-          // Update today's progress based on activity
+          // Update today's progress based on activity. Preserve `total` from
+          // whichever source got there first (.habitsCountUpdated from
+          // AdkharFeature, or .todaysHabitsLoaded). If neither has fired yet,
+          // fall back to duasCount so the progress bar isn't visibly broken.
           let duasCount = activity.duasCompleted.count
+          let existingTotal = state.todaysProgress.total
           state.todaysProgress = TodayProgress(
             completed: duasCount,
-            total: max(duasCount, state.todaysHabits.count),
+            total: max(existingTotal, duasCount),
             xpEarned: activity.xpEarned
           )
         }
@@ -361,6 +349,17 @@ struct HomeFeature {
 
       case .habitsProgressLoaded(let progress):
         state.todaysProgress = progress
+        return .none
+
+      case .habitsCountUpdated(let total):
+        // Adkhar finished computing today's habit list — adopt its total.
+        // Preserve the existing completed/xpEarned values (those come from
+        // .activityLoaded, which runs on its own schedule).
+        state.todaysProgress = TodayProgress(
+          completed: state.todaysProgress.completed,
+          total: total,
+          xpEarned: state.todaysProgress.xpEarned
+        )
         return .none
 
       case .todaysHabitsLoaded(let habits):
