@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { collection, doc, getDoc, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { getDb } from '@/lib/firebase';
 import type { DuaWithRelations, Category, Collection } from '@/types/db-rows';
 import type { Dua, DuaCategory, DuaContext, DuaDifficulty } from '@/types/dua';
@@ -109,99 +109,6 @@ async function fetchDuasFirestore(): Promise<Dua[]> {
   );
 }
 
-async function fetchDuaFirestore(id: number): Promise<DuaWithRelations | null> {
-  const db = getDb();
-  const snap = await getDoc(doc(db, 'duas', String(id)));
-  if (!snap.exists()) return null;
-
-  const data = snap.data() as FsDuaDoc;
-  const categorySlugById = await fetchCategorySlugMap();
-  const numericId = typeof data.id === 'number' ? data.id : Number(snap.id);
-  const categorySlug =
-    data.categoryId != null ? categorySlugById.get(data.categoryId) ?? undefined : undefined;
-
-  // Project Firestore shape into the legacy `DuaWithRelations` (snake_case)
-  // contract so existing consumers of `useDua` keep working unchanged.
-  const result: DuaWithRelations = {
-    id: numericId,
-    category_id: data.categoryId ?? null,
-    collection_id: data.collectionId ?? null,
-    title_en: data.titleEn ?? '',
-    title_ar: data.titleAr ?? null,
-    arabic_text: data.arabicText ?? '',
-    transliteration: data.transliteration ?? null,
-    translation_en: data.translationEn ?? null,
-    source: data.source ?? null,
-    repetitions: data.repetitions ?? 1,
-    best_time: data.bestTime ?? null,
-    difficulty: (data.difficulty as DuaWithRelations['difficulty']) ?? null,
-    est_duration_sec: data.estDurationSec ?? null,
-    rizq_benefit: data.rizqBenefit ?? null,
-    context: data.context ?? null,
-    prophetic_context: data.propheticContext ?? null,
-    xp_value: data.xpValue ?? 0,
-    audio_url: null,
-    created_at: '',
-    updated_at: '',
-    category_slug: categorySlug,
-  };
-  return result;
-}
-
-async function fetchDuasByCategoryFirestore(
-  categorySlug: string
-): Promise<DuaWithRelations[]> {
-  const db = getDb();
-
-  // Look up the numeric category id by slug.
-  const catSnap = await getDocs(
-    query(collection(db, 'categories'), where('slug', '==', categorySlug))
-  );
-  if (catSnap.empty) return [];
-  const catDoc = catSnap.docs[0];
-  const catData = catDoc.data() as FsCategoryDoc;
-  const categoryId =
-    typeof catData.id === 'number' ? catData.id : Number(catDoc.id);
-  if (!Number.isFinite(categoryId)) return [];
-
-  const duasSnap = await getDocs(
-    query(
-      collection(db, 'duas'),
-      where('categoryId', '==', categoryId),
-      orderBy('id')
-    )
-  );
-
-  return duasSnap.docs.map((d) => {
-    const data = d.data() as FsDuaDoc;
-    const numericId = typeof data.id === 'number' ? data.id : Number(d.id);
-    return {
-      id: numericId,
-      category_id: data.categoryId ?? null,
-      collection_id: data.collectionId ?? null,
-      title_en: data.titleEn ?? '',
-      title_ar: data.titleAr ?? null,
-      arabic_text: data.arabicText ?? '',
-      transliteration: data.transliteration ?? null,
-      translation_en: data.translationEn ?? null,
-      source: data.source ?? null,
-      repetitions: data.repetitions ?? 1,
-      best_time: data.bestTime ?? null,
-      difficulty: (data.difficulty as DuaWithRelations['difficulty']) ?? null,
-      est_duration_sec: data.estDurationSec ?? null,
-      rizq_benefit: data.rizqBenefit ?? null,
-      context: data.context ?? null,
-      prophetic_context: data.propheticContext ?? null,
-      xp_value: data.xpValue ?? 0,
-      audio_url: null,
-      created_at: '',
-      updated_at: '',
-      category_slug: catData.slug ?? undefined,
-      category_name: catData.name ?? undefined,
-    } satisfies DuaWithRelations;
-  });
-}
-
 async function fetchCategoriesFirestore(): Promise<Category[]> {
   const db = getDb();
   const snap = await getDocs(collection(db, 'categories'));
@@ -247,22 +154,6 @@ export function useDuas() {
   return useQuery({
     queryKey: ['duas'],
     queryFn: fetchDuasFirestore,
-  });
-}
-
-export function useDua(id: number) {
-  return useQuery({
-    queryKey: ['duas', id],
-    queryFn: () => fetchDuaFirestore(id),
-    enabled: !!id,
-  });
-}
-
-export function useDuasByCategory(categorySlug: string) {
-  return useQuery({
-    queryKey: ['duas', 'category', categorySlug],
-    queryFn: () => fetchDuasByCategoryFirestore(categorySlug),
-    enabled: !!categorySlug,
   });
 }
 
