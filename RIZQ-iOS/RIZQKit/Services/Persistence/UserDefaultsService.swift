@@ -31,8 +31,8 @@ public enum StorageKey: String, CaseIterable, Sendable {
 /// Protocol for UserDefaults operations to enable mocking
 public protocol UserDefaultsServiceProtocol: Sendable {
   // Generic operations
-  func set<T: Codable>(_ value: T, forKey key: StorageKey) async throws
-  func get<T: Codable>(_ type: T.Type, forKey key: StorageKey) async throws -> T?
+  func set<T: Codable & Sendable>(_ value: T, forKey key: StorageKey) async throws
+  func get<T: Codable & Sendable>(_ type: T.Type, forKey key: StorageKey) async throws -> T?
   func remove(forKey key: StorageKey) async
   func exists(forKey key: StorageKey) async -> Bool
 
@@ -96,12 +96,12 @@ public actor UserDefaultsService: UserDefaultsServiceProtocol {
 
   // MARK: - Generic Codable Operations
 
-  public func set<T: Codable>(_ value: T, forKey key: StorageKey) throws {
+  public func set<T: Codable & Sendable>(_ value: T, forKey key: StorageKey) throws {
     let data = try encoder.encode(value)
     defaults.set(data, forKey: key.rawValue)
   }
 
-  public func get<T: Codable>(_ type: T.Type, forKey key: StorageKey) throws -> T? {
+  public func get<T: Codable & Sendable>(_ type: T.Type, forKey key: StorageKey) throws -> T? {
     guard let data = defaults.data(forKey: key.rawValue) else {
       return nil
     }
@@ -272,12 +272,12 @@ public actor MockUserDefaultsService: UserDefaultsServiceProtocol {
     decoder.dateDecodingStrategy = .iso8601
   }
 
-  public func set<T: Codable>(_ value: T, forKey key: StorageKey) throws {
+  public func set<T: Codable & Sendable>(_ value: T, forKey key: StorageKey) throws {
     let data = try encoder.encode(value)
     storage[key.rawValue] = data
   }
 
-  public func get<T: Codable>(_ type: T.Type, forKey key: StorageKey) throws -> T? {
+  public func get<T: Codable & Sendable>(_ type: T.Type, forKey key: StorageKey) throws -> T? {
     guard let data = storage[key.rawValue] as? Data else {
       return nil
     }

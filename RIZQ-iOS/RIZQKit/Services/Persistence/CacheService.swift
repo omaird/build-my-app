@@ -81,8 +81,8 @@ public enum CacheKey: String, CaseIterable, Sendable {
 
 /// Protocol for cache operations
 public protocol CacheServiceProtocol: Sendable {
-  func get<T: Codable>(_ type: T.Type, forKey key: CacheKey, suffix: String?) async throws -> CacheEntry<T>?
-  func set<T: Codable>(_ value: T, forKey key: CacheKey, suffix: String?, maxAge: TimeInterval?) async throws
+  func get<T: Codable & Sendable>(_ type: T.Type, forKey key: CacheKey, suffix: String?) async throws -> CacheEntry<T>?
+  func set<T: Codable & Sendable>(_ value: T, forKey key: CacheKey, suffix: String?, maxAge: TimeInterval?) async throws
   func remove(forKey key: CacheKey, suffix: String?) async throws
   func clear() async throws
   func clearExpired() async throws -> Int
@@ -184,7 +184,7 @@ public actor CacheService: CacheServiceProtocol {
 
   // MARK: - Cache Operations
 
-  public func get<T: Codable>(_ type: T.Type, forKey key: CacheKey, suffix: String? = nil) throws -> CacheEntry<T>? {
+  public func get<T: Codable & Sendable>(_ type: T.Type, forKey key: CacheKey, suffix: String? = nil) throws -> CacheEntry<T>? {
     let url = try fileURL(forKey: key, suffix: suffix)
 
     guard fileManager.fileExists(atPath: url.path) else {
@@ -204,7 +204,7 @@ public actor CacheService: CacheServiceProtocol {
     }
   }
 
-  public func set<T: Codable>(
+  public func set<T: Codable & Sendable>(
     _ value: T,
     forKey key: CacheKey,
     suffix: String? = nil,
@@ -424,12 +424,12 @@ public actor MockCacheService: CacheServiceProtocol {
     return key.rawValue
   }
 
-  public func get<T: Codable>(_ type: T.Type, forKey key: CacheKey, suffix: String?) async throws -> CacheEntry<T>? {
+  public func get<T: Codable & Sendable>(_ type: T.Type, forKey key: CacheKey, suffix: String?) async throws -> CacheEntry<T>? {
     let cacheKey = cacheKey(key, suffix: suffix)
     return cache[cacheKey] as? CacheEntry<T>
   }
 
-  public func set<T: Codable>(_ value: T, forKey key: CacheKey, suffix: String?, maxAge: TimeInterval?) async throws {
+  public func set<T: Codable & Sendable>(_ value: T, forKey key: CacheKey, suffix: String?, maxAge: TimeInterval?) async throws {
     let cacheKey = cacheKey(key, suffix: suffix)
     let entry = CacheEntry(data: value, maxAge: maxAge ?? 300)
     cache[cacheKey] = entry
