@@ -47,6 +47,10 @@ struct LibraryFeature {
     var duas: [Dua] = []
     var allDuas: [Dua] = []  // Cache of all duas for filtering
     var categories: [CategoryDisplay] = CategoryDisplay.allCategories
+    /// Slug → numeric category-id map. Populated from ContentFeature's
+    /// `categories` list at content-load time. Replaces a previous hardcoded
+    /// switch (1=morning, 2=evening, ...) that broke if seed IDs ever shifted.
+    var categoryIdBySlug: [CategorySlug: Int] = [:]
     var searchText: String = ""
     var selectedCategory: CategorySlug?
     var isLoading: Bool = false
@@ -85,6 +89,10 @@ struct LibraryFeature {
     /// the prior self-fetch on `.onAppear` and the per-category Firestore round
     /// trip; category filtering is now in-memory against `allDuas`.
     case contentDuasUpdated([Dua])
+    /// Push the latest categories from ContentFeature. The slug→id map built
+    /// from this drives category filtering, replacing previously-hardcoded
+    /// integer literals.
+    case contentCategoriesUpdated([DuaCategory])
     case categorySelected(CategorySlug?)
     case duaTapped(Dua)
     case addToAdkharTapped(Dua)
@@ -129,12 +137,32 @@ struct LibraryFeature {
         state.errorMessage = nil
         state.allDuas = duas
         // Re-apply the current filter against the new content set.
-        state.duas = LibraryFeature.applyCategoryFilter(state.selectedCategory, to: duas)
+        state.duas = LibraryFeature.applyCategoryFilter(
+          state.selectedCategory,
+          to: duas,
+          idBySlug: state.categoryIdBySlug
+        )
+        return .none
+
+      case .contentCategoriesUpdated(let categories):
+        state.categoryIdBySlug = Dictionary(
+          uniqueKeysWithValues: categories.map { ($0.slug, $0.id) }
+        )
+        // Re-apply the filter with the new map.
+        state.duas = LibraryFeature.applyCategoryFilter(
+          state.selectedCategory,
+          to: state.allDuas,
+          idBySlug: state.categoryIdBySlug
+        )
         return .none
 
       case .categorySelected(let category):
         state.selectedCategory = category
-        state.duas = LibraryFeature.applyCategoryFilter(category, to: state.allDuas)
+        state.duas = LibraryFeature.applyCategoryFilter(
+          category,
+          to: state.allDuas,
+          idBySlug: state.categoryIdBySlug
+        )
         return .none
 
       case .duaTapped(let dua):
@@ -181,23 +209,21 @@ struct LibraryFeature {
     }
   }
 
-  /// Filter a flat dua list by category slug. Keeps category-to-ID mapping in
-  /// one place; mirrors what the prior categoryDuasLoaded.failure path did as a
-  /// fallback. With ContentFeature always feeding `allDuas`, this is the
-  /// primary (no longer fallback) path.
+  /// Filter a flat dua list by category slug, using the runtime slug→id map
+  /// populated from ContentFeature's `categories` list. If the map is empty
+  /// (categories not yet loaded), returns the full list — better than filtering
+  /// to nothing while we wait for the categories fetch to settle.
   private static func applyCategoryFilter(
     _ slug: CategorySlug?,
-    to duas: [Dua]
+    to duas: [Dua],
+    idBySlug: [CategorySlug: Int]
   ) -> [Dua] {
     guard let slug else { return duas }
-    return duas.filter { dua in
-      switch slug {
-      case .morning:   return dua.categoryId == 1
-      case .evening:   return dua.categoryId == 2
-      case .rizq:      return dua.categoryId == 3
-      case .gratitude: return dua.categoryId == 4
-      }
+    guard let targetId = idBySlug[slug] else {
+      // Categories haven't loaded yet — show everything rather than nothing.
+      return duas
     }
+    return duas.filter { $0.categoryId == targetId }
   }
 }
 

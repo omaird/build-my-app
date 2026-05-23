@@ -186,6 +186,11 @@ struct AppFeature {
       case let .content(.journeysLoaded(journeys)):
         return .send(.journeys(.contentJourneysUpdated(journeys)))
 
+      case let .content(.categoriesLoaded(categories)):
+        // Library uses this to build a slug→id map for in-memory filtering
+        // (replaces previously-hardcoded category-id literals).
+        return .send(.library(.contentCategoriesUpdated(categories)))
+
       case let .content(.journeyDuasLoaded(mappings)):
         return .merge(
           .send(.adkhar(.contentUpdated(duas: state.content.duas, journeyDuas: mappings))),
