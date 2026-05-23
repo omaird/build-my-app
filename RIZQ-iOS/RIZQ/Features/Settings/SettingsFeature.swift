@@ -17,15 +17,14 @@ struct SettingsFeature {
     var editedDisplayName: String = ""
     var isSavingDisplayName: Bool = false
 
-    // Preferences
-    var isDarkMode: Bool = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
-    var notificationsEnabled: Bool = UserDefaults.standard.bool(forKey: "rizq_notifications_enabled")
-    var soundEffectsEnabled: Bool = {
-      // Default ON when the key has never been set (matches SoundPlayer)
-      let key = SoundPlayer.soundEffectsEnabledKey
-      if UserDefaults.standard.object(forKey: key) == nil { return true }
-      return UserDefaults.standard.bool(forKey: key)
-    }()
+    // Preferences (persisted via @Shared appStorage — auto-syncs with
+    // UserDefaults, but test-overridable without touching real prefs).
+    @Shared(.appStorage("rizq_dark_mode")) var isDarkMode: Bool = false
+    @Shared(.appStorage("rizq_notifications_enabled")) var notificationsEnabled: Bool = false
+    // SoundPlayer's key — defaults ON when never set (we set true here; first
+    // write only happens when the user toggles, so existing users keep their
+    // current value).
+    @Shared(.appStorage(SoundPlayer.soundEffectsEnabledKey)) var soundEffectsEnabled: Bool = true
 
     // Loading States
     var isLoading: Bool = false
@@ -143,8 +142,9 @@ struct SettingsFeature {
       case .onAppear:
         state.isLoading = true
         state.isLoadingAccounts = true
-        // Load persisted dark mode preference
-        state.isDarkMode = UserDefaults.standard.bool(forKey: "rizq_dark_mode")
+        // Preferences (isDarkMode/notificationsEnabled/soundEffectsEnabled)
+        // are now @Shared(.appStorage) so they auto-load and auto-persist; no
+        // manual UserDefaults read needed here.
         // Load real user data from AuthService and Firestore
         return .run { [authClient, firestoreUserClient] send in
           do {
@@ -243,18 +243,16 @@ struct SettingsFeature {
       // MARK: - Preferences
 
       case .darkModeToggled(let isOn):
-        state.isDarkMode = isOn
-        UserDefaults.standard.set(isOn, forKey: "rizq_dark_mode")
+        // @Shared(.appStorage) handles persistence automatically.
+        state.$isDarkMode.withLock { $0 = isOn }
         return .none
 
       case .soundEffectsToggled(let isOn):
-        state.soundEffectsEnabled = isOn
-        UserDefaults.standard.set(isOn, forKey: SoundPlayer.soundEffectsEnabledKey)
+        state.$soundEffectsEnabled.withLock { $0 = isOn }
         return .none
 
       case .notificationsToggled(let isOn):
-        state.notificationsEnabled = isOn
-        UserDefaults.standard.set(isOn, forKey: "rizq_notifications_enabled")
+        state.$notificationsEnabled.withLock { $0 = isOn }
         if isOn {
           return .run { send in
             let center = UNUserNotificationCenter.current()
