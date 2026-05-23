@@ -20,7 +20,7 @@ public protocol FirestoreContentServiceProtocol: Sendable {
 
 /// Firestore service for fetching content data (duas, categories, journeys, collections)
 /// This replaces the Neon database for read-only content that doesn't need user-specific data
-public final class FirestoreContentService: FirestoreContentServiceProtocol, @unchecked Sendable {
+public final class FirestoreContentService: FirestoreContentServiceProtocol, Sendable {
   /// Lazy Firestore reference - ensures Firebase is configured before accessing
   private var db: Firestore {
     Firestore.firestore()
