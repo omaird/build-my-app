@@ -14,7 +14,7 @@ export function BottomNav() {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 z-50" aria-label="Main navigation">
       {/* Gradient fade at top */}
       <div className="absolute -top-6 left-0 right-0 h-6 gradient-fade-up pointer-events-none" />
 
@@ -33,6 +33,8 @@ export function BottomNav() {
               <Link
                 key={item.path}
                 to={item.path}
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
                 className="relative flex flex-col items-center gap-1 px-4 py-2"
               >
                 <motion.div

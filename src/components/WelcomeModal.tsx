@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Star, BookOpen, Compass, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 interface WelcomeModalProps {
   isOpen: boolean;
@@ -86,12 +89,60 @@ const starPositions = [
 export function WelcomeModal({ isOpen, onClose, userName }: WelcomeModalProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const displayName = userName || "there";
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setCurrentStep(0);
     }
   }, [isOpen]);
+
+  // Focus trap: capture previous focus, move into modal, restore on close.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    // Defer focus until after the animation begins so the modal element exists.
+    const focusTimer = window.setTimeout(() => {
+      const first = modalRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      first?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef.current) return;
+
+      const focusables = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (focusables.length === 0) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus?.();
+    };
+  }, [isOpen, onClose]);
 
   const handleNext = () => {
     if (currentStep < features.length - 1) {
@@ -142,6 +193,11 @@ export function WelcomeModal({ isOpen, onClose, userName }: WelcomeModalProps) {
 
           {/* Modal */}
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="welcome-modal-title"
+            aria-describedby="welcome-modal-description"
             className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-card border border-primary/10 shadow-elevated"
             variants={modalVariants}
             initial="hidden"
@@ -153,6 +209,8 @@ export function WelcomeModal({ isOpen, onClose, userName }: WelcomeModalProps) {
 
             {/* Close button */}
             <motion.button
+              type="button"
+              aria-label="Close welcome modal"
               className="absolute top-4 right-4 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-secondary/50 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
               onClick={onClose}
               whileHover={{ scale: 1.1 }}
@@ -180,12 +238,14 @@ export function WelcomeModal({ isOpen, onClose, userName }: WelcomeModalProps) {
                 </motion.div>
 
                 <motion.h2
+                  id="welcome-modal-title"
                   className="font-display text-2xl font-bold text-foreground"
                   variants={itemVariants}
                 >
                   Assalamu Alaikum, {displayName}!
                 </motion.h2>
                 <motion.p
+                  id="welcome-modal-description"
                   className="mt-2 text-sm text-muted-foreground"
                   variants={itemVariants}
                 >
