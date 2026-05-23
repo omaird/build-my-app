@@ -196,6 +196,13 @@ struct AppFeature {
       case let .home(.profileLoaded(profile)):
         return .send(.adkhar(.profileUpdated(totalXp: profile.totalXp, level: profile.level)))
 
+      // Adkhar finished computing today's habit list — push the count to Home
+      // so its progress bar doesn't have to re-do the same computation against
+      // Firestore (the call Adkhar already ran).
+      case let .adkhar(.habitsLoaded(morning, anytime, evening)):
+        let count = morning.count + anytime.count + evening.count
+        return .send(.home(.habitsCountUpdated(count)))
+
       case let .content(.journeyDuasLoaded(mappings)):
         return .merge(
           .send(.adkhar(.contentUpdated(duas: state.content.duas, journeyDuas: mappings))),
