@@ -10,14 +10,20 @@ interface WeekCalendarProps {
 const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 export function WeekCalendar({ activities }: WeekCalendarProps) {
-  const getWeekDays = () => {
-    const result = [];
+  type WeekDay = {
+    day: string;
+    activity: DailyActivity | null;
+    isToday: boolean;
+    date: number;
+  };
+  const getWeekDays = (): WeekDay[] => {
+    const result: WeekDay[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date(Date.now() - i * 86400000);
       const dayIndex = date.getDay();
       result.push({
         day: DAYS[dayIndex],
-        activity: activities[6 - i],
+        activity: activities[6 - i] ?? null,
         isToday: i === 0,
         date: date.getDate(),
       });
