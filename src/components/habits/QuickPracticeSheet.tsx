@@ -137,7 +137,7 @@ export function QuickPracticeSheet({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <CelebrationParticles count={16} />
+              <CelebrationParticles isActive particleCount={16} />
               <motion.div
                 className="flex flex-col items-center gap-3"
                 initial={{ scale: 0, opacity: 0 }}
@@ -145,7 +145,7 @@ export function QuickPracticeSheet({
                 transition={{ type: "spring", delay: 0.2 }}
               >
                 <div className="flex h-20 w-20 items-center justify-center rounded-full gradient-primary shadow-glow-primary">
-                  <AnimatedCheckmark size={48} />
+                  <AnimatedCheckmark isVisible size={48} />
                 </div>
                 <motion.span
                   className="font-display text-xl font-bold text-foreground"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { Settings, BookOpen, Compass, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/BottomNav";
@@ -15,7 +15,7 @@ import { JourneyIcon } from "@/components/journeys/JourneyIcon";
 import type { HabitWithDua } from "@/types/habit";
 import { cn } from "@/lib/utils";
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -26,7 +26,7 @@ const containerVariants = {
   },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
@@ -265,7 +265,7 @@ export default function DailyAdkharPage() {
                     <div className="absolute inset-0 islamic-pattern-dense opacity-30 pointer-events-none" />
 
                     {/* Celebration particles */}
-                    <CelebrationParticles count={8} />
+                    <CelebrationParticles isActive particleCount={8} />
 
                     {/* Decorative sparkles */}
                     <motion.div

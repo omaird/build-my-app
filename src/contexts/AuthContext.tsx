@@ -259,14 +259,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const db = getDb();
       const ref = doc(db, "user_profiles", fbUser.uid);
 
-      const patch: Record<string, unknown> = {
+      await updateDoc(ref, {
         updatedAt: serverTimestamp(),
-      };
-      if (updates.displayName !== undefined) {
-        patch.displayName = updates.displayName;
-      }
-
-      await updateDoc(ref, patch);
+        ...(updates.displayName !== undefined && { displayName: updates.displayName }),
+      });
       await refreshProfile();
     },
     [refreshProfile],
